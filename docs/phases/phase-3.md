@@ -172,13 +172,23 @@ skill updates) and released `0.3.0`. Findings:
 
 ## Acceptance
 
-1. Every corpus format yields a document with an outline or a recorded reason; goldens are
-   identical with and without the optional readers installed (isolation switch).
-2. Example archive: all 19 PDFs extract (scans flagged, none crash), the thesis outline comes
-   from its bookmarks with page-cited sections, the six workbooks yield parameters with units,
-   `cmx q param` compares a quantity across documents, `cmx q term` finds defined terms.
-3. Reader tests run in CI with `pypdf`, `openpyxl` and `xlrd` installed; the cross-OS hash stays
-   identical.
+Met, with the outcomes recorded as they happened rather than as they were assumed.
+
+1. **Met.** Every corpus format yields a document with an outline or a recorded reason, and the
+   isolation switch keeps the goldens identical whether or not the optional readers are
+   installed. 190 tests.
+2. **Met, with two corrections to the assumption.** 17 of the archive's 19 PDFs extract; the
+   other two are 9-byte stubs and are recorded as `extraction-failed`, which is the honest
+   result for a corrupt file. The thesis carries no bookmarks, so its 45 page-cited sections
+   come from derived headings (`toc_source: derived`); four other PDFs do have bookmarks and
+   use them. The six workbooks yield 648 cell parameters with units and formulas,
+   `cmx q param --compare` reports agreement per label, and `cmx q term` answers from the
+   documents' own definitions, for example `IMU = Inertial Measurement Unit`, defined at
+   `Automatic_control_of_a_multirotor_nice_model.pdf p.59-61 §4.1` and occurring 73 times in
+   three documents.
+3. **Met.** Reader tests run in CI with `pypdf`, `openpyxl` and `xlrd` installed, and the
+   cross-OS artifact hash is identical on Windows, Linux and macOS once the two zip defaults
+   above were pinned.
 
 ## Risks and defaults
 

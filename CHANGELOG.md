@@ -3,6 +3,27 @@
 All notable changes to ContextMAX are recorded here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.3.1] - 2026-09-17
+
+### Added
+- Scanned documents and documents cut short by a cap are counted, printed at the end of the
+  documents stage and carried into `coverage.json` and the manifest's completeness, instead of
+  being left only in each document's own notes.
+
+### Fixed
+- The synthetic Office fixtures no longer depend on the machine that built them, which had
+  made the test suite pass on Windows and fail on Linux and macOS. DEFLATE output differs
+  between zlib and zlib-ng, and `ZipInfo.create_system` is 0 on Windows and 3 elsewhere; both
+  are written into the archive, so both changed the corpus file hashes and every golden
+  artifact with them. Entries are now stored, `create_system` is pinned, and a determinism
+  test refuses either default coming back.
+
+### Changed
+- CI writes the test output to a file and, when the tests fail, runs `scripts/golden_diff.py`
+  to name the first differing artifact, row, field and values. Both tokens go into the
+  uploaded artifact's name, because job logs need repository admin rights to read while
+  artifact names are public.
+
 ## [0.3.0] - 2026-09-17
 
 Phase 3, the documents wave: every document format in the registry is read, and documents
@@ -67,11 +88,6 @@ gain terms, named quantities and parsed bibliographies.
   "identification".
 - Configuration files and spreadsheets contribute no topics or keyphrases: their headings are
   keys and sheet names, and their content is already covered by parameters.
-- The synthetic Office fixtures no longer depend on the machine that built them. DEFLATE
-  output differs between zlib and zlib-ng, and `ZipInfo.create_system` is 0 on Windows and 3
-  elsewhere; both are written into the archive, so both changed the corpus file hashes and
-  every golden artifact with them. Entries are now stored and `create_system` is pinned, and a
-  determinism test refuses either default coming back.
 
 ## [0.2.0] - 2026-09-17
 

@@ -2,7 +2,7 @@
 # Copyright 2026 Vsevolod Kiriouchine
 """Version and schema constants. Kept dependency-free so packaging can read it."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 # Bumped whenever the shape of a generated artifact changes incompatibly.
 SCHEMA_VERSION = 1
