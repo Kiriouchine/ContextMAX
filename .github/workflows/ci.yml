@@ -26,10 +26,18 @@ jobs:
       - name: Tests
         run: pytest
       - name: Artifact hash of the fixture corpus
-        run: python scripts/corpus_hash.py --out hash-${{ matrix.os }}-${{ matrix.python }}.txt
+        id: hash
+        shell: bash
+        run: |
+          python scripts/corpus_hash.py --out hash-${{ matrix.os }}-${{ matrix.python }}.txt
+          short=$(tr -d '\r\n' < hash-${{ matrix.os }}-${{ matrix.python }}.txt | cut -c1-12)
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "artifact identity: $short"
+      # The hash prefix in the artifact name makes cross-platform drift visible from the
+      # public API without downloading anything.
       - uses: actions/upload-artifact@v4
         with:
-          name: hash-${{ matrix.os }}-${{ matrix.python }}
+          name: hash-${{ matrix.os }}-${{ matrix.python }}-${{ steps.hash.outputs.short }}
           path: hash-${{ matrix.os }}-${{ matrix.python }}.txt
 
   cross-os-identity:
@@ -39,9 +47,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: hash-*
           path: hashes
       - name: Compare
         run: |
-          cat hashes/*/*.txt
-          if [ "$(cat hashes/*/*.txt | sort -u | wc -l)" != "1" ]; then
-            echo "artifact identity differs across platforms"; exit 1; fi
+          for f in hashes/*/*.txt; do printf '%s  %s\n' "$(tr -d '\r\n' < "$f")" "$f"; done
+          distinct=$(cat hashes/*/*.txt | tr -d '\r' | sed '/^$/d' | sort -u | wc -l | tr -d ' ')
+          if [ "$distinct" != "1" ]; then
+            echo "artifact identity differs across platforms ($distinct distinct hashes)"; exit 1; fi
+          echo "artifact identity identical on every platform"

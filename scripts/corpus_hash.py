@@ -36,7 +36,10 @@ def run() -> int:
     digest = manifest["artifact_identity_hash"]
     print(digest)
     if args.out:
-        Path(args.out).write_text(digest + "\n", encoding="utf-8")
+        # Explicit LF: on Windows, text mode would write CRLF and the CI comparison
+        # would read two "different" hashes that differ only in line endings.
+        with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(digest + "\n")
     return 0
 
 
