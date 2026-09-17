@@ -54,7 +54,7 @@ cmx = "contextmax.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/Kiriouchine/ContextMAX"
-Changelog = "https://github.com/Kiriouchine/ContextMAX/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/Kiriouchine/ContextMAX/blob/main/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/contextmax/version.py"
