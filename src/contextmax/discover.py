@@ -112,7 +112,10 @@ def _tier_for(
     det: Detection, plugins: set[str], binary: bool
 ) -> tuple[str, str | None, str | None]:
     """Return (tier, reason_code, reason) for a detected, readable file."""
-    if binary and det.family not in ("binary",):
+    text_expected = det.family in ("code", "text") or (
+        det.family in ("document", "data") and not det.container
+    )
+    if binary and text_expected:
         return "D", "binary-content", "file contains binary data despite its name"
     if det.family == "code":
         if det.plugin and det.plugin in plugins:

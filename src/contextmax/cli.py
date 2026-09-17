@@ -60,7 +60,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     write_config(config_path, data)
     atomic_write_text(index_dir / ".contextmax-skip", "ContextMAX index folder: never indexed.\n")
     print(f"created {config_path}")
-    if not args.no_gitignore:
+    if not args.no_gitignore and (root / ".git").exists():
         gi = root / ".gitignore"
         existing = gi.read_text(encoding="utf-8-sig") if gi.is_file() else ""
         if ".contextmax/*" not in existing:
@@ -206,7 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--description", help="one sentence used in the generated skill")
     p.add_argument("--force", action="store_true", help="overwrite an existing config")
     p.add_argument(
-        "--no-gitignore", action="store_true", help="do not touch the project's .gitignore"
+        "--no-gitignore",
+        action="store_true",
+        help="do not add the ignore block to .gitignore (only done when the folder is a git repo)",
     )
     p.set_defaults(func=cmd_init)
 

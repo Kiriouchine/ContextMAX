@@ -29,6 +29,7 @@ class Detection:
     requires: tuple[str, ...]
     how: str  # override | filename | extension | shebang | sniff | fallback
     reason: str | None = None
+    container: bool = False  # a binary container format (PDF, OOXML zip, ...): NUL bytes are normal
 
 
 def _load(name: str) -> dict[str, Any]:
@@ -97,6 +98,7 @@ def _format_detection(fmt_id: str, how: str) -> Detection:
         requires=tuple(fmt.get("requires", [])),
         how=how,
         reason=fmt.get("reason"),
+        container=bool(fmt.get("container", False)),
     )
 
 

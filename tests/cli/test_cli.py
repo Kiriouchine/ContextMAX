@@ -9,6 +9,7 @@ from contextmax.cli import main
 
 
 def test_init_creates_config_and_gitignore_block(corpus: Path, capsys):
+    (corpus / ".git").mkdir()  # only a git repository gets the ignore block
     assert main(["init", str(corpus), "--slug", "sample"]) == 0
     config = corpus / ".contextmax" / "config.json"
     assert config.is_file()
@@ -19,6 +20,15 @@ def test_init_creates_config_and_gitignore_block(corpus: Path, capsys):
     # Second init is a no-op without --force.
     assert main(["init", str(corpus)]) == 0
     assert "already initialised" in capsys.readouterr().out
+
+
+def test_init_in_plain_folder_leaves_gitignore_alone(tmp_path: Path):
+    folder = tmp_path / "archive"
+    folder.mkdir()
+    (folder / "a.txt").write_text("x", encoding="utf-8")
+    assert main(["init", str(folder), "--slug", "archive"]) == 0
+    assert (folder / ".contextmax" / "config.json").is_file()
+    assert not (folder / ".gitignore").exists()
 
 
 def test_status_before_and_after_build(project: Path, capsys):

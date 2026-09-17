@@ -61,6 +61,20 @@ def test_tiers_and_reasons(corpus: Path):
     assert ("nested", "skip-marker") in skipped
 
 
+def test_container_formats_are_not_penalised_for_binary_bytes(corpus: Path):
+    result = run(corpus)
+    files = by_file(result)
+    skipped = {row["file"]: row["reason_code"] for row in result.skipped}
+    # A PDF holds NUL bytes by nature; the only legitimate demotion is a missing reader.
+    assert skipped.get("docs/paper.pdf") in (None, "missing-dependency")
+    assert files["docs/paper.pdf"]["format"] == "pdf"
+    assert files["docs/report.docx"]["tier"] == "A"
+    assert "docs/report.docx" not in skipped
+    # A text-expected file with NUL bytes is demoted, and says so.
+    assert files["src/app/broken.py"]["tier"] == "D"
+    assert skipped["src/app/broken.py"] == "binary-content"
+
+
 def test_roles_from_default_rules(corpus: Path):
     files = by_file(run(corpus))
     assert files["tests/test_main.py"]["role"] == "test"
