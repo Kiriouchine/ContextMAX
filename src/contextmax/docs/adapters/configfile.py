@@ -22,6 +22,11 @@ MAX_RECORDS = 200
 VALUE_PREVIEW = 200
 URL = re.compile(r"^(https?|ftp|git|ssh)://\S+$")
 PATHLIKE = re.compile(r"^(?:\.{0,2}[/\\]|[A-Za-z]:[/\\]|[\w.-]+[/\\])?[\w./\\-]+\.[A-Za-z0-9]{1,5}$")
+# A dotted name is not a path: `Math.abs` and `containers.Map` are code, `notes.txt` is a file.
+# A value counts as a path only when it has a separator or a known document or code extension.
+FILE_EXT = frozenset(
+    ["md", "txt", "rst", "adoc", "org", "html", "htm", "xhtml", "pdf", "doc", "docx", "dot", "dotx", "xls", "xlsx", "xlsm", "xlsb", "ppt", "pptx", "odt", "ods", "odp", "csv", "tsv", "json", "jsonl", "yaml", "yml", "toml", "xml", "ini", "cfg", "conf", "properties", "lock", "log", "tex", "bib", "ipynb", "epub", "rtf", "eml", "mbox", "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "ico", "tif", "tiff", "mat", "fig", "slx", "py", "pyi", "js", "jsx", "ts", "tsx", "mjs", "cjs", "c", "h", "cpp", "hpp", "cc", "hh", "cs", "java", "go", "rs", "rb", "php", "lua", "m", "sh", "bash", "zsh", "ps1", "bat", "cmd", "sql", "vhd", "vhdl", "v", "sv", "zip", "tar", "gz", "tgz", "exe", "dll", "so", "dylib", "cfg", "env", "gitignore"]
+)
 YAML_ENTRY = re.compile(r"^(\s*)(?:- )?(?:([^:#\"']+?)\s*:\s*(.*))?$")
 YAML_LIST = re.compile(r"^(\s*)-\s+(.*)$")
 REQ_LINE = re.compile(r"^([A-Za-z0-9][\w.\-\[\]]*)\s*([=<>!~]=?.*)?$")
@@ -85,6 +90,9 @@ class ConfigAdapter:
             elif lower.endswith((".xml", ".xsd", ".xsl", ".xslt", ".svg", ".plist", ".csproj", ".vcxproj", ".props",
                                  ".targets", ".resx", ".nuspec", ".pom", ".xaml")):
                 self._xml(tree, data)
+            elif lower.endswith("ignore") or lower == ".gitattributes":
+                # A line in an ignore file is a pattern, not a path: searchable, never a reference.
+                self._lines(tree, text, dependencies=False, references=False)
             elif lower.startswith("requirements") or lower in ("go.mod", "go.sum") or lower.endswith(".lock"):
                 self._lines(tree, text, dependencies=True)
             elif lower.startswith(".") or lower.endswith((".ini", ".cfg", ".conf", ".properties", ".editorconfig")):
@@ -245,8 +253,8 @@ class ConfigAdapter:
         for k, v in parser.defaults().items():
             tree.blocks.append(Block(kind="list_item", text=f"{k} = {squash(v or '')[:VALUE_PREVIEW]}", line=1, end_line=1))
 
-    def _lines(self, tree: DocumentTree, text: str, dependencies: bool) -> None:
-        tree.metadata["shape"] = "dependencies" if dependencies else "lines"
+    def _lines(self, tree: DocumentTree, text: str, dependencies: bool, references: bool = True) -> None:
+        tree.metadata["shape"] = "dependencies" if dependencies else ("patterns" if not references else "lines")
         n = 0
         for number, raw in enumerate(text.split("\n"), start=1):
             line = raw.strip()
@@ -263,7 +271,8 @@ class ConfigAdapter:
                                              extra={"dependency": m.group(1)}))
                     continue
             tree.blocks.append(Block(kind="list_item", text=squash(line)[:VALUE_PREVIEW], line=number, end_line=number))
-            self._reference(tree, line, number)
+            if references:
+                self._reference(tree, line, number)
 
     # ----- helpers ----------------------------------------------------------------------------
     @staticmethod
@@ -275,7 +284,7 @@ class ConfigAdapter:
             tree.blocks.append(Block(kind="link", text=value, target=value, line=line, end_line=line))
         elif (
             PATHLIKE.match(value)
-            and ("/" in value or "\\" in value or "." in value[1:])
+            and ("/" in value or "\\" in value or value.rsplit(".", 1)[-1].lower() in FILE_EXT)
             and not value.replace(".", "").replace("-", "").isdigit()
         ):
             tree.blocks.append(

@@ -275,6 +275,20 @@ def test_config_shapes(name, data, shape, expect_items, expect_links):
     assert all(b.line >= 1 for b in tree.blocks)
 
 
+def test_dotted_identifiers_are_not_paths():
+    tree = ConfigAdapter().extract(
+        "reg.json", b'{"calls": ["Math.abs", "containers.Map", "np.array"], "file": "docs/spec.md", "doc": "notes.txt"}'
+    )
+    assert {b.target for b in kinds(tree, "link")} == {"docs/spec.md", "notes.txt"}
+
+
+def test_ignore_files_hold_patterns_not_references():
+    tree = ConfigAdapter().extract(".gitignore", b"build/\n*.pyc\n.vscode/settings.json\n!keep.log\n")
+    assert tree.metadata["shape"] == "patterns"
+    assert [b.text for b in kinds(tree, "list_item")] == ["build/", "*.pyc", ".vscode/settings.json", "!keep.log"]
+    assert kinds(tree, "link") == []  # a pattern is not a path that resolves to anything
+
+
 def test_config_json_top_level_keys_have_lines_and_broken_json_falls_back_to_lines():
     tree = ConfigAdapter().extract("c.json", b'{\n  "alpha": 1,\n  "beta": {"x": 2}\n}\n')
     assert [(h.text, h.line) for h in kinds(tree, "heading")] == [("alpha", 2), ("beta", 3)]
