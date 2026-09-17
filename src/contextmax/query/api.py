@@ -129,8 +129,12 @@ class Index:
         if fts5:
             terms = " ".join(f'"{t}"' for t in query.replace('"', " ").split()) or '""'
             try:
+                # bm25 is lower-is-better; names weigh more than body text, and bare file
+                # rows (matched by their file name alone) rank below symbols and sections.
                 rows = self.con.execute(
-                    "select id, kind, snippet(fts, 3, '[', ']', '…', 12) as snip, bm25(fts) as score from fts where fts match ? order by score limit ?",
+                    "select id, kind, snippet(fts, 3, '[', ']', '…', 12) as snip, "
+                    "bm25(fts, 0.0, 0.0, 2.0, 1.0) + (case when kind = 'file' then 3.0 else 0.0 end) as score "
+                    "from fts where fts match ? order by score, id limit ?",
                     (terms, limit * 4),
                 ).fetchall()
             except sqlite3.OperationalError:

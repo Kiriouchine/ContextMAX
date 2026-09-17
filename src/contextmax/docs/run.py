@@ -87,8 +87,15 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     for row, tree, structure in trees:
         for label, owners in refs_module.collect_labels(tree, row["file"], structure).items():
             labels[label].extend(owners)
+    bibentries: dict[str, list[str]] = defaultdict(list)
+    for row, tree, _structure in trees:
+        for bib_key, ids in refs_module.collect_bibentries(tree, row["file"]).items():
+            bibentries[bib_key].extend(ids)
     catalog = refs_module.Catalog(
-        files=all_keys, documents={row["file"] for row, _, _ in trees}, labels=dict(labels)
+        files=all_keys,
+        documents={row["file"] for row, _, _ in trees},
+        labels=dict(labels),
+        bibentries={k: sorted(v) for k, v in bibentries.items()},
     )
 
     layout = ctx.layout
@@ -132,7 +139,9 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                 "n_code_blocks": structure.code_blocks,
                 "n_references": len(refs),
                 "toc": structure.toc,
-                "toc_source": "derived",
+                "toc_source": tree.metadata.get("toc_source", "derived"),
+                "scan_detected": bool(tree.metadata.get("scan_detected")),
+                "metadata": {k: v for k, v in sorted(tree.metadata.items()) if k not in ("toc_source", "scan_detected")},
                 "pages": tree.pages,
                 "language_hint": None,
                 "text_file": f"text/{cache_name}",
@@ -165,7 +174,9 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                     "n_words": s.n_words,
                     "n_blocks": s.n_blocks,
                     "preview": s.preview,
-                    "cite": f"{key}:{s.line}-{s.end_line} §{s.number or s.path}",
+                    "page": s.page,
+                    "end_page": s.end_page,
+                    "cite": section_cite(key, s),
                 }
             )
         by_adapter[tree.adapter] += 1
@@ -214,6 +225,14 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     }
 
 
+def section_cite(key: str, s: structure_module.Section) -> str:
+    where = s.number or s.path
+    if s.page:
+        span = f"p.{s.page}" if not s.end_page or s.end_page == s.page else f"p.{s.page}-{s.end_page}"
+        return f"{key} {span} §{where}"
+    return f"{key}:{s.line}-{s.end_line} §{where}"
+
+
 def _path_for(root: Path, roots_of: dict[str, Path], key: str) -> Path:
     if key.startswith("ext:"):
         prefix, _, rest = key.partition("/")
@@ -255,7 +274,7 @@ def render_docmap(
             indent = "  " * (s["depth"] - 1)
             number = f"{s['number']} " if s["number"] else ""
             lines.append(
-                f"{indent}- {number}{s['title']} (`{doc['file']}:{s['line']}`, {s['n_words']} words)"
+                f"{indent}- {number}{s['title']} (`{s['cite']}`, {s['n_words']} words)"
             )
         if len(secs) > cap_sections:
             lines.append(f"- … {len(secs) - cap_sections} more sections in `nodes/sections.jsonl`")

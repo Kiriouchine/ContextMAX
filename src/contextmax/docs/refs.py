@@ -37,6 +37,7 @@ class Catalog:
         default_factory=dict
     )  # label -> [(doc key, section id)]
     by_basename: dict[str, list[str]] = field(default_factory=dict)
+    bibentries: dict[str, list[str]] = field(default_factory=dict)  # bib key -> [reference node ids]
 
     def __post_init__(self) -> None:
         for key in self.files:
@@ -99,6 +100,8 @@ def build_references(
     section_of_block = structure.block_section
     seen_paths: set[tuple[str, str | None]] = set()
     ordinal = 0
+    current_page: int | None = None
+    bib_ids = dict(bibentry_ids(tree, key))
 
     def add(
         ref_kind: str,
@@ -111,12 +114,16 @@ def build_references(
         external: bool,
         confidence: str | None,
         evidence: str,
+        ref_key: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         nonlocal ordinal
         ordinal += 1
+        line_cite = f"{key}:{line}" if line else key
+        cite = f"{key} p.{current_page}" if current_page else line_cite
         rows.append(
             {
-                "id": ref_id(key, f"r{ordinal}"),
+                "id": ref_id(key, ref_key or f"r{ordinal}"),
                 "kind": "reference",
                 "family": "doc",
                 "ref_kind": ref_kind,
@@ -131,13 +138,44 @@ def build_references(
                 "external": external,
                 "confidence": confidence,
                 "evidence": evidence,
-                "cite": f"{key}:{line}" if line else key,
+                "page": current_page,
+                "cite": cite,
+                **(extra or {}),
             }
         )
 
     for idx, block in enumerate(tree.blocks):
         section = section_of_block[idx] if idx < len(section_of_block) else None
         target = (block.target or "").strip()
+        current_page = block.page
+        if block.kind == "bibentry" and target:
+            fields = block.extra
+            file_hint = _bib_file_hint(fields.get("file", ""))
+            resolved_key, cands, evidence = _resolve_path(catalog, key, file_hint) if file_hint else (None, [], "bibentry")
+            add(
+                "bibentry",
+                target,
+                block.text,
+                block.line,
+                section,
+                _node_for(catalog, resolved_key) if resolved_key else None,
+                [_node_for(catalog, c) for c in cands],
+                resolved_key is None,
+                "high" if resolved_key else None,
+                "bibfile" if resolved_key else evidence,
+                ref_key=bib_ids.get(idx),
+                extra={
+                    "entry_key": target,
+                    "entry_type": fields.get("entry_type", ""),
+                    "title": fields.get("title", ""),
+                    "authors": fields.get("authors", ""),
+                    "year": fields.get("year", ""),
+                    "doi": fields.get("doi", ""),
+                    "url": fields.get("url", ""),
+                    "journal": fields.get("journal", ""),
+                },
+            )
+            continue
         if block.kind in ("link", "figure") and target:
             if target.lower().startswith(URL_SCHEMES):
                 add(
@@ -250,18 +288,14 @@ def build_references(
                     "label-ambiguous" if cands else "label-unresolved",
                 )
         elif block.kind == "citation" and target:
-            add(
-                "citation",
-                target,
-                block.text,
-                block.line,
-                section,
-                None,
-                [],
-                True,
-                None,
-                "no-bibliography",
-            )
+            for cite_key in [k.strip() for k in target.split(",") if k.strip()]:
+                owners = sorted(catalog.bibentries.get(cite_key, []))
+                if len(owners) == 1:
+                    add("citation", cite_key, block.text, block.line, section, owners[0], [], False, "high", "bibkey")
+                elif owners:
+                    add("citation", cite_key, block.text, block.line, section, None, owners, False, None, "bibkey-ambiguous")
+                else:
+                    add("citation", cite_key, block.text, block.line, section, None, [], True, None, "no-bibliography")
         elif block.kind in ("paragraph", "list_item", "table"):
             for url in urls_in(block.text):
                 add("url", url, url, block.line, section, None, [], True, None, "url-in-text")
@@ -286,6 +320,33 @@ def build_references(
                         evidence,
                     )
     return rows
+
+
+def _bib_file_hint(value: str) -> str:
+    """The most path-like piece of a BibTeX `file` field (Zotero writes `:path:type;…`)."""
+    pieces = [p.strip() for chunk in value.split(";") for p in chunk.split(":") if p.strip()]
+    pieces = [p for p in pieces if "." in p.rsplit("/", 1)[-1] and len(p) > 4]
+    return max(pieces, key=len) if pieces else ""
+
+
+def bibentry_ids(tree: DocumentTree, key: str) -> list[tuple[int, str]]:
+    """(block index, reference node id) for every bibliography entry, `~n` on duplicate keys."""
+    out: list[tuple[int, str]] = []
+    seen: dict[str, int] = {}
+    for idx, block in enumerate(tree.blocks):
+        if block.kind == "bibentry" and block.target:
+            count = seen.get(block.target, 0) + 1
+            seen[block.target] = count
+            suffix = "" if count == 1 else f"~{count}"
+            out.append((idx, f"{block.target}{suffix}"))
+    return out
+
+
+def collect_bibentries(tree: DocumentTree, key: str) -> dict[str, list[str]]:
+    entries: dict[str, list[str]] = {}
+    for idx, ref_key in bibentry_ids(tree, key):
+        entries.setdefault(tree.blocks[idx].target or "", []).append(ref_id(key, ref_key))
+    return entries
 
 
 LABEL_RE = re.compile(r"^\s*$")

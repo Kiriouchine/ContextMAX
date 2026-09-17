@@ -11,7 +11,7 @@ Until the packaged release (Phase 8) the tool runs from a checkout:
 git clone https://github.com/Kiriouchine/ContextMAX
 cd ContextMAX
 py -3.14 -m venv .venv                       # any Python 3.11 or newer
-.venv\Scripts\pip install -e ".[dev]"        # standard library only; add [all] for PDF and Office readers
+.venv\Scripts\pip install -e ".[dev]"        # standard library only; add [pdf] for PDFs, [office] for spreadsheets, [all] for everything
 ```
 
 `cmx` and `contextmax` are then available inside that virtual environment. Run

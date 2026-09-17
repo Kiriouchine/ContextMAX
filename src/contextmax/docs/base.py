@@ -30,6 +30,7 @@ BLOCK_KINDS = (
     "page",
     "cell",
     "title",
+    "bibentry",
 )
 
 

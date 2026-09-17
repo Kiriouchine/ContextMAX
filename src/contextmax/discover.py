@@ -162,7 +162,12 @@ def _tier_for(
 _PKG_CACHE: dict[str, bool] = {}
 
 
+NO_OPTIONAL_ENV = "CONTEXTMAX_NO_OPTIONAL_READERS"
+
+
 def _package_available(name: str) -> bool:
+    if os.environ.get(NO_OPTIONAL_ENV):
+        return False  # golden and determinism tests: behave as if no optional reader exists
     if name not in _PKG_CACHE:
         from importlib import metadata
 
@@ -493,6 +498,7 @@ def _visit_file(
             and lines > config.max_lines
             and tier in ("A", "B", "C")
             and det.family != "binary"
+            and not det.container  # a PDF's byte-level "lines" say nothing about its size
         ):
             tier, code, reason = "D", "too-many-lines", f"{lines} lines exceed limits.max_lines"
         if not binary and det.family != "binary" and head:

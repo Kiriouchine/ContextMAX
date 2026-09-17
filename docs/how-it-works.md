@@ -49,13 +49,26 @@ then a file named like the callee. Several matches are recorded as `ambiguous` w
 candidates; builtins and non-project imports are `external`; the rest is `unresolved`. Bare
 words (a lone identifier, a shell command) only become edges when they resolve.
 
-## Documents (Phase 1 adapters)
+## Documents
 
-`docs/adapters/` turns Markdown, plain text, HTML and LaTeX into a `DocumentTree` of ordered
-blocks. `docs/structure.py` derives the outline, section ids (numbers when the document numbers
-its headings, slug chains otherwise), text ranges into a rendered text cache and the table of
-contents. `docs/refs.py` extracts links, figures, includes, cross-references, citations and path
-mentions and resolves them against the project; the unresolved stay visible.
+`docs/adapters/` turns each format into a `DocumentTree` of ordered blocks: Markdown, plain
+text, HTML, LaTeX, BibTeX, reStructuredText, AsciiDoc, Org, Jupyter notebooks, email
+(`.eml`, `.mbox`), configuration and data files (JSON, JSON Lines, YAML, TOML, XML, INI,
+dependency manifests) with the standard library, and PDF through pypdf (`pip install
+contextmax[pdf]`). `docs/structure.py` derives the outline, section ids (numbers when the
+document numbers its headings, slug chains otherwise), text ranges into a rendered text cache
+and the table of contents. `docs/refs.py` extracts links, figures, includes, cross-references,
+citations, bibliography entries and path mentions and resolves them against the project; the
+unresolved stay visible.
+
+Page-based formats cite pages instead of lines: `thesis.pdf p.33-59 §5`. A PDF's bookmarks
+become its table of contents (`toc_source: outline`); without bookmarks, headings are derived
+from numbered, all-capital or "Chapter N" lines with guards against contents entries, matrix
+rows and out-of-sequence numbers, and the document says `toc_source: derived`. Scanned PDFs
+(fewer than 60 characters per page) are flagged and not OCR-ed. A BibTeX entry is a reference
+node `ref:<file>#<key>`; `\cite{key}` resolves to it with high confidence, and the entry's
+`file` field resolves to the project document when present. Every adapter records caps
+(`TRUNCATED: …`) and reader warnings in the document's `notes`.
 
 ## Links and graph
 

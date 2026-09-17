@@ -35,6 +35,7 @@ def run() -> int:
     golden = ROOT / "tests" / "fixtures" / "golden"
     with tempfile.TemporaryDirectory(prefix="contextmax-golden-") as tmp:
         # Golden files never depend on which grammars this machine has provisioned.
+        os.environ["CONTEXTMAX_NO_OPTIONAL_READERS"] = "1"
         os.environ["CONTEXTMAX_GRAMMAR_DIR"] = str(Path(tmp) / "grammars-empty")
         root = build_corpus(Path(tmp) / "corpus")
         if main(["init", str(root), "--slug", "sample", "--name", "Sample", "--no-gitignore"]) != 0:

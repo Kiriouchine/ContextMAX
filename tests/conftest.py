@@ -22,6 +22,7 @@ def isolated_grammars(tmp_path_factory, monkeypatch):
     from contextmax import grammars
 
     monkeypatch.setenv(grammars.GRAMMAR_DIR_ENV, str(tmp_path_factory.mktemp("grammars-empty")))
+    monkeypatch.setenv("CONTEXTMAX_NO_OPTIONAL_READERS", "1")
     grammars.has_tags.cache_clear()
     yield
     grammars.has_tags.cache_clear()

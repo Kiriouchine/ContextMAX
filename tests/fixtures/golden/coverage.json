@@ -7,22 +7,32 @@
  "by_family": {
   "binary": 2,
   "code": 20,
-  "data": 2,
-  "document": 16,
+  "data": 7,
+  "document": 22,
   "text": 1
  },
  "by_format": {
+  "asciidoc": 1,
+  "bibtex": 1,
   "csv": 1,
   "docx": 1,
+  "email": 1,
   "executable": 1,
   "html": 1,
   "image": 1,
-  "ini": 1,
+  "ini": 2,
   "json": 1,
   "latex": 2,
+  "manifest": 1,
   "markdown": 6,
+  "notebook": 1,
+  "org": 1,
   "pdf": 1,
-  "plain": 5
+  "plain": 5,
+  "rst": 1,
+  "toml": 1,
+  "xml": 1,
+  "yaml": 1
  },
  "by_language": {
   "c": 3,
@@ -35,23 +45,23 @@
  },
  "by_role": {
   "build": 5,
-  "docs": 8,
-  "product": 26,
+  "docs": 13,
+  "product": 32,
   "test": 1,
   "vendor": 1
  },
  "by_skip_reason": {
-  "adapter-not-implemented": 4,
+  "adapter-not-implemented": 2,
   "binary-content": 1,
   "catalog-only": 2,
   "grammar-missing": 13,
   "missing-dependency": 1
  },
  "by_tier": {
-  "A": 19,
+  "A": 32,
   "B": 0,
   "C": 14,
-  "D": 8
+  "D": 6
  },
  "code": {
   "by_language": {
@@ -117,55 +127,63 @@
  },
  "documents": {
   "by_adapter": {
+   "asciidoc-v1": 1,
+   "bibtex-v1": 1,
+   "config-v1": 7,
+   "email-v1": 1,
    "html-v1": 1,
    "latex-v1": 2,
    "markdown-v1": 6,
-   "plain-v1": 5
+   "notebook-v1": 1,
+   "org-v1": 1,
+   "plain-v1": 5,
+   "rst-v1": 1
   },
   "by_determinism": {
-   "intrinsic": 14
+   "intrinsic": 27
   },
-  "n_documents": 14,
+  "n_documents": 27,
   "n_extraction_failures": 0,
   "n_parameters": 0,
-  "n_references": 14,
-  "n_references_external": 2,
-  "n_references_unresolved": 2,
+  "n_references": 36,
+  "n_references_external": 5,
+  "n_references_unresolved": 3,
   "n_scans_detected": 0,
-  "n_sections": 16,
+  "n_sections": 33,
   "n_terms": 0,
   "n_truncated": 0,
-  "n_words": 166
+  "n_words": 385
  },
  "graph": {
   "code_nodes": 24,
   "code_truncated": 0,
-  "doc_edges": 3,
-  "doc_module_links": 2,
-  "doc_nodes": 14,
-  "overview_nodes": 12
+  "doc_edges": 11,
+  "doc_module_links": 3,
+  "doc_nodes": 27,
+  "overview_nodes": 14
  },
  "links": {
   "by_confidence": {
-   "high": 5,
-   "low": 10,
-   "medium": 7
+   "high": 15,
+   "low": 12,
+   "medium": 13
   },
   "by_rel": {
-   "crossref": 2,
+   "cites": 1,
+   "crossref": 4,
    "depends_on": 9,
-   "links": 3,
-   "mentions_file": 5,
-   "mentions_symbol": 3
+   "links": 11,
+   "mentions_file": 11,
+   "mentions_symbol": 4
   },
-  "n_edges": 22,
+  "n_edges": 40,
   "n_generic_suppressed": 0
  },
- "n_dirs": 14,
+ "n_dirs": 15,
  "n_excluded_dirs": 3,
  "n_excluded_files": 1,
- "n_files": 41,
- "n_skipped": 23,
+ "n_files": 52,
+ "n_skipped": 21,
  "schema_version": 1,
- "total_bytes": 2914
+ "total_bytes": 4697
 }

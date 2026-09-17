@@ -33,6 +33,8 @@ class Section:
     preview: str = ""
     path: str = ""
     n_blocks: int = 0
+    page: int | None = None
+    end_page: int | None = None
 
 
 @dataclass
@@ -147,6 +149,8 @@ def build(tree: DocumentTree, key: str) -> Structure:
             text_start=offsets[idx],
             text_end=len(text),
             path=path,
+            page=block.page,
+            end_page=block.page,
         )
         sections.append(section)
         stack.append(section)
@@ -156,10 +160,14 @@ def build(tree: DocumentTree, key: str) -> Structure:
             if later.depth <= section.depth:
                 section.text_end = later.text_start
                 section.end_line = max(section.line, later.line - 1)
+                if later.page is not None and section.page is not None:
+                    section.end_page = max(section.page, later.page)
                 break
         else:
             last_line = max((b.end_line for b in blocks), default=section.line)
             section.end_line = max(section.line, last_line)
+            if section.page is not None:
+                section.end_page = max((b.page for b in blocks if b.page), default=section.page)
         body = text[section.text_start : section.text_end]
         section.n_words = len(body.split())
         first_line_end = body.find("\n")

@@ -3,6 +3,28 @@
 All notable changes to ContextMAX are recorded here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning.
 
+## [Unreleased]
+
+Phase 3, documents wave, in progress.
+
+### Added
+- Document adapters: `pdf-v1` (pypdf; bookmarks as the table of contents, derived headings
+  otherwise, page cites such as `thesis.pdf p.33-59 §5`, link annotations, scan detection,
+  pypdf warnings recorded as notes), `bibtex-v1`, `notebook-v1`, `rst-v1`, `asciidoc-v1`,
+  `org-v1`, `email-v1` (`.eml` and `.mbox`, attachments as references) and `config-v1`
+  (JSON, JSON Lines, YAML subset, TOML, XML, INI, dependency manifests; keys as sections,
+  path and URL values as references).
+- Bibliography entries are reference nodes (`ref:<bib>#<key>`); `\cite{key}` resolves to
+  them with high confidence, and an entry's `file` field resolves to the project document.
+- Sections and references carry `page` / `end_page` for page-based formats.
+- Search ranks names above body text and bare file rows below symbols and sections.
+- `CONTEXTMAX_NO_OPTIONAL_READERS=1` makes every version-bound reader unavailable so golden
+  and determinism tests never depend on which optional packages a machine has.
+
+### Fixed
+- The `max_lines` limit no longer excludes container formats (PDF, Office): three large PDFs
+  in the example archive were wrongly skipped as "too many lines".
+
 ## [0.2.0] - 2026-09-17
 
 Phase 2, real code analysis: syntax trees wherever a grammar exists, still never touching the

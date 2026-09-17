@@ -63,7 +63,7 @@ def test_file_deps_and_document_outline(index):
     doc = index.document("docs/guide.tex")
     assert doc["document"]["title"] == "GPS Guide"
     assert [s["title"] for s in doc["outline"]] == ["Introduction", "Setup", "Method"]
-    assert doc["references_summary"].get("citation external") == 1
+    assert doc["references_summary"].get("citation resolved") == 1  # \cite{ublox2011} -> refs.bib
     assert "sym:matlab/gain_sched.m#gain_sched" in doc["symbols_mentioned"]
     sec = index.section("doc:docs/guide.tex#introduction", with_text=True)
     assert sec["text"].startswith("### Introduction") or sec["text"].startswith("# Introduction")

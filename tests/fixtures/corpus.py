@@ -110,6 +110,46 @@ FILES: dict[str, bytes | str] = {
         "static int helper_c(int v) {\n    return SQUARE(v);\n}\n\n"
         "int util_sum(int a, int b) {\n    /* adds via core_add */\n    return core_add(helper_c(a), b);\n}\n"
     ),
+    # Phase 3 session 1: a BibTeX file resolving the guide's citation (and pointing at the
+    # PDF), a notebook, RST, AsciiDoc, Org, an email with an attachment, config files of every
+    # shape and a dependency manifest.
+    "docs/refs.bib": (
+        "@manual{ublox2011,\n  title = {u-blox 6 Receiver Description},\n  author = {{u-blox AG}},\n"
+        "  year = 2011,\n  url = {https://www.u-blox.com/},\n  file = {:docs/paper.pdf:pdf}\n}\n"
+        "@article{kalman1960, title={A New Approach to Linear Filtering}, author={Kalman, R. E.},\n"
+        "  year={1960}, journal={J. Basic Eng.}, doi={10.1115/1.3662552}}\n"
+    ),
+    "docs/analysis.ipynb": '{"cells": [{"cell_type": "markdown", "source": ["# Gain analysis\\n", "\\n", "See gain_sched.m and docs/spec.md.\\n"]}, {"cell_type": "code", "execution_count": 1, "outputs": [], "source": ["K = gain_sched(10, table)\\n"]}], "metadata": {"kernelspec": {"language": "python"}}}\n',
+    "docs/readme.rst": (
+        "Bench Notes\n===========\n\nSee `the spec <spec.md>`_ and :ref:`setup`.\n\nSetup\n-----\n\n"
+        ".. _setup:\n\n.. code-block:: matlab\n\n   run_all\n\n.. image:: bench.png\n   :alt: Bench\n\n"
+        "- calibrate\n- run\n"
+    ),
+    "docs/howto.adoc": (
+        "= How-to\n\n== Steps\n\nRun link:readme.rst[the notes] then <<results>>.\n\n[[results]]\n== Results\n\n"
+        "[source,matlab]\n----\nplot_results\n----\n\ninclude::intro.tex[]\n"
+    ),
+    "docs/plan.org": (
+        "#+TITLE: Plan\n\n* Goals\nSee [[file:spec.md][the spec]] and [[https://example.org/plan][site]].\n"
+        "** Tasks\n- write\n- test\n#+BEGIN_SRC python\nx = 1\n#+END_SRC\n"
+    ),
+    "mail/thread.eml": (
+        "From: a@example.org\r\nTo: b@example.org\r\nSubject: Bench results\r\n"
+        "Date: Mon, 1 Jan 2024 10:00:00 +0000\r\nMIME-Version: 1.0\r\n"
+        'Content-Type: multipart/mixed; boundary="B"\r\n\r\n--B\r\nContent-Type: text/plain\r\n\r\n'
+        "Results attached; see docs/spec.md.\r\n--B\r\nContent-Type: text/csv\r\n"
+        'Content-Disposition: attachment; filename="table.csv"\r\n\r\na,b\r\n--B--\r\n'
+    ),
+    "data/settings.yaml": (
+        "name: bench\npaths:\n  spec: docs/spec.md\n  site: https://example.org/y\nsteps:\n  - run: make\n"
+    ),
+    "data/tool.toml": '[project]\nname = "bench"\ndeps = ["pypdf>=5", "openpyxl"]\n[tool.x]\nlevel = 3\n',
+    "data/build.xml": (
+        '<?xml version="1.0"?>\n<project name="bench">\n'
+        '  <target name="all" depends="docs/spec.md">Build</target>\n</project>\n'
+    ),
+    "data/app.ini": "[main]\nname = bench\ntable = data/table.csv\n",
+    "requirements.txt": "pypdf>=5.0\nopenpyxl  # sheets\n",
 }
 
 

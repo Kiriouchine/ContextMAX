@@ -7,7 +7,7 @@
 | 0 Foundations | done (2026-09-17) | package skeleton, config schema + validator, registries + detection, gitignore matcher, discovery with tiers, ledger, coverage, manifest with identity hashes, `init`/`index`/`status`/`doctor`, 50 tests, 3-OS CI |
 | 1 Walking skeleton | done (2026-09-17, v0.1.0) | [phases/phase-1.md](phases/phase-1.md): lexical analyzer with 30 profiles, Markdown/plain/HTML/LaTeX adapters, structure and text cache, references, graded links, deterministic layout, query store and `cmx q`, three offline pages, skill generation for ten hosts; 108 tests |
 | 2 Real code analysis | done (2026-09-17, v0.2.0) | [phases/phase-2.md](phases/phase-2.md): grammar provisioning with a ledger, tier B tags analyzer in a crash-tolerant worker, Python tier A plugin with import and self resolution, per-file cache identical to a full build; tree-sitter pinned below 0.26 |
-| 3 Documents wave | next | PDF, Office, OpenDocument, spreadsheets, notebooks, BibTeX, terms and concepts, bibliography parsing |
+| 3 Documents wave | in progress (session 1 of 4 done: PDF, BibTeX, notebooks, RST, AsciiDoc, Org, email, config files) | Office, OpenDocument, EPUB, RTF, images, spreadsheets and parameters, terms and concepts, bibliography parsing; see `docs/phases/phase-3.md` |
 | 4–9 | planned | see roadmap in section 17 |
 
 ## 1. Context

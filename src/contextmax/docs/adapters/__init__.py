@@ -12,13 +12,24 @@ from contextmax.docs.base import FormatAdapter
 
 @lru_cache(maxsize=1)
 def adapters() -> dict[str, FormatAdapter]:
+    from contextmax.docs.adapters.asciidoc import AsciidocAdapter
+    from contextmax.docs.adapters.bibtex import BibtexAdapter
+    from contextmax.docs.adapters.configfile import ConfigAdapter
+    from contextmax.docs.adapters.email import EmailAdapter
     from contextmax.docs.adapters.html import HtmlAdapter
     from contextmax.docs.adapters.latex import LatexAdapter
     from contextmax.docs.adapters.markdown import MarkdownAdapter
+    from contextmax.docs.adapters.notebook import NotebookAdapter
+    from contextmax.docs.adapters.org import OrgAdapter
+    from contextmax.docs.adapters.pdf import PdfAdapter
     from contextmax.docs.adapters.plain import PlainAdapter
+    from contextmax.docs.adapters.rst import RstAdapter
 
     table: dict[str, FormatAdapter] = {}
-    for adapter in (MarkdownAdapter(), PlainAdapter(), HtmlAdapter(), LatexAdapter()):
+    for adapter in (
+        MarkdownAdapter(), PlainAdapter(), HtmlAdapter(), LatexAdapter(), PdfAdapter(), BibtexAdapter(),
+        NotebookAdapter(), RstAdapter(), AsciidocAdapter(), OrgAdapter(), EmailAdapter(), ConfigAdapter(),
+    ):
         table[adapter.id] = adapter
     return table
 
