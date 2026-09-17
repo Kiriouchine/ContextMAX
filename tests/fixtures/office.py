@@ -15,16 +15,21 @@ from pathlib import Path
 def zipped(members: dict[str, bytes], compress: int = zipfile.ZIP_STORED) -> bytes:
     """A zip with fixed timestamps and, by default, no compression.
 
-    DEFLATE output depends on the zlib build, so a compressed fixture would hash differently on
-    another machine and every golden artifact would drift with it. Stored entries are decided
-    entirely by the member names and their bytes. Tests that need a compression ratio (the zip
-    bomb guard) pass `compress=zipfile.ZIP_DEFLATED` explicitly; those bytes never reach the
-    corpus."""
+    Two defaults would otherwise make the bytes depend on the machine that built them, and with
+    them every golden artifact:
+
+    - DEFLATE output differs between zlib and zlib-ng, so entries are stored, not compressed.
+      Tests that need a compression ratio (the zip bomb guard) ask for DEFLATE explicitly, and
+      those bytes never reach the corpus.
+    - `ZipInfo.create_system` is 0 on Windows and 3 everywhere else, and it is written into the
+      archive, so it is pinned to 0 (the value real Office packages carry).
+    """
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compress) as zf:
         for name, data in members.items():
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = compress
+            info.create_system = 0
             zf.writestr(info, data)
     return buf.getvalue()
 

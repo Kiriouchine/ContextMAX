@@ -67,9 +67,11 @@ gain terms, named quantities and parsed bibliographies.
   "identification".
 - Configuration files and spreadsheets contribute no topics or keyphrases: their headings are
   keys and sheet names, and their content is already covered by parameters.
-- The synthetic Office fixtures are stored uncompressed: DEFLATE output differs between zlib
-  and zlib-ng, so compressed members made the corpus file hashes, and every golden artifact,
-  depend on which Python built them. A determinism test now refuses a compressed member.
+- The synthetic Office fixtures no longer depend on the machine that built them. DEFLATE
+  output differs between zlib and zlib-ng, and `ZipInfo.create_system` is 0 on Windows and 3
+  elsewhere; both are written into the archive, so both changed the corpus file hashes and
+  every golden artifact with them. Entries are now stored and `create_system` is pinned, and a
+  determinism test refuses either default coming back.
 
 ## [0.2.0] - 2026-09-17
 

@@ -80,12 +80,13 @@ def test_identity_excludes_timestamps_and_ledger(tmp_path: Path):
     assert manifest["completeness"]["verdict"] == "full"
 
 
-def test_corpus_bytes_do_not_depend_on_the_zlib_build(tmp_path: Path):
+def test_corpus_bytes_do_not_depend_on_the_machine(tmp_path: Path):
     """Every corpus file must be byte-identical on any machine.
 
-    DEFLATE output differs between zlib and zlib-ng, so a compressed member inside a synthetic
-    Office fixture would change the file's hash, and with it every golden artifact, depending
-    only on which Python built it. Fixture packages are therefore stored, never deflated.
+    Two zip defaults break that, and both cost a full round of red CI to find:
+    DEFLATE output differs between zlib and zlib-ng, and `ZipInfo.create_system` is 0 on
+    Windows and 3 everywhere else. Either one changes a fixture's hash, and with it every
+    golden artifact, depending only on where it was built.
     """
     import zipfile
 
@@ -98,7 +99,8 @@ def test_corpus_bytes_do_not_depend_on_the_zlib_build(tmp_path: Path):
     assert packages, "the corpus should contain container documents"
     for path in packages:
         with zipfile.ZipFile(path) as zf:
-            compressed = sorted(
-                i.filename for i in zf.infolist() if i.compress_type != zipfile.ZIP_STORED
-            )
+            members = zf.infolist()
+        compressed = sorted(i.filename for i in members if i.compress_type != zipfile.ZIP_STORED)
         assert not compressed, f"{path.name} compresses {compressed}; use zipped(..., ZIP_STORED)"
+        systems = sorted({i.create_system for i in members})
+        assert systems == [0], f"{path.name} records create_system {systems}; pin it in zipped()"

@@ -163,8 +163,12 @@ skill updates) and released `0.3.0`. Findings:
   DEFLATE-compressed, and this machine's Python links zlib-ng 1.3.1 while the runners link
   zlib 1.2.x. The same members compress to different bytes (`e2548c28` against `27bc69b5` in a
   direct comparison) and hash identically when stored, so every corpus file hash and every
-  golden artifact depended on the builder. Fixture packages are now stored, and a determinism
-  test refuses any compressed member.
+  golden artifact depended on the builder. A second default hid behind it: `create_system` is
+  0 on Windows and 3 on POSIX, which is why Windows kept passing while Linux and macOS failed
+  on `data/params.ods`. Fixture packages are now stored with `create_system` pinned, and a
+  determinism test refuses either default. Reading CI needed a detour: job logs require
+  repository admin rights, so `scripts/golden_diff.py` names the first differing artifact, row,
+  field and values, and CI puts that token into the artifact name, which the public API shows.
 
 ## Acceptance
 
