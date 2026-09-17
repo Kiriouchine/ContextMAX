@@ -1,6 +1,6 @@
 # Phase 3 — Documents wave
 
-Status: done 2026-09-17, released as `v0.3.0`. Builds on Phase 2 (`v0.2.0`).
+Status: done 2026-09-17, released as `v0.3.0` and `v0.3.1`. Builds on Phase 2 (`v0.2.0`).
 
 ## Goal
 
