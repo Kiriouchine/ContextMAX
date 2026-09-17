@@ -139,6 +139,14 @@ def _tier_for(
         missing = [pkg for pkg in det.requires if not _package_available(pkg)]
         if missing:
             return "D", "missing-dependency", f"reading {det.format} needs {', '.join(missing)}"
+        from contextmax.docs import adapters as doc_adapters
+
+        if not doc_adapters.implemented(det.adapter):
+            return (
+                "D",
+                "adapter-not-implemented",
+                f"{det.adapter} is not implemented in this version",
+            )
         return "A", None, None
     if det.family == "text":
         return "C", None, None

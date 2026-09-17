@@ -53,6 +53,25 @@ FILES: dict[str, bytes | str] = {
     "a1.md": "# a1\n",
     "empty.txt": "",
     "Makefile": "all:\n\techo build\n",
+    # Documents: a LaTeX guide with sections, labels, refs, a figure, cites (no .bib) and an
+    # include; the included file; an HTML page with headings and links; a plain report.
+    "docs/guide.tex": (
+        "\\documentclass{article}\n\\title{GPS Guide}\n\\begin{document}\n"
+        "\\section{Introduction}\\label{sec:intro}\n"
+        "The receiver is described in \\cite{ublox2011} and shown in Figure~\\ref{fig:setup}.\n"
+        "Gains come from \\texttt{gain\\_sched} in gain_sched.m.\n"
+        "\\subsection{Setup}\n\\begin{figure}\n\\includegraphics{bench.png}\n\\caption{The bench setup}\\label{fig:setup}\n\\end{figure}\n"
+        "\\section{Method}\\label{sec:method}\nSee Section~\\ref{sec:intro} and \\ref{sec:missing}.\n"
+        "\\begin{equation}\nx_{t+1} = A x_t + B u_t\n\\end{equation}\n"
+        "\\input{intro}\n\\end{document}\n"
+    ),
+    "docs/intro.tex": "\\section{Background}\\label{sec:background}\nKalman filtering background.\n",
+    "docs/page.html": (
+        "<html><head><title>Tutorial</title><script>bad()</script></head><body>"
+        '<h1>GPS tutorial</h1><p>See <a href="spec.md">the spec</a> and <a href="https://example.org/u">u-blox</a>.</p>'
+        "<h2>Wiring</h2><ul><li>VCC to 3V3</li><li>TX to RX</li></ul></body></html>\n"
+    ),
+    "docs/report.txt": "Bench Report\n============\n\nThe servo error stayed below 2.0 deg.\n\n2 Results\n\nAll runs passed; see run_all.m.\n",
     # MATLAB: a function file with help text, a function it calls, a script with cells that
     # calls both and invokes another script by bare name (file-per-function resolution).
     "matlab/gain_sched.m": (

@@ -8,19 +8,21 @@
   "binary": 2,
   "code": 20,
   "data": 2,
-  "document": 12,
+  "document": 16,
   "text": 1
  },
  "by_format": {
   "csv": 1,
   "docx": 1,
   "executable": 1,
+  "html": 1,
   "image": 1,
   "ini": 1,
   "json": 1,
+  "latex": 2,
   "markdown": 6,
   "pdf": 1,
-  "plain": 4
+  "plain": 5
  },
  "by_language": {
   "c": 3,
@@ -33,12 +35,13 @@
  },
  "by_role": {
   "build": 5,
-  "docs": 4,
+  "docs": 8,
   "product": 26,
   "test": 1,
   "vendor": 1
  },
  "by_skip_reason": {
+  "adapter-not-implemented": 4,
   "binary-content": 1,
   "catalog-only": 2,
   "grammar-missing": 19,
@@ -48,7 +51,7 @@
   "A": 13,
   "B": 0,
   "C": 20,
-  "D": 4
+  "D": 8
  },
  "code": {
   "by_language": {
@@ -108,15 +111,26 @@
   "n_unresolved": 1
  },
  "documents": {
-  "by_adapter": {},
-  "by_determinism": {},
-  "n_documents": 0,
+  "by_adapter": {
+   "html-v1": 1,
+   "latex-v1": 2,
+   "markdown-v1": 6,
+   "plain-v1": 5
+  },
+  "by_determinism": {
+   "intrinsic": 14
+  },
+  "n_documents": 14,
+  "n_extraction_failures": 0,
   "n_parameters": 0,
-  "n_references": 0,
+  "n_references": 14,
+  "n_references_external": 2,
+  "n_references_unresolved": 2,
   "n_scans_detected": 0,
-  "n_sections": 0,
+  "n_sections": 16,
   "n_terms": 0,
-  "n_truncated": 0
+  "n_truncated": 0,
+  "n_words": 168
  },
  "links": {
   "by_confidence": {},
@@ -126,8 +140,8 @@
  "n_dirs": 14,
  "n_excluded_dirs": 3,
  "n_excluded_files": 1,
- "n_files": 37,
- "n_skipped": 25,
+ "n_files": 41,
+ "n_skipped": 29,
  "schema_version": 1,
- "total_bytes": 1953
+ "total_bytes": 2914
 }

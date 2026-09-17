@@ -13,7 +13,19 @@ from contextmax.cli import main
 from contextmax.io.jsonl import read_json
 from fixtures.corpus import build_corpus
 
-ARTIFACTS = ("nodes/files.jsonl", "skipped.jsonl", "coverage.json", "INDEX.md")
+ARTIFACTS = (
+    "nodes/files.jsonl",
+    "nodes/symbols.jsonl",
+    "nodes/documents.jsonl",
+    "nodes/sections.jsonl",
+    "nodes/references.jsonl",
+    "edges/calls.jsonl",
+    "skipped.jsonl",
+    "coverage.json",
+    "INDEX.md",
+    "CODEMAP.md",
+    "DOCMAP.md",
+)
 
 
 def _build(root: Path, reverse: bool = False) -> dict:

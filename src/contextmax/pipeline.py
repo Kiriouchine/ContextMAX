@@ -40,7 +40,9 @@ class Context:
     artifacts: dict[str, str] = field(default_factory=dict)
     problems: list[str] = field(default_factory=list)
     code_stats: dict[str, Any] = field(default_factory=dict)
+    doc_stats: dict[str, Any] = field(default_factory=dict)
     adapters: dict[str, Any] = field(default_factory=dict)
+    extra_skipped: list[dict[str, Any]] = field(default_factory=list)
     log: Callable[[str], None] = print
 
 
@@ -77,15 +79,38 @@ def stage_code(ctx: Context) -> None:
     ctx.code_stats = stats
 
 
+def stage_documents(ctx: Context) -> None:
+    from contextmax.docs.run import run_documents_stage
+
+    stats = run_documents_stage(ctx)
+    ctx.adapters.update(stats.pop("adapters", {}))
+    ctx.doc_stats = stats
+
+
 def _coverage_extra(ctx: Context) -> dict[str, Any]:
     extra: dict[str, Any] = {}
     if ctx.code_stats:
         extra["code"] = dict(ctx.code_stats)
+    if ctx.doc_stats:
+        extra["documents"] = dict(ctx.doc_stats)
     return extra
 
 
 def stage_catalogs(ctx: Context) -> None:
     assert ctx.discovery is not None
+    if ctx.extra_skipped:
+        # Later stages found files that could not be read; the one skip list carries them too.
+        ctx.discovery.skipped.extend(ctx.extra_skipped)
+        counts = ctx.discovery.counts
+        for row in ctx.extra_skipped:
+            counts["by_skip_reason"][row["reason_code"]] = (
+                counts["by_skip_reason"].get(row["reason_code"], 0) + 1
+            )
+        counts["n_skipped"] = len(ctx.discovery.skipped)
+        ctx.extra_skipped = []
+        ctx.artifacts["skipped.jsonl"] = write_jsonl(
+            ctx.layout.skipped, ctx.discovery.skipped, key=lambda r: (r["file"], r["reason_code"])
+        )
     ctx.coverage = build_coverage(ctx.discovery.counts, _coverage_extra(ctx))
     ctx.artifacts["coverage.json"] = write_json(ctx.layout.coverage, ctx.coverage)
     ctx.artifacts["INDEX.md"] = _write_index_md(ctx)
@@ -162,6 +187,17 @@ def _write_index_md(ctx: Context) -> str:
             f"{code.get('n_unresolved', 0)} unresolved. Details per symbol in `CODEMAP.md`.",
             "",
         ]
+    docs = cov.get("documents", {})
+    if docs.get("n_documents"):
+        lines += [
+            "## Documents",
+            "",
+            f"{docs['n_documents']} documents with {docs.get('n_sections', 0)} sections and "
+            f"{docs.get('n_words', 0)} words; {docs.get('n_references', 0)} references "
+            f"({docs.get('n_references_external', 0)} external, {docs.get('n_references_unresolved', 0)} unresolved). "
+            "Outlines per document in `DOCMAP.md`; text cache under `text/`.",
+            "",
+        ]
     if cov["by_skip_reason"]:
         lines += ["## What was not fully indexed", "", "| Reason | Files |", "|---|---|"]
         for reason, count in sorted(cov["by_skip_reason"].items(), key=lambda kv: (-kv[1], kv[0])):
@@ -174,6 +210,8 @@ def _write_index_md(ctx: Context) -> str:
         "- `nodes/symbols.jsonl` — every function, class, script and region with signature, doc and span.",
         "- `edges/calls.jsonl` — call sites with resolution status, candidates and counts; `edges/imports.jsonl`, `edges/contains.jsonl`.",
         "- `CODEMAP.md` — the symbol tables per folder, with citations.",
+        "- `nodes/documents.jsonl`, `nodes/sections.jsonl`, `nodes/references.jsonl` — documents, their outlines and their links, cross-references and citations.",
+        "- `DOCMAP.md` — every document's outline and reference summary; `text/` holds the extracted text cache.",
         "- `skipped.jsonl` — every file not fully analysed and why.",
         "- `coverage.json` — counts by tier, language, format, role and reason.",
         "- `manifest.json` — provenance, identity hashes and the completeness verdict.",
@@ -199,6 +237,7 @@ def _write_index_readme(ctx: Context) -> None:
 STAGE_TABLE: dict[str, Stage] = {
     "discover": Stage("discover", stage_discover),
     "code": Stage("code", stage_code),
+    "documents": Stage("documents", stage_documents),
     "catalogs": Stage("catalogs", stage_catalogs),
     "manifest": Stage("manifest", stage_manifest),
 }

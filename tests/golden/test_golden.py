@@ -19,6 +19,9 @@ ARTIFACTS = (
     "edges/calls.jsonl",
     "edges/imports.jsonl",
     "edges/contains.jsonl",
+    "nodes/documents.jsonl",
+    "nodes/sections.jsonl",
+    "nodes/references.jsonl",
     "skipped.jsonl",
     "coverage.json",
 )
