@@ -72,6 +72,8 @@ def sane_title(value: str | None) -> str:
         return ""
     if text.lower() in ("untitled", "title page", "table of contents", "contents", "cover"):
         return ""
+    if re.fullmatch(r"(slide|page|document|presentation|sheet)\s*\d*", text, re.I):
+        return ""
     if sum(ch.isalpha() for ch in text) < 3:
         return ""
     return text

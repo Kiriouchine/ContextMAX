@@ -20,6 +20,20 @@ Phase 3, documents wave, in progress.
 - Search ranks names above body text and bare file rows below symbols and sections.
 - `CONTEXTMAX_NO_OPTIONAL_READERS=1` makes every version-bound reader unavailable so golden
   and determinism tests never depend on which optional packages a machine has.
+- Container formats with the standard library: `ooxml-v1` (Word: heading styles by name,
+  lists, tables, hyperlinks, footnotes, comments, TOC field noted, paragraph cites `¶12`;
+  PowerPoint: one section per slide with title placeholder or first text line, notes,
+  tables, pictures, slide cites `slide 7`), `odf-v1` (.odt/.odp/.odg and flat XML),
+  `epub-v1` (spine chapters through the HTML adapter, chapter cites), `rtf-v1` (stylesheet
+  headings, bold headings, code pages, Unicode escapes, hyperlink fields, tables),
+  `image-v1` (dimensions from PNG/JPEG/GIF/BMP/WebP headers, EXIF text with Pillow; no OCR)
+  and `legacy-office-v1` (.doc/.ppt through LibreOffice `soffice --headless` when installed,
+  environment-bound with the converter version recorded; catalogued with the reason
+  otherwise).
+- Zip guards for every package format: password-protected, oversized, extreme-ratio members
+  and XML entity declarations are refused with the reason recorded.
+- Discovery consults each adapter's `available()` and records `reader-unavailable` with the
+  adapter's own reason (for example "install LibreOffice").
 
 ### Fixed
 - The `max_lines` limit no longer excludes container formats (PDF, Office): three large PDFs

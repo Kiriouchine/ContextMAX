@@ -102,6 +102,9 @@ def build_references(
     ordinal = 0
     current_page: int | None = None
     bib_ids = dict(bibentry_ids(tree, key))
+    page_unit = tree.metadata.get("page_unit", "page")
+    page_prefix = "p." if page_unit == "page" else f"{page_unit} "
+    line_prefix = "¶" if tree.metadata.get("line_unit") == "paragraph" else ":"
 
     def add(
         ref_kind: str,
@@ -119,8 +122,9 @@ def build_references(
     ) -> None:
         nonlocal ordinal
         ordinal += 1
-        line_cite = f"{key}:{line}" if line else key
-        cite = f"{key} p.{current_page}" if current_page else line_cite
+        sep = " " if line_prefix == "¶" else ""
+        line_cite = f"{key}{sep}{line_prefix}{line}" if line else key
+        cite = f"{key} {page_prefix}{current_page}" if current_page else line_cite
         rows.append(
             {
                 "id": ref_id(key, ref_key or f"r{ordinal}"),

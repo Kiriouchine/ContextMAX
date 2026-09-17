@@ -81,7 +81,7 @@ def render_block(block: Block, depth: int | None = None) -> str:
     if kind == "cell":
         return block.text
     if kind == "page":
-        return f"[page {block.page}]"
+        return f"[{block.text}]" if block.text else f"[page {block.page}]"
     return ""  # link, citation, label, ref: inline artifacts, not text
 
 
@@ -155,13 +155,17 @@ def build(tree: DocumentTree, key: str) -> Structure:
         sections.append(section)
         stack.append(section)
     # Close ranges: a section ends where the next heading of the same or higher depth starts.
+    # Pages are shared (a section may end on the page the next one starts on); discrete units
+    # such as slides and chapters are not.
+    discrete_pages = tree.metadata.get("page_unit", "page") != "page"
     for i, section in enumerate(sections):
         for later in sections[i + 1 :]:
             if later.depth <= section.depth:
                 section.text_end = later.text_start
                 section.end_line = max(section.line, later.line - 1)
                 if later.page is not None and section.page is not None:
-                    section.end_page = max(section.page, later.page)
+                    last = later.page - 1 if discrete_pages else later.page
+                    section.end_page = max(section.page, last)
                 break
         else:
             last_line = max((b.end_line for b in blocks), default=section.line)

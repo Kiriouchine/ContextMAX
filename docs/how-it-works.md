@@ -54,8 +54,11 @@ words (a lone identifier, a shell command) only become edges when they resolve.
 `docs/adapters/` turns each format into a `DocumentTree` of ordered blocks: Markdown, plain
 text, HTML, LaTeX, BibTeX, reStructuredText, AsciiDoc, Org, Jupyter notebooks, email
 (`.eml`, `.mbox`), configuration and data files (JSON, JSON Lines, YAML, TOML, XML, INI,
-dependency manifests) with the standard library, and PDF through pypdf (`pip install
-contextmax[pdf]`). `docs/structure.py` derives the outline, section ids (numbers when the
+dependency manifests), Word and PowerPoint (OOXML), OpenDocument, EPUB and RTF with the
+standard library, PDF through pypdf (`pip install contextmax[pdf]`), legacy `.doc`/`.ppt`
+through an installed LibreOffice (environment-bound, converter version recorded), and images
+catalogued with their dimensions (never OCR-ed). Every package format passes zip guards
+(password, size, compression ratio, XML entities) before it is read. `docs/structure.py` derives the outline, section ids (numbers when the
 document numbers its headings, slug chains otherwise), text ranges into a rendered text cache
 and the table of contents. `docs/refs.py` extracts links, figures, includes, cross-references,
 citations, bibliography entries and path mentions and resolves them against the project; the

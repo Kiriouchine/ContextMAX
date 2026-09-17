@@ -5,31 +5,37 @@
   "skip-marker": 2
  },
  "by_family": {
-  "binary": 2,
+  "binary": 3,
   "code": 20,
   "data": 7,
-  "document": 22,
+  "document": 28,
   "text": 1
  },
  "by_format": {
   "asciidoc": 1,
   "bibtex": 1,
   "csv": 1,
+  "doc-legacy": 1,
   "docx": 1,
   "email": 1,
+  "epub": 1,
   "executable": 1,
   "html": 1,
-  "image": 1,
+  "image": 2,
   "ini": 2,
   "json": 1,
   "latex": 2,
   "manifest": 1,
   "markdown": 6,
   "notebook": 1,
+  "odp": 1,
+  "odt": 1,
   "org": 1,
   "pdf": 1,
   "plain": 5,
+  "pptx": 1,
   "rst": 1,
+  "rtf": 1,
   "toml": 1,
   "xml": 1,
   "yaml": 1
@@ -45,23 +51,24 @@
  },
  "by_role": {
   "build": 5,
-  "docs": 13,
-  "product": 32,
+  "docs": 19,
+  "product": 33,
   "test": 1,
   "vendor": 1
  },
  "by_skip_reason": {
-  "adapter-not-implemented": 2,
+  "adapter-not-implemented": 1,
   "binary-content": 1,
-  "catalog-only": 2,
+  "catalog-only": 3,
   "grammar-missing": 13,
-  "missing-dependency": 1
+  "missing-dependency": 1,
+  "reader-unavailable": 1
  },
  "by_tier": {
-  "A": 32,
+  "A": 38,
   "B": 0,
   "C": 14,
-  "D": 6
+  "D": 7
  },
  "code": {
   "by_language": {
@@ -131,59 +138,64 @@
    "bibtex-v1": 1,
    "config-v1": 7,
    "email-v1": 1,
+   "epub-v1": 1,
    "html-v1": 1,
+   "image-v1": 2,
    "latex-v1": 2,
    "markdown-v1": 6,
    "notebook-v1": 1,
+   "odf-v1": 2,
+   "ooxml-v1": 2,
    "org-v1": 1,
    "plain-v1": 5,
-   "rst-v1": 1
+   "rst-v1": 1,
+   "rtf-v1": 1
   },
   "by_determinism": {
-   "intrinsic": 27
+   "intrinsic": 35
   },
-  "n_documents": 27,
+  "n_documents": 35,
   "n_extraction_failures": 0,
   "n_parameters": 0,
-  "n_references": 36,
-  "n_references_external": 5,
-  "n_references_unresolved": 3,
+  "n_references": 44,
+  "n_references_external": 9,
+  "n_references_unresolved": 4,
   "n_scans_detected": 0,
-  "n_sections": 33,
+  "n_sections": 44,
   "n_terms": 0,
   "n_truncated": 0,
-  "n_words": 385
+  "n_words": 519
  },
  "graph": {
   "code_nodes": 24,
   "code_truncated": 0,
-  "doc_edges": 11,
+  "doc_edges": 12,
   "doc_module_links": 3,
-  "doc_nodes": 27,
-  "overview_nodes": 14
+  "doc_nodes": 35,
+  "overview_nodes": 15
  },
  "links": {
   "by_confidence": {
-   "high": 15,
-   "low": 12,
+   "high": 16,
+   "low": 14,
    "medium": 13
   },
   "by_rel": {
    "cites": 1,
    "crossref": 4,
    "depends_on": 9,
-   "links": 11,
-   "mentions_file": 11,
+   "links": 12,
+   "mentions_file": 13,
    "mentions_symbol": 4
   },
-  "n_edges": 40,
+  "n_edges": 43,
   "n_generic_suppressed": 0
  },
  "n_dirs": 15,
  "n_excluded_dirs": 3,
  "n_excluded_files": 1,
- "n_files": 52,
- "n_skipped": 21,
+ "n_files": 59,
+ "n_skipped": 22,
  "schema_version": 1,
- "total_bytes": 4697
+ "total_bytes": 21869
 }

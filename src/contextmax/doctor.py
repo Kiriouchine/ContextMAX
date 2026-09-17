@@ -106,6 +106,13 @@ def run_doctor(root_arg: str | None = None) -> tuple[list[Check], int]:
                     else "not installed (fine)",
                 )
             )
+    from contextmax.docs.adapters.legacy_office import find_converter
+
+    converter = find_converter()
+    if converter:
+        checks.append(Check("readers", "libreoffice", "ok", f"{converter[1]} at {converter[0]} (legacy .doc/.ppt, environment-bound)"))
+    else:
+        checks.append(Check("readers", "libreoffice", "warn", "not found; legacy .doc/.ppt files are catalogued without text"))
     gst = grammars.status()
     if gst["pack_installed"]:
         state = "ok" if gst["with_tags"] else "warn"

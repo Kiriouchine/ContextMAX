@@ -153,9 +153,22 @@ def _tier_for(
                 "adapter-not-implemented",
                 f"{det.adapter} is not implemented in this version",
             )
+        reader = doc_adapters.get(det.adapter)
+        ok, why = reader.available() if reader is not None else (True, "")
+        if not ok:
+            return "D", "reader-unavailable", why
         return "A", None, None
     if det.family == "text":
         return "C", None, None
+    if det.family == "binary" and det.adapter == "image-v1":
+        from contextmax.docs import adapters as doc_adapters
+
+        if doc_adapters.implemented(det.adapter):
+            return (
+                "D",
+                "catalog-only",
+                "image catalogued with its dimensions; content is not read (no OCR)",
+            )
     return "D", "catalog-only", det.reason or "binary file"
 
 

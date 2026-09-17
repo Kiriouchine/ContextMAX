@@ -1,10 +1,11 @@
 {"detected_as": null, "file": ".contextmax", "reason": "folder holds a .contextmax-skip marker or is the index", "reason_code": "skip-marker", "size": null}
 {"detected_as": "make", "file": "Makefile", "reason": "grammar 'make' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 17}
 {"detected_as": "executable", "file": "bin/blob.bin", "reason": "compiled artifact", "reason_code": "catalog-only", "size": 14}
-{"detected_as": "image", "file": "bin/photo.png", "reason": "image content is catalogued, not read", "reason_code": "catalog-only", "size": 16}
+{"detected_as": "image", "file": "bin/logo.gif", "reason": "image catalogued with its dimensions; content is not read (no OCR)", "reason_code": "catalog-only", "size": 13}
+{"detected_as": "image", "file": "bin/photo.png", "reason": "image catalogued with its dimensions; content is not read (no OCR)", "reason_code": "catalog-only", "size": 29}
 {"detected_as": "csv", "file": "data/table.csv", "reason": "sheet-v1 is not implemented in this version", "reason_code": "adapter-not-implemented", "size": 37}
+{"detected_as": "doc-legacy", "file": "docs/legacy.doc", "reason": "no converter found: install LibreOffice (soffice) to read legacy .doc/.ppt files", "reason_code": "reader-unavailable", "size": 10240}
 {"detected_as": "pdf", "file": "docs/paper.pdf", "reason": "reading pdf needs pypdf", "reason_code": "missing-dependency", "size": 37}
-{"detected_as": "docx", "file": "docs/report.docx", "reason": "ooxml-v1 is not implemented in this version", "reason_code": "adapter-not-implemented", "size": 22}
 {"detected_as": "vhdl", "file": "hdl/top.vhd", "reason": "grammar 'vhdl' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 26}
 {"detected_as": "matlab", "file": "matlab/gain_sched.m", "reason": "grammar 'matlab' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 270}
 {"detected_as": "matlab", "file": "matlab/lookup_gain.m", "reason": "grammar 'matlab' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 136}

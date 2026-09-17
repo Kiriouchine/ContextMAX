@@ -37,13 +37,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     }
     files = ctx.discovery.files
     all_keys = {row["file"] for row in files}
-    candidates = [
-        row
-        for row in files
-        if row["content_family"] in DOC_FAMILIES
-        and row["tier"] in ("A", "C")
-        and adapter_registry.implemented(row.get("adapter"))
-    ]
+    candidates = [row for row in files if _wants_document(row)]
     trees: list[tuple[dict[str, Any], DocumentTree, structure_module.Structure]] = []
     problems: list[str] = []
     extra_skipped: list[dict[str, Any]] = []
@@ -176,7 +170,12 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                     "preview": s.preview,
                     "page": s.page,
                     "end_page": s.end_page,
-                    "cite": section_cite(key, s),
+                    "cite": section_cite(
+                        key,
+                        s,
+                        tree.metadata.get("page_unit", "page"),
+                        tree.metadata.get("line_unit", "line"),
+                    ),
                 }
             )
         by_adapter[tree.adapter] += 1
@@ -225,10 +224,32 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     }
 
 
-def section_cite(key: str, s: structure_module.Section) -> str:
+def _wants_document(row: dict[str, Any]) -> bool:
+    """Readable documents and data files, plus images (catalogued with their dimensions)."""
+    adapter = row.get("adapter")
+    if not adapter_registry.implemented(adapter):
+        return False
+    if row["content_family"] in DOC_FAMILIES and row["tier"] in ("A", "C"):
+        return True
+    return adapter == "image-v1" and row["tier"] == "D"
+
+
+def page_span(page: int, end_page: int | None, unit: str) -> str:
+    """`p.12`, `p.12-15`, `slide 3`, `chapter 2-4` depending on the document's page unit."""
+    prefix = "p." if unit == "page" else f"{unit} "
+    if end_page and end_page != page:
+        return f"{prefix}{page}-{end_page}"
+    return f"{prefix}{page}"
+
+
+def section_cite(
+    key: str, s: structure_module.Section, page_unit: str = "page", line_unit: str = "line"
+) -> str:
     where = s.number or s.path
     if s.page:
-        span = f"p.{s.page}" if not s.end_page or s.end_page == s.page else f"p.{s.page}-{s.end_page}"
+        return f"{key} {page_span(s.page, s.end_page, page_unit)} §{where}"
+    if line_unit == "paragraph":
+        span = f"¶{s.line}" if s.end_line == s.line else f"¶{s.line}-{s.end_line}"
         return f"{key} {span} §{where}"
     return f"{key}:{s.line}-{s.end_line} §{where}"
 
@@ -261,7 +282,16 @@ def render_docmap(
         "project where possible and listed as external or unresolved otherwise. Verify at the cited lines.",
         "",
     ]
+    images = [d for d in docs if d["adapter"] == "image-v1"]
+    if images:
+        lines += [
+            f"{len(images)} images catalogued with their dimensions (no text, no OCR); see "
+            "`nodes/documents.jsonl` rows with adapter `image-v1`.",
+            "",
+        ]
     for doc in sorted(docs, key=lambda d: d["file"]):
+        if doc["adapter"] == "image-v1":
+            continue
         lines += [
             f"## {doc['title']}",
             "",

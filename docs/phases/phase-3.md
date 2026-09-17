@@ -103,6 +103,25 @@ Delivered every item of deliverable 1. Findings on the example archive (19 PDFs)
   ranges (`Master_Thesis_VI_Kiriouchine.pdf p.33-59 §5`), 47 documents and 933 sections in
   total, artifact hash identical between a cached run and `--full`.
 
+### Session 2 — done 2026-09-17
+
+Delivered every item of deliverable 2, with a shared zip-guard module (`adapters/container.py`)
+and synthetic fixtures (`tests/fixtures/office.py`) reused by the corpus. Findings:
+
+- PowerPoint stores "Slide 1" as the document title and many decks have no title
+  placeholder; titles that are only "Slide N" or a file path are rejected, and a slide's short
+  first text line stands in (recorded as `title_source: first-text`).
+- Sections in discrete units (slides, chapters) must not span into the next unit; the range
+  closing rule now distinguishes shared pages from discrete pages.
+- RTF hyperlinks live inside `{\*\fldinst …}` groups; ignorable destinations are skipped except
+  field instructions, of which only `HYPERLINK` is read.
+- LibreOffice 6.2 converts `.doc`/`.ppt` (and `.pot`) with `--convert-to docx|pptx`; the
+  corpus carries a genuine 10 KB `.doc` produced that way so the "reader unavailable" path is
+  in the goldens and the live path is tested where LibreOffice exists.
+- Result on the example archive: the 71-slide graduation deck reads with slide cites
+  (`…pptx slide 25 §attitude-estimation`), 247 images are catalogued with their dimensions,
+  one PowerPoint template went through LibreOffice as environment-bound; 299 documents in total.
+
 ## Acceptance
 
 1. Every corpus format yields a document with an outline or a recorded reason; goldens are

@@ -68,9 +68,12 @@ def test_container_formats_are_not_penalised_for_binary_bytes(corpus: Path):
     # A PDF holds NUL bytes by nature; the only legitimate demotion is a missing reader.
     assert skipped.get("docs/paper.pdf") in (None, "missing-dependency")
     assert files["docs/paper.pdf"]["format"] == "pdf"
-    # No OOXML adapter yet: catalogued honestly, never demoted for its binary bytes.
-    assert files["docs/report.docx"]["tier"] == "D"
-    assert skipped["docs/report.docx"] == "adapter-not-implemented"
+    # OOXML is read by ooxml-v1 (stdlib): tier A, never demoted for its binary bytes.
+    assert files["docs/report.docx"]["tier"] == "A"
+    assert "docs/report.docx" not in skipped
+    # A legacy .doc needs LibreOffice; under test isolation the reason is recorded.
+    assert files["docs/legacy.doc"]["tier"] == "D"
+    assert skipped["docs/legacy.doc"] == "reader-unavailable"
     # A text-expected file with NUL bytes is demoted, and says so.
     assert files["src/app/broken.py"]["tier"] == "D"
     assert skipped["src/app/broken.py"] == "binary-content"

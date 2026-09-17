@@ -16,19 +16,26 @@ def adapters() -> dict[str, FormatAdapter]:
     from contextmax.docs.adapters.bibtex import BibtexAdapter
     from contextmax.docs.adapters.configfile import ConfigAdapter
     from contextmax.docs.adapters.email import EmailAdapter
+    from contextmax.docs.adapters.epub import EpubAdapter
     from contextmax.docs.adapters.html import HtmlAdapter
+    from contextmax.docs.adapters.image import ImageAdapter
     from contextmax.docs.adapters.latex import LatexAdapter
+    from contextmax.docs.adapters.legacy_office import LegacyOfficeAdapter
     from contextmax.docs.adapters.markdown import MarkdownAdapter
     from contextmax.docs.adapters.notebook import NotebookAdapter
+    from contextmax.docs.adapters.odf import OdfAdapter
+    from contextmax.docs.adapters.ooxml import OoxmlAdapter
     from contextmax.docs.adapters.org import OrgAdapter
     from contextmax.docs.adapters.pdf import PdfAdapter
     from contextmax.docs.adapters.plain import PlainAdapter
     from contextmax.docs.adapters.rst import RstAdapter
+    from contextmax.docs.adapters.rtf import RtfAdapter
 
     table: dict[str, FormatAdapter] = {}
     for adapter in (
         MarkdownAdapter(), PlainAdapter(), HtmlAdapter(), LatexAdapter(), PdfAdapter(), BibtexAdapter(),
         NotebookAdapter(), RstAdapter(), AsciidocAdapter(), OrgAdapter(), EmailAdapter(), ConfigAdapter(),
+        OoxmlAdapter(), OdfAdapter(), EpubAdapter(), RtfAdapter(), ImageAdapter(), LegacyOfficeAdapter(),
     ):
         table[adapter.id] = adapter
     return table

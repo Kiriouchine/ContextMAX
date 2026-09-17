@@ -12,6 +12,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from fixtures import office
+
 FILES: dict[str, bytes | str] = {
     "README.md": "# Sample project\n\nSee [the spec](docs/spec.md) and `src/app/main.py`.\n",
     "docs/spec.md": (
@@ -36,9 +38,9 @@ FILES: dict[str, bytes | str] = {
     "unknown.zzz": "some text in an unknown language\nfoo(bar)\n",
     "bin/blob.bin": b"\x00\x01\x02binary\x00data",
     "docs/paper.pdf": b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<<>>\nendobj\n\x00\x00",
-    "docs/report.docx": b"PK\x03\x04\x14\x00\x00\x00\x08\x00fake-ooxml\x00\x00",
+    "docs/report.docx": office.DOCX,
     "src/app/broken.py": b"print('x')\n\x00\x00binary junk\n",
-    "bin/photo.png": b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+    "bin/photo.png": office.PNG,
     "build/out.txt": "generated output\n",
     "vendor/lib.py": "x = 1\n",
     "tests/test_main.py": "def test_main():\n    assert True\n",
@@ -150,6 +152,15 @@ FILES: dict[str, bytes | str] = {
     ),
     "data/app.ini": "[main]\nname = bench\ntable = data/table.csv\n",
     "requirements.txt": "pypdf>=5.0\nopenpyxl  # sheets\n",
+    # Phase 3 session 2: container formats built in-process (see fixtures/office.py) and a
+    # genuine legacy .doc that needs LibreOffice (recorded as unavailable under isolation).
+    "docs/deck.pptx": office.PPTX,
+    "docs/notes.odt": office.ODT,
+    "docs/talk.odp": office.ODP,
+    "docs/book.epub": office.EPUB,
+    "docs/memo.rtf": office.RTF,
+    "docs/legacy.doc": office.legacy_doc(),
+    "bin/logo.gif": office.GIF,
 }
 
 
