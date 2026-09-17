@@ -77,10 +77,10 @@
     "n_unresolved": 0
    },
    "python": {
-    "n_ambiguous": 1,
+    "n_ambiguous": 0,
     "n_call_sites": 2,
     "n_external": 0,
-    "n_resolved": 1,
+    "n_resolved": 2,
     "n_unresolved": 0
    },
    "shell": {
@@ -98,7 +98,7 @@
     "n_unresolved": 1
    }
   },
-  "n_ambiguous": 1,
+  "n_ambiguous": 0,
   "n_bare_dropped": 1,
   "n_call_sites": 13,
   "n_external": 0,
@@ -106,7 +106,7 @@
   "n_imports": 6,
   "n_imports_resolved": 4,
   "n_index_dropped": 0,
-  "n_resolved": 11,
+  "n_resolved": 12,
   "n_symbols": 25,
   "n_unresolved": 1
  },
@@ -130,12 +130,31 @@
   "n_sections": 16,
   "n_terms": 0,
   "n_truncated": 0,
-  "n_words": 168
+  "n_words": 166
+ },
+ "graph": {
+  "code_nodes": 23,
+  "code_truncated": 0,
+  "doc_edges": 3,
+  "doc_module_links": 2,
+  "doc_nodes": 14,
+  "overview_nodes": 12
  },
  "links": {
-  "by_confidence": {},
-  "by_rel": {},
-  "n_edges": 0
+  "by_confidence": {
+   "high": 5,
+   "low": 10,
+   "medium": 7
+  },
+  "by_rel": {
+   "crossref": 2,
+   "depends_on": 9,
+   "links": 3,
+   "mentions_file": 5,
+   "mentions_symbol": 3
+  },
+  "n_edges": 22,
+  "n_generic_suppressed": 0
  },
  "n_dirs": 14,
  "n_excluded_dirs": 3,

@@ -18,10 +18,10 @@ STAGES: tuple[str, ...] = (
     "links",
     "graph",
     "catalogs",
-    "query",
     "viz",
     "skill",
     "manifest",
+    "query",
 )
 
 

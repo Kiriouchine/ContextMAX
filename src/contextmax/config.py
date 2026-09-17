@@ -32,7 +32,7 @@ DEFAULT_ROLES: list[dict[str, str]] = [
         "role": "vendor",
     },
     {
-        "match": r"(^|/)(generated|gen|autogen|__generated__)/|\.min\.(js|css)$|_pb2(_grpc)?\.py$|\.g\.(cs|py)$|\.designer\.cs$",
+        "match": r"(^|/)(generated|gen|autogen|__generated__)/|\.min\.(js|css)$|_pb2(_grpc)?\.py$|\.g\.(cs|py)$|\.designer\.cs$|\.(aux|lof|lot|toc|bbl|blg|out|fls|fdb_latexmk|synctex(\.gz)?|nav|snm)$",
         "role": "generated",
     },
     {"match": r"(^|/)(docs?|documentation|manuals?|papers?)/", "role": "docs"},

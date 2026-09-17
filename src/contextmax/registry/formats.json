@@ -20,6 +20,7 @@
   "csv": {"name": "CSV / TSV", "family": "document", "extensions": [".csv", ".tsv", ".tab"], "adapter": "sheet-v1", "determinism": "intrinsic", "requires": []},
   "latex": {"name": "LaTeX", "family": "document", "extensions": [".tex", ".ltx", ".latex"], "adapter": "latex-v1", "determinism": "intrinsic", "requires": []},
   "bibtex": {"name": "BibTeX", "family": "document", "extensions": [".bib", ".bibtex"], "adapter": "bibtex-v1", "determinism": "intrinsic", "requires": []},
+  "latex-aux": {"name": "LaTeX build artifact", "family": "data", "extensions": [".aux", ".lof", ".lot", ".toc", ".bbl", ".blg", ".out", ".fls", ".fdb_latexmk", ".synctex", ".nav", ".snm", ".idx", ".ilg", ".ind", ".glo", ".gls"], "adapter": null, "determinism": "catalog-only", "requires": [], "reason": "LaTeX build artifact; the .tex source is the record"},
   "notebook": {"name": "Jupyter notebook", "family": "document", "extensions": [".ipynb"], "adapter": "notebook-v1", "determinism": "intrinsic", "requires": []},
   "epub": {"name": "EPUB", "family": "document", "container": true, "extensions": [".epub"], "adapter": "epub-v1", "determinism": "intrinsic", "requires": []},
   "rtf": {"name": "Rich Text", "family": "document", "extensions": [".rtf"], "adapter": "rtf-v1", "determinism": "intrinsic", "requires": []},

@@ -41,6 +41,8 @@ class Context:
     problems: list[str] = field(default_factory=list)
     code_stats: dict[str, Any] = field(default_factory=dict)
     doc_stats: dict[str, Any] = field(default_factory=dict)
+    link_stats: dict[str, Any] = field(default_factory=dict)
+    graph_stats: dict[str, Any] = field(default_factory=dict)
     adapters: dict[str, Any] = field(default_factory=dict)
     extra_skipped: list[dict[str, Any]] = field(default_factory=list)
     log: Callable[[str], None] = print
@@ -87,12 +89,34 @@ def stage_documents(ctx: Context) -> None:
     ctx.doc_stats = stats
 
 
+def stage_links(ctx: Context) -> None:
+    from contextmax.link.run import run_links_stage
+
+    ctx.link_stats = run_links_stage(ctx)
+
+
+def stage_graph(ctx: Context) -> None:
+    from contextmax.graph.build import run_graph_stage
+
+    ctx.graph_stats = run_graph_stage(ctx)
+
+
+def stage_query(ctx: Context) -> None:
+    from contextmax.query.store import run_query_stage
+
+    run_query_stage(ctx)
+
+
 def _coverage_extra(ctx: Context) -> dict[str, Any]:
     extra: dict[str, Any] = {}
     if ctx.code_stats:
         extra["code"] = dict(ctx.code_stats)
     if ctx.doc_stats:
         extra["documents"] = dict(ctx.doc_stats)
+    if ctx.link_stats:
+        extra["links"] = dict(ctx.link_stats)
+    if ctx.graph_stats:
+        extra["graph"] = dict(ctx.graph_stats)
     return extra
 
 
@@ -238,7 +262,10 @@ STAGE_TABLE: dict[str, Stage] = {
     "discover": Stage("discover", stage_discover),
     "code": Stage("code", stage_code),
     "documents": Stage("documents", stage_documents),
+    "links": Stage("links", stage_links),
+    "graph": Stage("graph", stage_graph),
     "catalogs": Stage("catalogs", stage_catalogs),
+    "query": Stage("query", stage_query),
     "manifest": Stage("manifest", stage_manifest),
 }
 

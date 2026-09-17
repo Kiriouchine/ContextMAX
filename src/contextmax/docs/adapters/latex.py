@@ -108,6 +108,8 @@ def clean_text(fragment: str) -> str:
     s = LABEL.sub("", s)
     s = COMMAND.sub(" ", s)
     s = s.replace("~", " ").replace("{", "").replace("}", "")
+    for escaped, plain in (("\\_", "_"), ("\\&", "&"), ("\\%", "%"), ("\\#", "#"), ("\\$", "$")):
+        s = s.replace(escaped, plain)
     return squash(s)
 
 
@@ -245,11 +247,18 @@ class LatexAdapter:
                 cap = CAPTION.search(body)
                 caption = clean_text(_balanced(body, cap.end() - 1)[0]) if cap else ""
                 kind = "table" if env.startswith("table") else "figure"
+                graphic = INCLUDE.search(body)
+                target = (
+                    graphic.group(2).strip()
+                    if graphic and graphic.group(1) == "includegraphics"
+                    else None
+                )
                 blk = Block(
                     kind=kind,
                     text=caption,
                     line=line_of(m.start()),
                     end_line=line_of(end),
+                    target=target,
                     extra={"env": env},
                 )
                 if kind == "table":
@@ -306,6 +315,19 @@ class LatexAdapter:
                                 ),
                             )
                         )
+        # A graphic inside a float belongs to the float: drop the standalone figure block.
+        float_spans = [
+            (s0, e0) for s0, e0, b in events if b.kind in ("figure", "table") and b.extra.get("env")
+        ]
+        events = [
+            (s0, e0, b)
+            for s0, e0, b in events
+            if not (
+                b.kind == "figure"
+                and b.extra.get("command") == "includegraphics"
+                and any(fs < s0 < fe for fs, fe in float_spans)
+            )
+        ]
         events.sort(key=lambda e: (e[0], e[1]))
         # Prose between structural events (only outside code/float/math bodies).
         covered: list[tuple[int, int]] = sorted(

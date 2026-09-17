@@ -83,6 +83,6 @@ def test_index_writes_ledger_and_marker(built: Path):
     assert state["stages"]["manifest"]["ok"] is True
     assert state["stages"]["code"]["implemented"] is True
     assert state["stages"]["documents"]["implemented"] is True
-    assert state["stages"]["links"]["implemented"] is False
+    assert state["stages"]["viz"]["implemented"] is False
     assert (index / ".contextmax-skip").is_file()
     assert (index / "INDEX.md").read_text(encoding="utf-8").startswith("# Sample")

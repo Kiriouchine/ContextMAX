@@ -223,6 +223,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_status)
 
+    from contextmax.query.cli import add_query_parser
+
+    add_query_parser(sub)
+
     p = sub.add_parser("doctor", help="check the environment, readers, grammars and index")
     p.add_argument("--root")
     p.add_argument("--json", action="store_true")

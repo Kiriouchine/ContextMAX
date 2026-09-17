@@ -434,7 +434,8 @@ def analyze(key: str, text: str, language: str | None) -> FileAnalysis:
             stack.pop()
         if stack:
             sym.parent = stack[-1].qualname
-            sym.qualname = f"{stack[-1].qualname}.{sym.name}"
+            if sym.kind != "region":  # a region is a bookmark, its identity stays region:<line>
+                sym.qualname = f"{stack[-1].qualname}.{sym.name}"
         if sym.kind in CONTAINER_KINDS or sym.end_line > sym.line:
             stack.append(sym)
 
@@ -696,6 +697,8 @@ def _span_end(
     kind: str = "",
 ) -> tuple[int, bool]:
     total = len(masked_lines)
+    if total and masked_lines[-1] == "":
+        total -= 1  # the empty element after a trailing newline is not a line
     if kind in ("macro", "target", "stage", "variable", "resource"):
         return line_no, True
     if prof.scope == "brace":

@@ -158,6 +158,9 @@ def _narrow(
 ) -> tuple[SymbolRef | None, str | None, list[SymbolRef]]:
     """Return (winner, evidence, candidates) applying same-file then same-folder narrowing."""
     callable_cands = [c for c in cands if c.symbol.kind in CALLABLE_KINDS] or cands
+    non_file = [c for c in callable_cands if c.symbol.qualname != "(file)"]
+    if non_file:
+        callable_cands = non_file  # a real definition beats the file that merely bears the name
     if len(callable_cands) == 1:
         return callable_cands[0], "unique-name", callable_cands
     same_file = [c for c in callable_cands if c.key == key]
