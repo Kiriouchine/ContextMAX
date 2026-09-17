@@ -39,12 +39,24 @@ jobs:
             | sed 's/^FAILED //; s/ .*//; s#[^A-Za-z0-9._-]#-#g' | cut -c1-80)
           echo "first=${first:-ok}" >> "$GITHUB_OUTPUT"
           exit $code
+      - name: Diagnose golden drift
+        if: failure()
+        id: drift
+        shell: bash
+        run: |
+          set +e
+          python scripts/golden_diff.py --first > "drift-${{ matrix.os }}-${{ matrix.python }}.txt" 2>&1
+          cat "drift-${{ matrix.os }}-${{ matrix.python }}.txt"
+          token=$(grep -m1 '^TOKEN=' "drift-${{ matrix.os }}-${{ matrix.python }}.txt" | cut -d= -f2-)
+          echo "token=${token:-none}" >> "$GITHUB_OUTPUT"
       - name: Upload test output
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-${{ matrix.os }}-${{ matrix.python }}-${{ steps.tests.outputs.first }}
-          path: pytest-${{ matrix.os }}-${{ matrix.python }}.txt
+          name: pytest-${{ matrix.os }}-${{ matrix.python }}-${{ steps.tests.outputs.first }}-${{ steps.drift.outputs.token }}
+          path: |
+            pytest-${{ matrix.os }}-${{ matrix.python }}.txt
+            drift-${{ matrix.os }}-${{ matrix.python }}.txt
       - name: Artifact hash of the fixture corpus
         id: hash
         shell: bash
