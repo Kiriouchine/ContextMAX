@@ -42,9 +42,22 @@ cmx init                # create .contextmax/config.json in the current project
 cmx index               # build the index into .contextmax/
 cmx status              # completeness, coverage by tier, what was skipped and why
 cmx doctor              # environment, optional readers, grammars, detected AI hosts
+
+cmx q search "kalman gain"          # full-text search with citations
+cmx q symbol lookup_gain            # signature, doc, callers, callees, documents
+cmx q impact lookup_gain            # transitive callers and callees, split by role
+cmx q doc docs/guide.tex            # outline, references, symbols mentioned
+cmx q section "doc:docs/guide.tex#introduction" --text
+cmx q source src/app/util.py:1-12   # exact lines with a citation string
+cmx q skipped                       # what was not indexed, and why
+
+cmx viz                             # open the offline overview page
+cmx skill install --host claude-code-project   # install the generated skill (see `cmx skill hosts`)
 ```
 
 Everything ContextMAX generates lives in `.contextmax/`; only `config.json` is meant to be committed.
+See [docs/adopting.md](docs/adopting.md) for the user guide and [docs/how-it-works.md](docs/how-it-works.md)
+for the machinery.
 
 ## License
 

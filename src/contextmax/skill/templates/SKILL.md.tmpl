@@ -1,0 +1,93 @@
+---
+name: {{NAME}}
+description: {{DESCRIPTION_YAML}}
+metadata:
+  contextmax-engine: "{{ENGINE_VERSION}}"
+  contextmax-project: "{{SLUG}}"
+  contextmax-index: {{INDEX_PATH_YAML}}
+---
+
+# {{PROJECT_NAME}}: navigate the ContextMAX index
+
+This skill is read-only lookup. It never edits source files and never writes into the project.
+The index was built deterministically by ContextMAX with no model involved: it is a fast way
+into the project, not the truth. Every answer you give must cite the file and lines, or the
+document and section, that you actually opened.
+
+## When to use
+
+The user asks where something is, how a function or script works, who calls what, what would
+break if something changed, what a document or chapter says, which code a document describes,
+what a quantity is, or whether something exists in the project at all.
+
+## Step 0: find the index
+
+Run from anywhere inside the project (the command walks up to the nearest `.contextmax/`):
+
+```
+{{CMX}} status --json
+```
+
+If that fails, read `index-path.txt` next to this file: it holds the absolute index folder.
+Then use `--root <project root>` on every command, or set `CONTEXTMAX_ROOT`.
+The project root is `{{ROOT_PATH}}` and the index is `{{INDEX_PATH}}` on the machine that
+built it. Check `completeness.verdict` in the status output before trusting any gap.
+
+## How to answer
+
+For "how does X work" questions, give four labelled parts, in this order:
+
+1. **Code findings** (authoritative for current behaviour). Cite `path:line-line`.
+2. **Documentation findings** (design intent). Cite `path §section`. If you opened no document,
+   write `Documentation: not checked`.
+3. **Comparison**: exactly one verdict, `Agree`, `Doc-only`, `Code-only` or `Conflict`.
+   Where sources disagree, that disagreement is the finding.
+4. **Trust footer**, once per conversation, one line:
+   `- {{NAME}}: built <generated_utc> · <completeness verdict> · tiers A/B/C/D counts · confidence <High|Medium|Low> (<reason>)`
+
+Quick factual lookups (where is X, what does Y return) do not need the four parts; they still
+need a citation.
+
+## Recipes
+
+Every command prints JSON when piped; add `--json` to be sure. Details in
+[references/recipes.md](references/recipes.md).
+
+| Task | Command |
+|---|---|
+| Search anything | `{{CMX}} q search "<words>"` |
+| Find a symbol by name | `{{CMX}} q find <name>` |
+| One symbol with callers, callees and documents | `{{CMX}} q symbol <name or id>` |
+| Who calls it, transitively | `{{CMX}} q callers <name> --depth all` |
+| Blast radius | `{{CMX}} q impact <name>` |
+| A file: symbols, dependencies, dependents | `{{CMX}} q file <path>` |
+| Find a document | `{{CMX}} q docs "<title or path>"` |
+| A document's outline and references | `{{CMX}} q doc <path>` |
+| Read one section | `{{CMX}} q section "<section id>" --text` |
+| Everything linked to a node | `{{CMX}} q related <id>` |
+| Why two nodes are linked | `{{CMX}} q explain <id> <id>` |
+| What was not indexed, and why | `{{CMX}} q skipped` |
+| Exact source lines with a citation | `{{CMX}} q source <path:start-end or symbol>` |
+
+## Honesty rules
+
+- **Tiers.** `A` dedicated analyzer, `B` generic grammar, `C` lexical patterns only, `D`
+  catalogued but not read. Tier C symbols and edges are leads with confidence `low`: verify
+  them with `q source` before stating them as facts. See
+  [references/honesty.md](references/honesty.md).
+- **Absence is not evidence of absence.** Before saying something does not exist, run
+  `q skipped` and check the tier counts; a file may be unread, not missing.
+- **Unresolved and ambiguous calls are listed, not hidden.** `q symbol` shows possible callers
+  whose call sites name the symbol but could not be resolved; treat them as leads.
+- **Documents describe intent; code describes behaviour.** Never claim a document normatively
+  specifies code because a section names a symbol; say the section mentions it.
+- **Never claim the code compiles or runs.** This is static analysis.
+- **Cite what you opened.** `q source` returns exact lines with a citation string; use it.
+
+## The index at a glance
+
+{{SUMMARY}}
+
+Files: `INDEX.md` (front door), `CODEMAP.md`, `DOCMAP.md`, `nodes/*.jsonl`, `edges/*.jsonl`,
+`text/` (extracted document text), `skipped.jsonl`, `coverage.json`, `manifest.json`,
+`viz/*.html` (offline views). Field meanings in [references/schema.md](references/schema.md).

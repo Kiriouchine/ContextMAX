@@ -107,6 +107,18 @@ def stage_query(ctx: Context) -> None:
     run_query_stage(ctx)
 
 
+def stage_viz(ctx: Context) -> None:
+    from contextmax.viz.render import run_viz_stage
+
+    run_viz_stage(ctx)
+
+
+def stage_skill(ctx: Context) -> None:
+    from contextmax.skill.render import run_skill_stage
+
+    run_skill_stage(ctx)
+
+
 def _coverage_extra(ctx: Context) -> dict[str, Any]:
     extra: dict[str, Any] = {}
     if ctx.code_stats:
@@ -207,10 +219,48 @@ def _write_index_md(ctx: Context) -> str:
             "",
             f"{code['n_symbols']} symbols in {code.get('n_files_analysed', 0)} analysed files. "
             f"{code.get('n_resolved', 0)} of {n_sites} call sites resolve inside the project ({pct:.0f}%); "
-            f"{code.get('n_ambiguous', 0)} ambiguous, {code.get('n_external', 0)} external, "
-            f"{code.get('n_unresolved', 0)} unresolved. Details per symbol in `CODEMAP.md`.",
+            f"{code.get('n_ambiguous', 0)} ambiguous, {code.get('n_external', 0)} to libraries, "
+            f"{code.get('n_unresolved', 0)} to names not defined in the project. Details per symbol in `CODEMAP.md`.",
             "",
         ]
+        symbols_path = ctx.layout.nodes / "symbols.jsonl"
+        if symbols_path.is_file():
+            from contextmax.io.jsonl import read_jsonl
+
+            symbols = [
+                s
+                for s in read_jsonl(symbols_path)
+                if s["kind"] in ("function", "script", "module", "method", "class", "entity")
+                and s["role"] == "product"
+            ]
+            entry = sorted(
+                (s for s in symbols if s["n_callers"] == 0 and s["n_callees"] > 0),
+                key=lambda s: (-s["n_callees"], s["id"]),
+            )[:25]
+            if entry:
+                lines += [
+                    "### Entry points (no mapped caller, calls other project code)",
+                    "",
+                    "| Symbol | Kind | Calls | Where |",
+                    "|---|---|---|---|",
+                ]
+                for s in entry:
+                    label = s["name"] if s["qualname"] == "(file)" else s["qualname"]
+                    lines.append(f"| `{label}` | {s['kind']} | {s['n_callees']} | `{s['cite']}` |")
+                lines += [
+                    "",
+                    '"No mapped caller" means no resolved call site names it; it may still be invoked dynamically.',
+                    "",
+                ]
+            hubs = sorted(
+                (s for s in symbols if s["n_callers"] > 0), key=lambda s: (-s["n_callers"], s["id"])
+            )[:25]
+            if hubs:
+                lines += ["### Most called", "", "| Symbol | Callers | Where |", "|---|---|---|"]
+                for s in hubs:
+                    label = s["name"] if s["qualname"] == "(file)" else s["qualname"]
+                    lines.append(f"| `{label}` | {s['n_callers']} | `{s['cite']}` |")
+                lines.append("")
     docs = cov.get("documents", {})
     if docs.get("n_documents"):
         lines += [
@@ -222,6 +272,17 @@ def _write_index_md(ctx: Context) -> str:
             "Outlines per document in `DOCMAP.md`; text cache under `text/`.",
             "",
         ]
+        docs_path = ctx.layout.nodes / "documents.jsonl"
+        if docs_path.is_file():
+            from contextmax.io.jsonl import read_jsonl
+
+            top_docs = sorted(read_jsonl(docs_path), key=lambda d: (-d["n_words"], d["file"]))[:30]
+            lines += ["| Document | Format | Sections | Words | File |", "|---|---|---|---|---|"]
+            for d in top_docs:
+                lines.append(
+                    f"| {d['title'][:70]} | {d['format']} | {d['n_sections']} | {d['n_words']} | `{d['file']}` |"
+                )
+            lines.append("")
     if cov["by_skip_reason"]:
         lines += ["## What was not fully indexed", "", "| Reason | Files |", "|---|---|"]
         for reason, count in sorted(cov["by_skip_reason"].items(), key=lambda kv: (-kv[1], kv[0])):
@@ -265,6 +326,8 @@ STAGE_TABLE: dict[str, Stage] = {
     "links": Stage("links", stage_links),
     "graph": Stage("graph", stage_graph),
     "catalogs": Stage("catalogs", stage_catalogs),
+    "viz": Stage("viz", stage_viz),
+    "skill": Stage("skill", stage_skill),
     "query": Stage("query", stage_query),
     "manifest": Stage("manifest", stage_manifest),
 }

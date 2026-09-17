@@ -1,6 +1,11 @@
 # Phase 1 — Walking skeleton
 
-Status: in progress (started 2026-09-17). Builds on Phase 0 (`v0.0.1`).
+Status: done (2026-09-17, released as `v0.1.0`). Builds on Phase 0 (`v0.0.1`).
+
+Delivered as planned with two additions found on the example archive: index-or-call gating for
+MATLAB array indexing, and LaTeX build artifacts catalogued as generated. Skill hosts beyond
+Claude Code were included early because the registry made them free; Phase 6 re-verifies each
+host's conventions and adds the MCP server.
 
 ## Goal
 

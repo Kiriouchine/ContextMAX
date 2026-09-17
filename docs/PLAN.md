@@ -5,8 +5,9 @@
 | Phase | State | Notes |
 |---|---|---|
 | 0 Foundations | done (2026-09-17) | package skeleton, config schema + validator, registries + detection, gitignore matcher, discovery with tiers, ledger, coverage, manifest with identity hashes, `init`/`index`/`status`/`doctor`, 50 tests, 3-OS CI |
-| 1 Walking skeleton | in progress (2026-09-17) | detailed plan in [phases/phase-1.md](phases/phase-1.md): lexical analyzer with per-language profiles, Markdown/plain/HTML/LaTeX adapters, structure and text cache, references, links, graph layout, query store and `cmx q`, three HTML pages, Claude Code skill |
-| 2–9 | planned | see roadmap in section 17 |
+| 1 Walking skeleton | done (2026-09-17, v0.1.0) | [phases/phase-1.md](phases/phase-1.md): lexical analyzer with 30 profiles, Markdown/plain/HTML/LaTeX adapters, structure and text cache, references, graded links, deterministic layout, query store and `cmx q`, three offline pages, skill generation for ten hosts; 108 tests |
+| 2 Real code analysis | next | grammar provisioning, tier B tags analyzer, Python tier A plugin, per-file cache, exact spans |
+| 3–9 | planned | see roadmap in section 17 |
 
 ## 1. Context
 

@@ -34,6 +34,7 @@ EXCLUDED_FROM_IDENTITY = frozenset(
         "logs",
         "query.sqlite",
         ".contextmax-skip",
+        "skill",  # the rendered skill names this machine's paths on purpose
     }
 )
 

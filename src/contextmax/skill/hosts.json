@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "_comment": "Where a generated skill lands per AI host. Only the destination path and the layout vary; the skill body is identical. Placeholders: {project} (project root), {home} (user home), {index} (the index folder), {name} (skill name). Layouts: skill-folder (Agent Skills folder with SKILL.md), merge-block (a marked block merged into a shared instructions file, hand-written content preserved), zip (a zip of the skill folder for upload). Re-verify these conventions against each host's current documentation when they change.",
+ "hosts": {
+  "claude-code-project": {"label": "Claude Code, this project", "layout": "skill-folder", "path": "{project}/.claude/skills/{name}", "sidecar": true},
+  "claude-code-user": {"label": "Claude Code, all projects of this user", "layout": "skill-folder", "path": "{home}/.claude/skills/{name}", "sidecar": true},
+  "claude-desktop": {"label": "Claude Desktop (upload the zip under Settings > Capabilities > Skills)", "layout": "zip", "path": "{index}/skill/{name}.zip", "sidecar": true},
+  "copilot-project": {"label": "GitHub Copilot in VS Code, this repository", "layout": "skill-folder", "path": "{project}/.github/skills/{name}", "sidecar": true},
+  "copilot-user": {"label": "GitHub Copilot, all repositories of this user", "layout": "skill-folder", "path": "{home}/.copilot/skills/{name}", "sidecar": true},
+  "cursor": {"label": "Cursor, this project", "layout": "skill-folder", "path": "{project}/.cursor/skills/{name}", "sidecar": true},
+  "codex-project": {"label": "OpenAI Codex, this project", "layout": "skill-folder", "path": "{project}/.codex/skills/{name}", "sidecar": true},
+  "codex-user": {"label": "OpenAI Codex, all projects of this user", "layout": "skill-folder", "path": "{home}/.codex/skills/{name}", "sidecar": true},
+  "windsurf": {"label": "Windsurf, this project", "layout": "skill-folder", "path": "{project}/.windsurf/skills/{name}", "sidecar": true},
+  "agents-md": {"label": "AGENTS.md block (any agent that reads it)", "layout": "merge-block", "path": "{project}/AGENTS.md", "sidecar": false},
+  "claude-md": {"label": "CLAUDE.md block", "layout": "merge-block", "path": "{project}/CLAUDE.md", "sidecar": false},
+  "copilot-instructions": {"label": ".github/copilot-instructions.md block", "layout": "merge-block", "path": "{project}/.github/copilot-instructions.md", "sidecar": false},
+  "custom": {"label": "A folder you name with --path", "layout": "skill-folder", "path": null, "sidecar": true}
+ }
+}

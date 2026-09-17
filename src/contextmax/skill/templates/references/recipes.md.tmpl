@@ -1,0 +1,88 @@
+# Recipes for the {{PROJECT_NAME}} index
+
+All commands accept `--root <project root>` and `--json`. Ids look like
+`sym:<path>#<qualified.name>`, `doc:<path>`, `doc:<path>#<section>`, `file:<path>`.
+
+## A. Find something by words
+
+```
+{{CMX}} q search "kalman gain" --limit 10
+{{CMX}} q search "servo error" --kind section
+```
+
+Full-text over symbol names and docs, document titles and section text. Each hit has `cite`.
+
+## B. Locate a symbol
+
+```
+{{CMX}} q find lookup_gain            # all symbols whose name contains it
+{{CMX}} q symbol lookup_gain          # one symbol: signature, doc, callers, callees, documents
+{{CMX}} q symbol "sym:matlab/lookup_gain.m#lookup_gain"
+```
+
+`q symbol` fails with the candidate list when a bare name is ambiguous; pick an id.
+
+## C. Impact and call graph
+
+```
+{{CMX}} q callers gain_sched --depth 2
+{{CMX}} q callees gain_sched --depth all
+{{CMX}} q impact gain_sched
+```
+
+`impact` walks every hop with a seen-set and reports direct and total counts split by role
+(`product`, `test`, `vendor`, `generated`, `docs`, `build`). It also lists `possible_callers`:
+call sites that name the symbol but did not resolve. A symbol with no callers and no possible
+callers may still be called dynamically; say "no mapped caller", never "dead".
+
+## D. Files
+
+```
+{{CMX}} q file src/app/main.py
+{{CMX}} q deps src/app/main.py            # what it depends on
+{{CMX}} q deps src/app/util.py --reverse  # what depends on it
+```
+
+## E. Documents
+
+```
+{{CMX}} q docs "guide"                    # find by title or path
+{{CMX}} q doc docs/guide.tex              # outline, references, symbols mentioned
+{{CMX}} q outline docs/guide.tex
+{{CMX}} q section "doc:docs/guide.tex#introduction" --text
+{{CMX}} q refs docs/guide.tex             # links, cross-references, citations, paths
+```
+
+Section text comes from the extracted text cache. For anything load-bearing, open the
+original file at the cited lines.
+
+## F. Relations and evidence
+
+```
+{{CMX}} q related "doc:docs/guide.tex#method"
+{{CMX}} q explain "sym:matlab/run_all.m#(file)" "sym:matlab/gain_sched.m#gain_sched"
+```
+
+Every edge carries `rel`, `tier`, `confidence`, `evidence` and `status`
+(`resolved`, `ambiguous`, `unresolved`, `external`).
+
+## G. What is missing
+
+```
+{{CMX}} q skipped
+{{CMX}} q skipped --reason grammar
+{{CMX}} q status --json
+```
+
+`skipped` lists every file that was not fully analysed with a reason code:
+`grammar-missing`, `missing-dependency`, `adapter-not-implemented`, `catalog-only`,
+`binary-content`, `too-large`, `cloud-placeholder`, `extraction-failed`.
+
+## H. Exact source
+
+```
+{{CMX}} q source src/app/util.py:1-12
+{{CMX}} q source gain_sched --context 2
+```
+
+Returns the lines with a `cite` string; quote that string in the answer.
