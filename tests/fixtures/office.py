@@ -12,13 +12,19 @@ import zipfile
 from pathlib import Path
 
 
-def zipped(members: dict[str, bytes]) -> bytes:
-    """A zip with fixed timestamps so the bytes never change between runs or machines."""
+def zipped(members: dict[str, bytes], compress: int = zipfile.ZIP_STORED) -> bytes:
+    """A zip with fixed timestamps and, by default, no compression.
+
+    DEFLATE output depends on the zlib build, so a compressed fixture would hash differently on
+    another machine and every golden artifact would drift with it. Stored entries are decided
+    entirely by the member names and their bytes. Tests that need a compression ratio (the zip
+    bomb guard) pass `compress=zipfile.ZIP_DEFLATED` explicitly; those bytes never reach the
+    corpus."""
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(buf, "w", compress) as zf:
         for name, data in members.items():
             info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
+            info.compress_type = compress
             zf.writestr(info, data)
     return buf.getvalue()
 

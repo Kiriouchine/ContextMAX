@@ -159,6 +159,12 @@ skill updates) and released `0.3.0`. Findings:
   by the corpus test.
 - Archive totals: 1487 terms (856 defined or headings), 909 references (460 resolved),
   1612 parameters, 3829 link edges including 2193 `mentions_term` and 110 `shares_term`.
+- CI caught a determinism bug the local suite could not: the synthetic Office fixtures were
+  DEFLATE-compressed, and this machine's Python links zlib-ng 1.3.1 while the runners link
+  zlib 1.2.x. The same members compress to different bytes (`e2548c28` against `27bc69b5` in a
+  direct comparison) and hash identically when stored, so every corpus file hash and every
+  golden artifact depended on the builder. Fixture packages are now stored, and a determinism
+  test refuses any compressed member.
 
 ## Acceptance
 

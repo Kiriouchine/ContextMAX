@@ -78,3 +78,27 @@ def test_identity_excludes_timestamps_and_ledger(tmp_path: Path):
     assert "nodes/files.jsonl" in hashed
     assert "coverage.json" in hashed
     assert manifest["completeness"]["verdict"] == "full"
+
+
+def test_corpus_bytes_do_not_depend_on_the_zlib_build(tmp_path: Path):
+    """Every corpus file must be byte-identical on any machine.
+
+    DEFLATE output differs between zlib and zlib-ng, so a compressed member inside a synthetic
+    Office fixture would change the file's hash, and with it every golden artifact, depending
+    only on which Python built it. Fixture packages are therefore stored, never deflated.
+    """
+    import zipfile
+
+    root = build_corpus(tmp_path / "corpus")
+    packages = [
+        p
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and p.suffix.lower() in (".docx", ".pptx", ".odt", ".odp", ".ods", ".epub")
+    ]
+    assert packages, "the corpus should contain container documents"
+    for path in packages:
+        with zipfile.ZipFile(path) as zf:
+            compressed = sorted(
+                i.filename for i in zf.infolist() if i.compress_type != zipfile.ZIP_STORED
+            )
+        assert not compressed, f"{path.name} compresses {compressed}; use zipped(..., ZIP_STORED)"
