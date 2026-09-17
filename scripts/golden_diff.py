@@ -98,7 +98,9 @@ def main() -> int:
     if len(diffs) > 200:
         print(f"... {len(diffs) - 200} more differences")
     if "--first" in sys.argv:
-        token = re.sub(r"[^A-Za-z0-9._-]+", "-", diffs[0])[:180]
+        # The token ends up inside a CI artifact name, which has a 255 character budget shared
+        # with the operating system, the Python version and the failing test.
+        token = re.sub(r"[^A-Za-z0-9._-]+", "-", diffs[0])[:120]
         print(f"TOKEN={token}")
     return 1
 

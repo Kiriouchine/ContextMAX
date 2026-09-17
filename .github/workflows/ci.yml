@@ -36,7 +36,7 @@ jobs:
           code=$?
           tail -n 60 "pytest-${{ matrix.os }}-${{ matrix.python }}.txt"
           first=$(grep -m1 '^FAILED' "pytest-${{ matrix.os }}-${{ matrix.python }}.txt" \
-            | sed 's/^FAILED //; s/ .*//; s#[^A-Za-z0-9._-]#-#g' | cut -c1-80)
+            | sed 's/^FAILED //; s/ .*//; s#.*/##; s#[^A-Za-z0-9._-]#-#g' | cut -c1-60)
           echo "first=${first:-ok}" >> "$GITHUB_OUTPUT"
           exit $code
       - name: Diagnose golden drift
@@ -53,7 +53,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-${{ matrix.os }}-${{ matrix.python }}-${{ steps.tests.outputs.first }}-${{ steps.drift.outputs.token }}
+          # Artifact names are capped at 255 characters; a longer name fails the upload.
+          name: ci-${{ matrix.os }}-${{ matrix.python }}--${{ steps.tests.outputs.first }}--${{ steps.drift.outputs.token }}
           path: |
             pytest-${{ matrix.os }}-${{ matrix.python }}.txt
             drift-${{ matrix.os }}-${{ matrix.python }}.txt
