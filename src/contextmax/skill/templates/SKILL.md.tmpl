@@ -64,6 +64,8 @@ Every command prints JSON when piped; add `--json` to be sure. Details in
 | Find a document | `{{CMX}} q docs "<title or path>"` |
 | A document's outline and references | `{{CMX}} q doc <path>` |
 | Read one section | `{{CMX}} q section "<section id>" --text` |
+| What a term or acronym means, as the documents define it | `{{CMX}} q term "<name>"` |
+| A named quantity, and whether documents agree on it | `{{CMX}} q param "<label>" --compare` |
 | Everything linked to a node | `{{CMX}} q related <id>` |
 | Why two nodes are linked | `{{CMX}} q explain <id> <id>` |
 | What was not indexed, and why | `{{CMX}} q skipped` |
@@ -81,6 +83,13 @@ Every command prints JSON when piped; add `--json` to be sure. Details in
   whose call sites name the symbol but could not be resolved; treat them as leads.
 - **Documents describe intent; code describes behaviour.** Never claim a document normatively
   specifies code because a section names a symbol; say the section mentions it.
+- **Terms.** A term found by `acronym`, `defined`, `glossary` or `macro` is quoted from the
+  document at the cited section: report it as what that document says, not as the field's
+  definition. A `keyphrase` is a statistical candidate, never "the concept of the document".
+- **Parameters.** A parameter's identity is its label, not its number. `q param --compare`
+  says `agree` or `differ` per label; when it differs, that disagreement is the finding.
+  Values are read as stored, including hidden cells and formula results; verify at the cited
+  cell or line before quoting a number.
 - **Never claim the code compiles or runs.** This is static analysis.
 - **Cite what you opened.** `q source` returns exact lines with a citation string; use it.
 

@@ -453,6 +453,75 @@ class Index:
         }
 
     # --- documents -------------------------------------------------------------------------
+    # --- terms -----------------------------------------------------------------------------
+    def term(self, query: str, limit: int = 20) -> dict[str, Any]:
+        """Terms whose name, acronym or expansion contains every word of `query`, exact acronym
+        matches first, with where they are defined and where they occur most."""
+        from contextmax.docs.params import norm_label
+
+        tokens = norm_label(query).split()
+        sql = "select payload from nodes where kind = 'term'"
+        params: list[Any] = []
+        for token in tokens:
+            sql += " and lower(payload) like ?"
+            params.append(f"%{token}%")
+        rows = self._nodes(sql + " order by id", tuple(params))
+        hits: list[dict[str, Any]] = []
+        for row in rows:
+            hay = " ".join(x for x in (row.get("name"), row.get("acronym"), row.get("expansion")) if x).lower()
+            if tokens and not all(t in hay for t in tokens):
+                continue
+            defined = [
+                {"section": s, "cite": (self._node(s) or {}).get("cite")} for s in row.get("defined_in") or []
+            ]
+            occurrences = sorted(row.get("occurrences") or [], key=lambda o: (-o["count"], o["section"]))[:5]
+            hits.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "acronym": row.get("acronym"),
+                    "expansion": row.get("expansion"),
+                    "definition": row.get("definition"),
+                    "methods": row.get("methods"),
+                    "n_documents": row.get("n_documents"),
+                    "n_occurrences": row.get("n_occurrences"),
+                    "defined_in": defined,
+                    "top_occurrences": [
+                        {**o, "cite": (self._node(o["section"]) or {}).get("cite")} for o in occurrences
+                    ],
+                    "cite": row.get("cite"),
+                }
+            )
+        import re as _re
+
+        q = query.strip().lower()
+        whole = _re.compile(rf"(?<![\w-]){_re.escape(q)}(?![\w-])") if q else None
+
+        def rank(hit: dict[str, Any]) -> tuple:
+            hay = " ".join(x for x in (hit["name"], hit["acronym"], hit["expansion"]) if x).lower()
+            if hit["name"].lower() == q:  # the term itself, then its expansion, then the rest
+                exact = 0
+            elif (hit["acronym"] or "").lower() == q:
+                exact = 1
+            else:
+                exact = 2
+            return (
+                exact,
+                0 if (whole and whole.search(hay)) else 1,  # "EKF" before "CFG-EKF"
+                0 if set(hit["methods"] or []) & {"acronym", "defined", "glossary", "macro"} else 1,
+                -(hit["n_documents"] or 0),
+                hit["id"],
+            )
+
+        hits.sort(key=rank)
+        return {
+            "query": query,
+            "n": len(hits),
+            "hits": hits[:limit],
+            "truncated": len(hits) > limit,
+            "note": "Definitions are quoted from the documents at the cited sections; keyphrases are statistical candidates, not concepts.",
+        }
+
     # --- parameters ------------------------------------------------------------------------
     def parameter(
         self,

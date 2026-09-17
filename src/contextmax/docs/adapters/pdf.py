@@ -35,6 +35,15 @@ _URL = re.compile(r"https?://[^\s<>()\"']+[^\s<>()\"'.,;:]")
 _TITLE_PREFIX = re.compile(r"^(Microsoft (?:Word|PowerPoint|Excel) - |PowerPoint Presentation)", re.I)
 _PATHLIKE_TITLE = re.compile(r"[\\/]|\.(dvi|pdf|docx?|tex|pptx?|txt|ps)$", re.I)
 _OBJECT_REF = re.compile(r"IndirectObject\(\d+, \d+, \d+\)")
+# Typographic ligatures and quotes survive extraction as single code points, which would make
+# "identiﬁcation" unsearchable as "identification". Folding them keeps the text findable; the
+# page and section citations still point at the original.
+LIGATURES = str.maketrans(
+    {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st",
+     "Ĳ": "IJ", "ĳ": "ij", "œ": "oe", "Œ": "OE", "æ": "ae", "Æ": "AE",
+     " ": " ", "’": "'", "‘": "'", "“": '"', "”": '"',  # noqa: RUF001
+     "–": "-", "—": "-"}  # noqa: RUF001
+)
 
 
 def _available() -> tuple[bool, str]:
@@ -256,6 +265,7 @@ class PdfAdapter:
                         f"page {page_no}: text extraction failed ({exc.__class__.__name__})"
                     )
                 continue
+            text = text.translate(LIGATURES)
             total_chars += len(text.strip())
             if index == 0:
                 first_line = next((ln.strip() for ln in text.split("\n") if ln.strip()), "")

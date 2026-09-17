@@ -214,7 +214,7 @@
       const wrap = el("div", { class: "section" });
       wrap.appendChild(el("h3", {}, [chip(d.format), chip(d.adapter), chip(d.determinism), document.createTextNode(" " + d.title)]));
       const dl = el("dl", { class: "kv" });
-      for (const [k, v] of [["file", d.file], ["words", String(d.words)], ["sections", String(d.sections)], ["parameters", String(d.parameters || 0)], ["references", d.refs_summary || "none"]]) { dl.appendChild(el("dt", { text: k })); dl.appendChild(el("dd", { text: v })); }
+      for (const [k, v] of [["file", d.file], ["words", String(d.words)], ["sections", String(d.sections)], ["parameters", String(d.parameters || 0)], ["terms", String(d.terms || 0)], ["references", d.refs_summary || "none"]]) { dl.appendChild(el("dt", { text: k })); dl.appendChild(el("dd", { text: v })); }
       wrap.appendChild(dl);
       wrap.appendChild(el("h2", { text: "Outline" }));
       const secs = sectionsByDoc.get(id) || [];
@@ -228,6 +228,15 @@
         const ul = el("ul"); li.appendChild(ul); stack.push([s.depth, ul]);
       }
       wrap.appendChild(tree);
+      const terms = (DATA.terms || {})[id] || [];
+      if (terms.length) {
+        wrap.appendChild(el("h2", { text: `Terms (${d.terms})` }));
+        const tl = el("ul", { class: "list" });
+        for (const t of terms) tl.appendChild(el("li", {}, [chip(t.method), el("span", { class: "mono", text: t.name + (t.acronym && t.acronym !== t.name ? " (" + t.acronym + ")" : "") }), el("span", { text: t.expansion && t.expansion !== t.name ? " = " + t.expansion : (t.definition ? " — " + t.definition : "") }), el("span", { class: "cite", text: t.occurrences ? " " + t.occurrences + "x" : "" })]));
+        if (terms.length < d.terms) tl.appendChild(el("li", { class: "note", text: `… ${d.terms - terms.length} more in nodes/terms.jsonl (cmx q term <name>)` }));
+        wrap.appendChild(tl);
+        wrap.appendChild(el("p", { class: "note", text: "Acronyms, definitions and glossary rows are quoted from the document; keyphrases are statistical candidates, not concepts." }));
+      }
       const params = (DATA.parameters || {})[id] || [];
       if (params.length) {
         wrap.appendChild(el("h2", { text: `Parameters (${d.parameters})` }));

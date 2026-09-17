@@ -31,6 +31,7 @@ BLOCK_KINDS = (
     "cell",
     "title",
     "bibentry",
+    "term",  # a defined term: text = expansion/label, target = short form, extra["definition"]
 )
 
 

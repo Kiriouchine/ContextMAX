@@ -17,10 +17,12 @@ slashes relative to the project root; `ext:<root>/...` marks files under an exte
 
 | File | Relations |
 |---|---|
+| `nodes/terms.jsonl` | `term`: `name`, `label_norm`, `methods` (`acronym`, `defined`, `glossary`, `macro`, `heading`, `keyphrase`), `acronym`, `expansion`, `definition`, `defined_in[]` (section ids), `occurrences[{section,count}]`, `documents[]`, `score` |
+| `nodes/parameters.jsonl` | `parameter`: `label`, `label_norm`, `value`, `display`, `unit`, `unit_norm`, `formula`, `source_kind` (`cell`, `formula-literal`, `prose`), `sheet`, `cell`, `header`, `hidden`, `context` |
 | `edges/calls.jsonl` | `calls`, `instantiates`: `src`, `dst` (null when not resolved), `dst_name`, `status`, `count`, `sites[{line,col}]`, `candidates`, `evidence` |
 | `edges/imports.jsonl` | `imports` between files, or to an external module name |
 | `edges/contains.jsonl` | `contains`: file to symbol, parent symbol to child |
-| `edges/links.jsonl` | `links`, `crossref`, `cites`, `mentions_file`, `mentions_symbol`, `depends_on` |
+| `edges/links.jsonl` | `links`, `crossref`, `cites`, `defines`, `mentions_term`, `mentions_file`, `mentions_symbol`, `shares_term`, `shares_parameter`, `depends_on` |
 
 Every edge carries `rel`, `tier`, `confidence`, `evidence`, `status`, `adapter`.
 

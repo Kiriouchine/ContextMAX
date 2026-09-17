@@ -235,6 +235,16 @@ def build_store(layout, con: sqlite3.Connection, artifact_hash: str) -> dict[str
                 ),
             )
         )
+    for row in _rows(layout.index / "nodes" / "terms.jsonl"):
+        add_node(row, "term", "doc", row["name"], "", None, None, None, None, None, row["cite"], None, None)
+        fts_rows.append(
+            (
+                row["id"],
+                "term",
+                " ".join(x for x in (row["name"], row.get("acronym"), row.get("expansion")) if x),
+                " ".join(x for x in (row.get("definition"), " ".join(row.get("variants") or [])) if x),
+            )
+        )
     for row in _rows(layout.index / "nodes" / "references.jsonl"):
         add_node(
             row,

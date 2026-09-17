@@ -349,6 +349,9 @@ def test_pdf_derived_headings_pages_and_scan_detection(monkeypatch):
     from contextmax.docs.run import section_cite
 
     assert section_cite("docs/study.pdf", structure.sections[0]) == "docs/study.pdf p.1-2 §1"
+    from contextmax.docs.adapters.pdf import LIGATURES
+
+    assert "Identiﬁcation of stiﬀness".translate(LIGATURES) == "Identification of stiffness"
     scan = PdfAdapter().extract("docs/scan.pdf", minimal_pdf([[""], [""]]))
     assert scan.metadata.get("scan_detected") is True and any("no OCR" in n for n in scan.notes)
     with pytest.raises(ExtractionError):

@@ -58,7 +58,8 @@ FILES: dict[str, bytes | str] = {
     # Documents: a LaTeX guide with sections, labels, refs, a figure, cites (no .bib) and an
     # include; the included file; an HTML page with headings and links; a plain report.
     "docs/guide.tex": (
-        "\\documentclass{article}\n\\title{GPS Guide}\n\\begin{document}\n"
+        "\\documentclass{article}\n\\title{GPS Guide}\n"
+        "\\newacronym{gps}{GPS}{Global Positioning System}\n\\begin{document}\n"
         "\\section{Introduction}\\label{sec:intro}\n"
         "The receiver is described in \\cite{ublox2011} and shown in Figure~\\ref{fig:setup}.\n"
         "Gains come from \\texttt{gain\\_sched} in gain_sched.m.\n"
@@ -167,6 +168,19 @@ FILES: dict[str, bytes | str] = {
     "data/params.ods": office.ODS,
     "data/gains.xlsx": office.gains_xlsx(),
     "data/book.xls": office.book_xls(),
+    # Phase 3 session 4: terms (acronyms, definitions, glossary table, keyphrases) and a
+    # parsed bibliography with numbered and author-year citations.
+    "docs/thesis.md": (
+        "# Sensing for Quad-rotors\n\n## 1 Introduction\n\n"
+        "The Extended Kalman Filter (EKF) fuses sensors [1]. A gain-scheduled Kalman filter is used.\n"
+        "The gain-scheduled Kalman filter runs at 50 Hz. Attitude is defined as the orientation of the body frame.\n"
+        "GPS (Global Positioning System) drift is large [2, 3]; see also (Kalman, 1960).\n\n"
+        "## 2 Glossary\n\n| Term | Meaning |\n|---|---|\n| IMU | Inertial Measurement Unit |\n"
+        "| drift | slow change of a sensor bias |\n\n## References\n\n"
+        "[1] V. I. Kiriouchine \u201d Attitude estimation for Quad-copters .\u201d CST, Eindhoven, June 2016\n"
+        "[2] R. E. Kalman \u201d A New Approach to Linear Filtering .\u201d J. Basic Eng., DOI: 10.1115/1.3662552, 1960\n"
+        "[3] Some Author \u201d GPS tutorial .\u201d Web, https://example.org/gps, 2012\n"
+    ),
 }
 
 

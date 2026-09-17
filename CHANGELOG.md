@@ -3,9 +3,10 @@
 All notable changes to ContextMAX are recorded here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.3.0] - 2026-09-17
 
-Phase 3, documents wave, in progress.
+Phase 3, the documents wave: every document format in the registry is read, and documents
+gain terms, named quantities and parsed bibliographies.
 
 ### Added
 - Document adapters: `pdf-v1` (pypdf; bookmarks as the table of contents, derived headings
@@ -45,10 +46,27 @@ Phase 3, documents wave, in progress.
   (`documents.units_extra` extends it, `Nm` and `nm` stay distinct); `cmx q param <label>
   [--compare] [--value N --unit U]` with an agree/differ verdict per label; `shares_parameter`
   edges between documents; parameters listed in `DOCMAP.md`, `INDEX.md` and `docs.html`.
+- `nodes/terms.jsonl`: acronyms with their expansion, defined terms with the defining sentence,
+  glossary and nomenclature table rows, LaTeX acronym macros, section titles as topics, and
+  corpus TF-IDF keyphrases capped per document (`documents.terms_cap`, the cap announced).
+  Every term records the methods that found it, where it is defined and where it occurs.
+  `cmx q term <name>` ranks exact and whole-word matches first and cites every definition.
+  New edges `defines`, `mentions_term` and `shares_term`.
+- Bibliographies parsed from extracted text: a references section split into entries with
+  authors, year, title, DOI and URL, resolved to a BibTeX entry by DOI or title and to a
+  project document by title or file stem; in-text `[12]`, `[3, 5-7]` and `(Smith et al., 2020)`
+  citations resolved to those entries. On the example thesis, 31 entries and 50 of 59 in-text
+  citations resolve.
+- Terms and parameters are in the generated skill: recipes, schema rows and honesty rules that
+  separate quoted definitions from statistical keyphrases.
 
 ### Fixed
 - The `max_lines` limit no longer excludes container formats (PDF, Office): three large PDFs
   in the example archive were wrongly skipped as "too many lines".
+- PDF text folds typographic ligatures and smart quotes, so "identiﬁcation" is searchable as
+  "identification".
+- Configuration files and spreadsheets contribute no topics or keyphrases: their headings are
+  keys and sheet names, and their content is already covered by parameters.
 
 ## [0.2.0] - 2026-09-17
 

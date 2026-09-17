@@ -31,6 +31,8 @@ INCLUDE = re.compile(
     r"\\(input|include|subfile|bibliography|addbibresource|includegraphics|lstinputlisting)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}"
 )
 BEGIN = re.compile(r"\\begin\s*\{([a-zA-Z*]+)\}")
+ACRONYM = re.compile(r"\\newacronym\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}\s*\{([^}]*)\}\s*\{([^}]*)\}")
+GLOSSARY_ENTRY = re.compile(r"\\newglossaryentry\s*\{([^}]*)\}\s*\{((?:[^{}]|\{[^{}]*\})*)\}")
 CAPTION = re.compile(r"\\caption\s*(?:\[[^\]]*\])?\s*\{")
 ITEM = re.compile(r"\\item\b\s*(?:\[[^\]]*\])?")
 DISPLAY_MATH = re.compile(r"\\\[.*?\\\]|\$\$.*?\$\$", re.DOTALL)
@@ -217,6 +219,40 @@ class LatexAdapter:
                             end_line=line_of(m.start()),
                             target=keyname,
                             extra={"command": m.group(1)},
+                        ),
+                    )
+                )
+        for m in ACRONYM.finditer(text):
+            events.append(
+                (
+                    m.start(),
+                    m.end(),
+                    Block(
+                        kind="term",
+                        text=clean_text(m.group(3)).strip(),
+                        target=m.group(2).strip(),
+                        line=line_of(m.start()),
+                        end_line=line_of(m.start()),
+                        extra={"definition": clean_text(m.group(3)).strip(), "key": m.group(1).strip(), "command": "newacronym"},
+                    ),
+                )
+            )
+        for m in GLOSSARY_ENTRY.finditer(text):
+            body = m.group(2)
+            name = re.search(r"name\s*=\s*\{([^}]*)\}", body)
+            desc = re.search(r"description\s*=\s*\{([^}]*)\}", body)
+            if name:
+                events.append(
+                    (
+                        m.start(),
+                        m.end(),
+                        Block(
+                            kind="term",
+                            text=clean_text(name.group(1)).strip(),
+                            target=None,
+                            line=line_of(m.start()),
+                            end_line=line_of(m.start()),
+                            extra={"definition": clean_text(desc.group(1)).strip() if desc else None, "key": m.group(1).strip(), "command": "newglossaryentry"},
                         ),
                     )
                 )

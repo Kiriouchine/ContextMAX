@@ -56,6 +56,29 @@ callers may still be called dynamically; say "no mapped caller", never "dead".
 Section text comes from the extracted text cache. For anything load-bearing, open the
 original file at the cited lines.
 
+## E2. Terms, acronyms and named quantities
+
+```
+{{CMX}} q term "EKF"
+{{CMX}} q term "gain scheduling"
+{{CMX}} q param "servo error" --compare
+{{CMX}} q param "" --value 50 --unit Hz
+```
+
+`q term` returns what the documents themselves say. Each hit carries `methods`: `acronym` (the
+document wrote "Extended Kalman Filter (EKF)"), `defined` ("X is defined as ..."), `glossary`
+(a glossary or nomenclature table row), `macro` (a LaTeX acronym macro), `heading` (a section
+title used as a topic) and `keyphrase` (a statistical candidate from corpus TF-IDF). Quote a
+definition only from the first four, and cite `defined_in`. Never present a keyphrase as a
+concept of the document.
+
+`q param` finds named quantities from spreadsheet cells (`source_kind: cell`), the numeric
+literals inside their formulas (`formula-literal`) and quantities written in prose
+(`prose`). A parameter's identity is its label, never its number. `--compare` groups by label
+and returns `agree` or `differ` with the distinct values and where each came from; a `differ`
+verdict is a finding, not an error. Values are read as stored, including hidden cells, so open
+the cited cell or line before quoting a number.
+
 ## F. Relations and evidence
 
 ```

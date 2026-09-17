@@ -27,6 +27,18 @@ byte-identical output on Windows, macOS and Linux. Nothing leaves your machine.
   document section.
 - **Offline is a requirement.** No network while indexing, querying or viewing.
 
+## What it reads
+
+Code in any language: a dedicated plugin where one exists, a tree-sitter grammar otherwise, a
+lexical parser when there is no grammar, and a catalogued file node when nothing can be parsed.
+
+Documents: Markdown, plain text, HTML, LaTeX, BibTeX, reStructuredText, AsciiDoc, Org, Jupyter
+notebooks, email, configuration and data files (JSON, YAML, TOML, XML, INI, manifests), Word,
+PowerPoint, OpenDocument, EPUB, RTF and spreadsheets (xlsx, xls, ods, csv) with the standard
+library, PDF with `pip install contextmax[pdf]`, legacy `.doc`/`.ppt` through an installed
+LibreOffice, and images catalogued with their dimensions. Anything unreadable is listed in
+`skipped.jsonl` with a reason.
+
 ## Install (development)
 
 ```bash
@@ -48,6 +60,8 @@ cmx q symbol lookup_gain            # signature, doc, callers, callees, document
 cmx q impact lookup_gain            # transitive callers and callees, split by role
 cmx q doc docs/guide.tex            # outline, references, symbols mentioned
 cmx q section "doc:docs/guide.tex#introduction" --text
+cmx q term "EKF"                    # what the documents themselves define it as
+cmx q param "servo error" --compare # one quantity across documents: agree or differ
 cmx q source src/app/util.py:1-12   # exact lines with a citation string
 cmx q skipped                       # what was not indexed, and why
 

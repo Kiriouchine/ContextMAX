@@ -254,6 +254,50 @@ def run_links_stage(ctx) -> dict[str, Any]:
             )
         )
 
+    # 1c. Terms: a section that defines a term, sections that mention a defined term, and
+    # documents that share non-generic terms.
+    term_rows = _load(layout, "nodes/terms.jsonl")
+    term_docs: dict[str, set[str]] = defaultdict(set)
+    for t in term_rows:
+        defined = set(t.get("defined_in") or [])
+        for sec in sorted(defined):
+            rows.append(
+                edge_row(src=sec, dst=t["id"], rel="defines", tier="A", confidence="high",
+                         evidence=f"term:{t['method']}", adapter=ADAPTER, kind="term")
+            )
+        if defined:
+            for occ in t.get("occurrences") or []:
+                if occ["section"] in defined:
+                    continue
+                rows.append(
+                    edge_row(src=occ["section"], dst=t["id"], rel="mentions_term", tier="A",
+                             confidence="high" if occ["count"] >= 3 else "medium", evidence="term:occurrence",
+                             adapter=ADAPTER, kind="term", count=occ["count"])
+                )
+        if t["method"] != "heading":
+            for d in t.get("documents") or []:
+                term_docs[t["label_norm"]].add(d)
+    min_shared_terms = int(config.get("min_shared_terms", 3))
+    pair_terms: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for label, docs in sorted(term_docs.items()):
+        if len(docs) > owner_cap or len(docs) < 2:
+            continue
+        owners_sorted = sorted(docs)
+        for i, a in enumerate(owners_sorted):
+            for b in owners_sorted[i + 1 :]:
+                pair_terms[(a, b)].append(label)
+    per_doc_term_edges: dict[str, int] = defaultdict(int)
+    for (a, b), labels in sorted(pair_terms.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        if len(labels) < min_shared_terms or per_doc_term_edges[a] >= 12 or per_doc_term_edges[b] >= 12:
+            continue
+        per_doc_term_edges[a] += 1
+        per_doc_term_edges[b] += 1
+        rows.append(
+            edge_row(src=a, dst=b, rel="shares_term", tier="A", confidence="medium" if len(labels) >= 5 else "low",
+                     evidence="terms:" + ", ".join(labels[:5]) + (" …" if len(labels) > 5 else ""), adapter=ADAPTER,
+                     kind="term", count=len(labels))
+        )
+
     # 2. Section text -> symbols.
     by_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_qual: dict[str, list[dict[str, Any]]] = defaultdict(list)

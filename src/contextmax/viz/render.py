@@ -191,6 +191,25 @@ def run_viz_stage(ctx) -> dict[str, Any]:
     documents = _load(layout, "nodes/documents.jsonl")
     references = _load(layout, "nodes/references.jsonl")
     parameters = _load(layout, "nodes/parameters.jsonl")
+    term_rows = _load(layout, "nodes/terms.jsonl")
+    method_rank = {"macro": 0, "glossary": 1, "acronym": 2, "defined": 3, "heading": 4, "keyphrase": 5}
+    terms_by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for t in term_rows:
+        for d in t.get("documents") or []:
+            terms_by_doc[d].append(
+                {
+                    "id": t["id"],
+                    "name": t["name"],
+                    "acronym": t.get("acronym"),
+                    "expansion": t.get("expansion"),
+                    "definition": t.get("definition"),
+                    "method": t["method"],
+                    "occurrences": t.get("n_occurrences", 0),
+                    "cite": t.get("cite"),
+                }
+            )
+    for items in terms_by_doc.values():
+        items.sort(key=lambda t: (method_rank.get(t["method"], 9), -t["occurrences"], t["id"]))
     params_by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for p in parameters:
         params_by_doc[p["doc"]].append(
@@ -245,6 +264,7 @@ def run_viz_stage(ctx) -> dict[str, Any]:
                 "sections": d["n_sections"],
                 "words": d["n_words"],
                 "parameters": d.get("n_parameters", 0),
+                "terms": d.get("n_terms", 0),
                 "refs_summary": ", ".join(
                     f"{k} {v}" for k, v in sorted(ref_summary.get(d["id"], {}).items())
                 )
@@ -271,13 +291,14 @@ def run_viz_stage(ctx) -> dict[str, Any]:
             k: sorted(v, key=lambda r: r["label"]) for k, v in sorted(section_mentions.items())
         },
         "parameters": {k: v[:100] for k, v in sorted(params_by_doc.items())},
+        "terms": {k: v[:60] for k, v in sorted(terms_by_doc.items())},
         "project": project,
     }
     docs_body = (
         '<div class="toolbar"><input id="search" type="search" placeholder="search documents"></div>'
         '<main><div class="canvas" id="canvas"></div><aside class="panel"><div id="panel"></div><h2>Documents</h2><ul class="list" id="doc-list"></ul></aside></main>'
     )
-    docs_data = _trim(docs_data, max_bytes, "sections", "section_mentions", "parameters")
+    docs_data = _trim(docs_data, max_bytes, "sections", "section_mentions", "parameters", "terms")
     written["docs.html"] = _write(
         ctx,
         layout.viz_dir / "docs.html",

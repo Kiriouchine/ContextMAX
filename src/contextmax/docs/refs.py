@@ -38,6 +38,7 @@ class Catalog:
     )  # label -> [(doc key, section id)]
     by_basename: dict[str, list[str]] = field(default_factory=dict)
     bibentries: dict[str, list[str]] = field(default_factory=dict)  # bib key -> [reference node ids]
+    titles: dict[str, list[str]] = field(default_factory=dict)  # normalised document title -> [doc keys]
 
     def __post_init__(self) -> None:
         for key in self.files:
@@ -156,6 +157,17 @@ def build_references(
             fields = block.extra
             file_hint = _bib_file_hint(fields.get("file", ""))
             resolved_key, cands, evidence = _resolve_path(catalog, key, file_hint) if file_hint else (None, [], "bibentry")
+            confidence = "high" if resolved_key else None
+            if resolved_key:
+                evidence = "bibfile"
+            elif not cands:
+                from contextmax.docs.bibliography import norm_title
+
+                owners = [k for k in catalog.titles.get(norm_title(fields.get("title") or ""), []) if k != key]
+                if len(owners) == 1:
+                    resolved_key, confidence, evidence = owners[0], "medium", "title"
+                elif owners:
+                    cands, evidence = owners, "title-ambiguous"
             add(
                 "bibentry",
                 target,
@@ -165,8 +177,8 @@ def build_references(
                 _node_for(catalog, resolved_key) if resolved_key else None,
                 [_node_for(catalog, c) for c in cands],
                 resolved_key is None,
-                "high" if resolved_key else None,
-                "bibfile" if resolved_key else evidence,
+                confidence,
+                evidence,
                 ref_key=bib_ids.get(idx),
                 extra={
                     "entry_key": target,

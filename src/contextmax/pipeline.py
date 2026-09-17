@@ -269,10 +269,28 @@ def _write_index_md(ctx: Context) -> str:
             f"{docs['n_documents']} documents with {docs.get('n_sections', 0)} sections and "
             f"{docs.get('n_words', 0)} words; {docs.get('n_references', 0)} references "
             f"({docs.get('n_references_external', 0)} external, {docs.get('n_references_unresolved', 0)} unresolved); "
-            f"{docs.get('n_parameters', 0)} parameters (`cmx q param <label> --compare`). "
+            f"{docs.get('n_parameters', 0)} parameters (`cmx q param <label> --compare`); "
+            f"{docs.get('n_terms', 0)} terms of which {docs.get('n_terms_defined', 0)} defined in the documents (`cmx q term <name>`). "
             "Outlines per document in `DOCMAP.md`; text cache under `text/`.",
             "",
         ]
+        terms_path = ctx.layout.nodes / "terms.jsonl"
+        if terms_path.is_file():
+            from contextmax.io.jsonl import read_jsonl
+
+            defined_terms = [
+                t for t in read_jsonl(terms_path) if t["method"] in ("acronym", "defined", "glossary", "macro")
+            ]
+            defined_terms.sort(key=lambda t: (-t["n_documents"], -t["n_occurrences"], t["id"]))
+            if defined_terms:
+                lines += ["### Defined terms", "", "| Term | Expansion or definition | Documents | Defined at |", "|---|---|---|---|"]
+                for t in defined_terms[:20]:
+                    meaning = t.get("expansion") or ""
+                    if meaning == t["name"]:  # this row is the expansion; name its short form
+                        meaning = f"abbreviated {t['acronym']}" if t.get("acronym") else ""
+                    meaning = meaning or t.get("definition") or ""
+                    lines.append(f"| `{t['name']}` | {meaning[:80]} | {t['n_documents']} | `{t['cite']}` |")
+                lines.append("")
         docs_path = ctx.layout.nodes / "documents.jsonl"
         if docs_path.is_file():
             from contextmax.io.jsonl import read_jsonl

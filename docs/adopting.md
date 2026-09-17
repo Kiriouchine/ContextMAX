@@ -68,11 +68,18 @@ cmx q symbol lookup_gain
 cmx q impact lookup_gain
 cmx q doc docs/guide.tex
 cmx q section "doc:docs/guide.tex#introduction" --text
+cmx q term "EKF"                                 # what the documents define it as
+cmx q param "servo error" --compare              # the same quantity across documents
 cmx q source src/app/util.py:1-12
 cmx q skipped
 ```
 
 Every result carries a citation. Add `--json` for machine-readable output.
+
+A term found as an acronym, a definition, a glossary row or a LaTeX macro is quoted from the
+document at the cited section; a keyphrase is a statistical candidate, not a concept. A
+parameter's identity is its label, never its number, so `--compare` reports whether the
+documents agree on it.
 
 ## Give it to an AI assistant
 

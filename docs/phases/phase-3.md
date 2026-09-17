@@ -1,6 +1,6 @@
 # Phase 3 — Documents wave
 
-Status: in progress (started 2026-09-17). Builds on Phase 2 (`v0.2.0`).
+Status: done 2026-09-17, released as `v0.3.0`. Builds on Phase 2 (`v0.2.0`).
 
 ## Goal
 
@@ -138,6 +138,27 @@ Delivered every item of deliverable 3 (`docs/units.py`, `docs/params.py`,
   header`. Result: 648 cell parameters, 964 prose quantities, 43 `shares_parameter` edges.
 - The compare verdict groups by the exact normalised label; "servo error" (two sheets) and
   "servo error stayed" (a report) are neighbours, not the same parameter, and both are shown.
+
+### Session 4 — done 2026-09-17
+
+Delivered deliverable 4 (`docs/terms.py`, `docs/bibliography.py`, `cmx q term`, term edges,
+skill updates) and released `0.3.0`. Findings:
+
+- An acronym regex that is greedy leftwards captures "The Extended Kalman Filter (EKF)"; the
+  expansion is the **shortest** trailing phrase whose initials match, not the longest.
+- Configuration files and spreadsheets were producing "topics" such as `main`, `paths` and
+  `tool` from their keys, and keyphrases from `key = value` lines. Formats whose headings are
+  keys contribute no terms at all; their content is already covered by parameters.
+- Ranking matters as much as extraction: `q term EKF` first returned a u-blox register heading
+  named `CFG-EKF`. Exact name, then exact acronym, then whole-word, then defined-over-statistical.
+- PDF ligatures survive extraction as single code points, so "identiﬁcation" was unsearchable;
+  the PDF adapter folds ligatures and smart quotes.
+- Bibliography parsing on the real thesis: 31 entries with titles and years, 50 of 59 in-text
+  citations resolved to them. Entries there resolve to no project document because the cited
+  works are not in the archive, which is the honest result; the DOI and title paths are proven
+  by the corpus test.
+- Archive totals: 1487 terms (856 defined or headings), 909 references (460 resolved),
+  1612 parameters, 3829 link edges including 2193 `mentions_term` and 110 `shares_term`.
 
 ## Acceptance
 

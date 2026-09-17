@@ -82,6 +82,21 @@ Prose quantities (`2.0 deg`) from every document join the same file with the pre
 as label. A parameter's identity is its label, never its number: `cmx q param <label>
 --compare` groups values by label across documents and says whether they agree.
 
+`docs/terms.py` collects what the documents themselves define: acronyms with a matching
+expansion ("Extended Kalman Filter (EKF)"), sentences of the form "X is defined as …",
+glossary and nomenclature table rows, LaTeX acronym macros, section titles as topics, and
+keyphrases scored by corpus TF-IDF and capped per document. Every term in `nodes/terms.jsonl`
+records the methods that found it, the sections that define it and where it occurs, so
+`cmx q term <name>` can quote a definition with a citation. Configuration files and
+spreadsheets contribute no terms: their headings are keys, not concepts.
+
+`docs/bibliography.py` reads a references section out of the extracted text, splits it into
+entries by `[n]` markers, `n.` numbering or blank lines, and parses authors, year, title, DOI
+and URL. An entry resolves to a BibTeX entry by DOI or title and to a project document by
+title or file stem, with the confidence graded accordingly. In-text `[12]`, `[3, 5-7]` and
+`(Smith et al., 2020)` citations resolve to those entries; anything unresolved keeps its raw
+text and stays visible.
+
 ## Links and graph
 
 `link/run.py` produces graded edges: reference-derived links, section-to-symbol mentions

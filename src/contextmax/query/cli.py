@@ -32,6 +32,7 @@ VERBS = (
     "skipped",
     "source",
     "param",
+    "term",
 )
 
 
@@ -126,11 +127,28 @@ def _dispatch(index, verb: str, a: list[str], args, depth) -> Any:
         return index.source(a[0], context=args.context)
     if verb == "param":
         return index.parameter(" ".join(a), compare=args.compare, value=args.value, unit=args.unit, limit=args.limit)
+    if verb == "term":
+        return index.term(" ".join(a), args.limit)
     raise QueryError(f"unknown verb {verb}")
 
 
 def _render(verb: str, result: Any) -> None:
     w = sys.stdout.write
+    if verb == "term":
+        w(f"{result['n']} term(s) for '{result['query']}'\n")
+        for hit in result["hits"]:
+            head = hit["name"] + (f" ({hit['acronym']})" if hit.get("acronym") and hit["acronym"] != hit["name"] else "")
+            if hit.get("expansion") and hit["expansion"] != hit["name"]:
+                head += f" = {hit['expansion']}"
+            w(f"  {head}  [{', '.join(hit['methods'] or [])}]  in {hit['n_documents']} document(s), {hit['n_occurrences']} occurrence(s)\n")
+            if hit.get("definition"):
+                w(f"      definition: {hit['definition']}\n")
+            for d in hit["defined_in"][:3]:
+                w(f"      defined at {d['cite']}\n")
+            for o in hit["top_occurrences"][:3]:
+                w(f"      {o['count']}x at {o['cite']}\n")
+        w(f"{result['note']}\n")
+        return
     if verb == "param":
         w(f"{result['n']} parameter(s) for '{result['query']}'\n")
         for hit in result["hits"]:

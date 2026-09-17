@@ -11,15 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from contextmax.docs import adapters as adapter_registry
+from contextmax.docs import bibliography as bibliography_module
 from contextmax.docs import params as params_module
 from contextmax.docs import refs as refs_module
 from contextmax.docs import structure as structure_module
+from contextmax.docs import terms as terms_module
 from contextmax.docs.base import DocumentTree, ExtractionError
 from contextmax.fs import os_path
 from contextmax.io.atomic import atomic_write_text
 from contextmax.io.hash import sha256_bytes
 from contextmax.io.jsonl import write_jsonl
-from contextmax.model.ids import doc_id
+from contextmax.model.ids import doc_id, ref_id
 from contextmax.model.nodes import skipped_row
 
 DOC_FAMILIES = ("document", "text", "data")
@@ -93,12 +95,46 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     for row, tree, _structure in trees:
         for bib_key, ids in refs_module.collect_bibentries(tree, row["file"]).items():
             bibentries[bib_key].extend(ids)
+    # Titles, file stems and BibTeX DOIs/titles: what parsed bibliographies can resolve to.
+    doc_titles: dict[str, list[str]] = defaultdict(list)
+    doc_stems: dict[str, str] = {}
+    bib_dois: dict[str, str] = {}
+    bib_titles: dict[str, str] = {}
+    for row, tree, _structure in trees:
+        title_key = bibliography_module.norm_title(tree.title or "")
+        if title_key and len(title_key.split()) >= 2:
+            doc_titles[title_key].append(row["file"])
+        doc_stems[row["file"]] = bibliography_module.norm_stem(row["file"])
+        for idx, ref_key in refs_module.bibentry_ids(tree, row["file"]):
+            block = tree.blocks[idx]
+            rid = ref_id(row["file"], ref_key)
+            doi = (block.extra.get("doi") or "").lower().rstrip(".")
+            if doi:
+                bib_dois.setdefault(doi, rid)
+            entry_title = bibliography_module.norm_title(block.extra.get("title") or "")
+            if entry_title:
+                bib_titles.setdefault(entry_title, rid)
     catalog = refs_module.Catalog(
         files=all_keys,
         documents={row["file"] for row, _, _ in trees},
         labels=dict(labels),
         bibentries={k: sorted(v) for k, v in bibentries.items()},
+        titles={k: sorted(v) for k, v in doc_titles.items()},
     )
+    # Terms need the whole corpus (document frequencies) before any document row is written.
+    section_cites: dict[str, str] = {}
+    for row, tree, structure in trees:
+        for s in structure.sections:
+            section_cites[s.id] = section_cite(
+                row["file"], s, tree.metadata.get("page_unit", "page"), tree.metadata.get("line_unit", "line")
+            )
+    term_rows, terms_per_doc, terms_top = terms_module.build_terms(
+        [(row["file"], tree, structure) for row, tree, structure in trees],
+        section_cites,
+        list(doc_cfg.get("stopwords_extra", [])),
+        int(doc_cfg.get("terms_cap", 40)),
+    )
+    term_notes = {n["doc"]: n["notes"] for n in terms_top.pop("__notes__", [])}
 
     layout = ctx.layout
     doc_rows: list[dict[str, Any]] = []
@@ -116,6 +152,9 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         text_sha = sha256_bytes(text_bytes)
         ctx.artifacts[f"text/{cache_name}"] = text_sha
         refs = refs_module.build_references(tree, key, structure, catalog)
+        refs += bibliography_module.parse_bibliography(
+            tree, key, structure, dict(doc_titles), doc_stems, bib_dois, bib_titles
+        )
         ref_rows.extend(refs)
         own = doc_id(key)
         doc_params = params_module.cell_parameters(tree, key, structure)
@@ -145,6 +184,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                 "n_code_blocks": structure.code_blocks,
                 "n_references": len(refs),
                 "n_parameters": len(doc_params),
+                "n_terms": terms_per_doc.get(own, 0),
                 "toc": structure.toc,
                 "toc_source": tree.metadata.get("toc_source", "derived"),
                 "scan_detected": bool(tree.metadata.get("scan_detected")),
@@ -153,7 +193,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                 "language_hint": None,
                 "text_file": f"text/{cache_name}",
                 "text_sha256": text_sha,
-                "notes": tree.notes + tree.errors,
+                "notes": tree.notes + tree.errors + term_notes.get(own, []),
                 "cite": key,
             }
         )
@@ -205,8 +245,9 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     ctx.artifacts["nodes/parameters.jsonl"] = write_jsonl(
         layout.nodes / "parameters.jsonl", param_rows
     )
+    ctx.artifacts["nodes/terms.jsonl"] = write_jsonl(layout.nodes / "terms.jsonl", term_rows)
     ctx.artifacts["text/index.jsonl"] = write_jsonl(layout.text_dir / "index.jsonl", text_index)
-    docmap = render_docmap(doc_rows, section_rows, ref_rows, param_rows)
+    docmap = render_docmap(doc_rows, section_rows, ref_rows, param_rows, terms_top)
     ctx.artifacts["DOCMAP.md"] = sha256_bytes(atomic_write_text(layout.index / "DOCMAP.md", docmap))
     ctx.extra_skipped.extend(extra_skipped)
     for problem in problems:
@@ -220,6 +261,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         f"  {len(doc_rows)} documents, {len(section_rows)} sections, {n_words} words; {len(ref_rows)} references: "
         f"{len(ref_rows) - n_ext - n_unres} resolved, {n_ext} external, {n_unres} unresolved; "
         f"{len(param_rows)} parameters ({', '.join(f'{k} {v}' for k, v in sorted(by_source.items())) or 'none'}); "
+        f"{len(term_rows)} terms ({sum(1 for t in term_rows if t['method'] != 'keyphrase')} defined or headings); "
         f"{len(extra_skipped)} extraction failures"
     )
     adapters_used = {
@@ -238,6 +280,8 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         "n_references_unresolved": n_unres,
         "n_parameters": len(param_rows),
         "n_parameters_by_source": dict(sorted(by_source.items())),
+        "n_terms": len(term_rows),
+        "n_terms_defined": sum(1 for t in term_rows if t["method"] in ("acronym", "defined", "glossary", "macro")),
         "n_words": n_words,
         "n_extraction_failures": len(extra_skipped),
         "by_adapter": dict(sorted(by_adapter.items())),
@@ -290,6 +334,7 @@ def render_docmap(
     sections: list[dict[str, Any]],
     refs: list[dict[str, Any]],
     params: list[dict[str, Any]] | None = None,
+    terms_top: dict[str, list[dict[str, Any]]] | None = None,
     cap_sections: int = 200,
 ) -> str:
     by_doc_sections: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -360,5 +405,15 @@ def render_docmap(
             labels = sorted({p["label"] for p in params_here})
             shown = ", ".join(f"`{x}`" for x in labels[:12]) + (" …" if len(labels) > 12 else "")
             lines += ["", f"Parameters: {len(params_here)} ({shown}); values in `nodes/parameters.jsonl`, `cmx q param <label>`"]
+        terms_here = (terms_top or {}).get(doc["id"], [])
+        if terms_here:
+            defined = [t for t in terms_here if t["method"] in ("acronym", "defined", "glossary", "macro")]
+            keyphrases = [t for t in terms_here if t["method"] == "keyphrase"]
+            bits = []
+            if defined:
+                bits.append("defined: " + ", ".join(f"`{t['name']}`" + (f" ({t['acronym']})" if t["acronym"] and t["acronym"] != t["name"] else "") for t in defined[:10]) + (" …" if len(defined) > 10 else ""))
+            if keyphrases:
+                bits.append("keyphrases: " + ", ".join(f"`{t['name']}`" for t in keyphrases[:8]) + (" …" if len(keyphrases) > 8 else ""))
+            lines += ["", f"Terms: {doc.get('n_terms', len(terms_here))} (" + "; ".join(bits) + "); `cmx q term <name>`"]
         lines.append("")
     return "\n".join(lines)
