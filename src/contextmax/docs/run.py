@@ -257,12 +257,18 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     by_source: dict[str, int] = defaultdict(int)
     for p in param_rows:
         by_source[p["source_kind"]] += 1
+    # Absence is never silent: a scanned page and a truncated document are counted, printed and
+    # carried into the manifest's completeness, not only left in the document's own notes.
+    n_scans = sum(1 for d in doc_rows if d["scan_detected"])
+    n_truncated = sum(1 for d in doc_rows if any(n.startswith("TRUNCATED") for n in d["notes"]))
     ctx.log(
         f"  {len(doc_rows)} documents, {len(section_rows)} sections, {n_words} words; {len(ref_rows)} references: "
         f"{len(ref_rows) - n_ext - n_unres} resolved, {n_ext} external, {n_unres} unresolved; "
         f"{len(param_rows)} parameters ({', '.join(f'{k} {v}' for k, v in sorted(by_source.items())) or 'none'}); "
         f"{len(term_rows)} terms ({sum(1 for t in term_rows if t['method'] != 'keyphrase')} defined or headings); "
         f"{len(extra_skipped)} extraction failures"
+        + (f"; {n_scans} scanned documents with no text" if n_scans else "")
+        + (f"; {n_truncated} documents truncated by a cap" if n_truncated else "")
     )
     adapters_used = {
         aid: {
@@ -282,6 +288,8 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         "n_parameters_by_source": dict(sorted(by_source.items())),
         "n_terms": len(term_rows),
         "n_terms_defined": sum(1 for t in term_rows if t["method"] in ("acronym", "defined", "glossary", "macro")),
+        "n_scans_detected": n_scans,
+        "n_truncated": n_truncated,
         "n_words": n_words,
         "n_extraction_failures": len(extra_skipped),
         "by_adapter": dict(sorted(by_adapter.items())),

@@ -25,8 +25,26 @@ jobs:
         run: python -m contextmax grammars fetch matlab c javascript python
       - name: Lint
         run: ruff check src tests
+      # Job logs need repository admin rights to download, so the name of the uploaded artifact
+      # carries the first failing test: that name is readable from the public API.
       - name: Tests
-        run: pytest
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          pytest -q --no-header > "pytest-${{ matrix.os }}-${{ matrix.python }}.txt" 2>&1
+          code=$?
+          tail -n 60 "pytest-${{ matrix.os }}-${{ matrix.python }}.txt"
+          first=$(grep -m1 '^FAILED' "pytest-${{ matrix.os }}-${{ matrix.python }}.txt" \
+            | sed 's/^FAILED //; s/ .*//; s#[^A-Za-z0-9._-]#-#g' | cut -c1-80)
+          echo "first=${first:-ok}" >> "$GITHUB_OUTPUT"
+          exit $code
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-${{ matrix.os }}-${{ matrix.python }}-${{ steps.tests.outputs.first }}
+          path: pytest-${{ matrix.os }}-${{ matrix.python }}.txt
       - name: Artifact hash of the fixture corpus
         id: hash
         shell: bash
