@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "project": {
+    "slug": "contextmax",
+    "name": "ContextMAX",
+    "description": "ContextMAX source tree",
+    "keywords": []
+  },
+  "roots": [
+    "."
+  ],
+  "output_dir": null,
+  "respect_gitignore": true,
+  "include": [],
+  "exclude": [],
+  "features": {
+    "code": true,
+    "documents": true,
+    "links": true,
+    "viz": true,
+    "skill": true
+  }
+}

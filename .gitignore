@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors and OS
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ContextMAX's own index of itself: everything except the config is derived
+.contextmax/*
+!.contextmax/config.json
+
+# Offline bundles and grammar caches are built artifacts
+bundles/
+grammars-cache/
+
+# Golden-test scratch output
+tests/_out/

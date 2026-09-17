@@ -1,0 +1,4 @@
+This marker tells ContextMAX never to index the folder that contains it, or
+anything below it. It is placed in the ContextMAX source tree so that a copy
+of the toolkit nested inside a scanned project cannot pollute that project's
+index. Only the presence of the file matters; its content is documentation.

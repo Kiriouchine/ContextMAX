@@ -1,0 +1,287 @@
+{
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "additionalProperties": false,
+ "properties": {
+  "documents": {
+   "additionalProperties": false,
+   "properties": {
+    "facets": {
+     "additionalProperties": {
+      "items": {
+       "additionalProperties": false,
+       "properties": {
+        "match": {
+         "type": "string"
+        },
+        "value": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "match",
+        "value"
+       ],
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "type": "object"
+    },
+    "generic_term_share": {
+     "maximum": 1,
+     "minimum": 0,
+     "type": "number"
+    },
+    "id_patterns": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "max_owners": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "max_shared_edges_per_doc": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "min_shared_terms": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "min_symbol_length": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "modal_words": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "sheet_max_cols": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "sheet_max_rows": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "stopwords_extra": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "terms_cap": {
+     "minimum": 1,
+     "type": "integer"
+    },
+    "units_extra": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "type": "object"
+  },
+  "exclude": {
+   "items": {
+    "type": "string"
+   },
+   "type": "array"
+  },
+  "features": {
+   "additionalProperties": false,
+   "properties": {
+    "code": {
+     "type": "boolean"
+    },
+    "documents": {
+     "type": "boolean"
+    },
+    "links": {
+     "type": "boolean"
+    },
+    "skill": {
+     "type": "boolean"
+    },
+    "viz": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  },
+  "graph": {
+   "additionalProperties": false,
+   "properties": {
+    "max_cluster": {
+     "minimum": 2,
+     "type": "integer"
+    },
+    "max_full_nodes": {
+     "minimum": 1,
+     "type": "integer"
+    }
+   },
+   "type": "object"
+  },
+  "include": {
+   "items": {
+    "type": "string"
+   },
+   "type": "array"
+  },
+  "languages": {
+   "additionalProperties": false,
+   "properties": {
+    "disabled": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "overrides": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "type": "object"
+    }
+   },
+   "type": "object"
+  },
+  "limits": {
+   "additionalProperties": false,
+   "properties": {
+    "max_file_mb": {
+     "minimum": 0,
+     "type": "number"
+    },
+    "max_lines": {
+     "minimum": 0,
+     "type": "integer"
+    }
+   },
+   "type": "object"
+  },
+  "mcp": {
+   "additionalProperties": false,
+   "properties": {
+    "enabled": {
+     "type": "boolean"
+    }
+   },
+   "type": "object"
+  },
+  "output_dir": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "project": {
+   "additionalProperties": false,
+   "properties": {
+    "description": {
+     "maxLength": 1000,
+     "type": "string"
+    },
+    "keywords": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "name": {
+     "type": "string"
+    },
+    "slug": {
+     "pattern": "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$",
+     "type": "string"
+    }
+   },
+   "required": [
+    "slug"
+   ],
+   "type": "object"
+  },
+  "respect_gitignore": {
+   "type": "boolean"
+  },
+  "roles": {
+   "items": {
+    "additionalProperties": false,
+    "properties": {
+     "match": {
+      "minLength": 1,
+      "type": "string"
+     },
+     "role": {
+      "enum": [
+       "product",
+       "test",
+       "generated",
+       "vendor",
+       "docs",
+       "build"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "match",
+     "role"
+    ],
+    "type": "object"
+   },
+   "type": "array"
+  },
+  "roots": {
+   "items": {
+    "minLength": 1,
+    "type": "string"
+   },
+   "minItems": 1,
+   "type": "array"
+  },
+  "schema_version": {
+   "const": 1
+  },
+  "skill": {
+   "additionalProperties": false,
+   "properties": {
+    "hosts": {
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    },
+    "name": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   },
+   "type": "object"
+  },
+  "viz": {
+   "additionalProperties": false,
+   "properties": {
+    "max_page_mb": {
+     "minimum": 1,
+     "type": "number"
+    }
+   },
+   "type": "object"
+  }
+ },
+ "required": [
+  "schema_version",
+  "project"
+ ],
+ "title": "ContextMAX config",
+ "type": "object"
+}

@@ -1,0 +1,11 @@
+ContextMAX
+Copyright 2026 Vsevolod Kiriouchine
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full terms.
+
+The default installation depends only on the Python standard library.
+Optional extras pull in third-party packages under their own permissive
+licenses (MIT, BSD, ISC or Apache-2.0). The only copyleft option is the
+explicitly opt-in "mupdf" extra (PyMuPDF, AGPL-3.0); it is never installed
+by default and `contextmax doctor` reports it when present.

@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check src tests
+      - name: Tests
+        run: pytest
+      - name: Artifact hash of the fixture corpus
+        run: python scripts/corpus_hash.py --out hash-${{ matrix.os }}-${{ matrix.python }}.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hash-${{ matrix.os }}-${{ matrix.python }}
+          path: hash-${{ matrix.os }}-${{ matrix.python }}.txt
+
+  cross-os-identity:
+    name: artifact hash identical on every OS
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: hashes
+      - name: Compare
+        run: |
+          cat hashes/*/*.txt
+          if [ "$(cat hashes/*/*.txt | sort -u | wc -l)" != "1" ]; then
+            echo "artifact identity differs across platforms"; exit 1; fi

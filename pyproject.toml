@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "contextmax"
+dynamic = ["version"]
+description = "Deterministic, offline indexing, graphing and linking of code and documents, with generated skills and a local MCP server so AI agents can navigate a project with citations."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Vsevolod Kiriouchine" }]
+keywords = ["index", "call-graph", "documents", "knowledge-base", "deterministic", "offline", "mcp", "agent-skills"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Documentation",
+  "Topic :: Text Processing :: Indexing",
+]
+# The base install is standard-library only on purpose: tiers C/D and every
+# intrinsic document adapter work without any third-party package.
+dependencies = []
+
+[project.optional-dependencies]
+pdf = ["pypdf>=5.0"]
+office = ["openpyxl>=3.1", "xlrd>=2.0"]
+code = ["tree-sitter>=0.25", "tree-sitter-language-pack>=0.7"]
+mcp = ["mcp>=1.12"]
+images = ["Pillow>=10"]
+# Opt-in only: PyMuPDF is AGPL-3.0. Never part of "all".
+mupdf = ["PyMuPDF>=1.24"]
+all = [
+  "pypdf>=5.0",
+  "openpyxl>=3.1", "xlrd>=2.0",
+  "tree-sitter>=0.25", "tree-sitter-language-pack>=0.7",
+  "mcp>=1.12",
+  "Pillow>=10",
+]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+contextmax = "contextmax.cli:main"
+cmx = "contextmax.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Kiriouchine/ContextMAX"
+Changelog = "https://github.com/Kiriouchine/ContextMAX/blob/master/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/contextmax/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/contextmax"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/contextmax", "tests", "docs", "README.md", "LICENSE", "NOTICE", "CHANGELOG.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+filterwarnings = ["error::ResourceWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF"]
+ignore = ["E501"]
