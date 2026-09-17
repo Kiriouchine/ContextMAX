@@ -81,6 +81,7 @@ def test_index_writes_ledger_and_marker(built: Path):
     state = json.loads((index / "build-state.json").read_text(encoding="utf-8"))
     assert state["stages"]["discover"]["ok"] is True
     assert state["stages"]["manifest"]["ok"] is True
-    assert state["stages"]["code"]["implemented"] is False
+    assert state["stages"]["code"]["implemented"] is True
+    assert state["stages"]["documents"]["implemented"] is False
     assert (index / ".contextmax-skip").is_file()
     assert (index / "INDEX.md").read_text(encoding="utf-8").startswith("# Sample")

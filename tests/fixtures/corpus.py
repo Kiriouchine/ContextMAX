@@ -53,6 +53,44 @@ FILES: dict[str, bytes | str] = {
     "a1.md": "# a1\n",
     "empty.txt": "",
     "Makefile": "all:\n\techo build\n",
+    # MATLAB: a function file with help text, a function it calls, a script with cells that
+    # calls both and invokes another script by bare name (file-per-function resolution).
+    "matlab/gain_sched.m": (
+        "function [K, Ki] = gain_sched(v, table)\n"
+        "% GAIN_SCHED Interpolate controller gains for airspeed v.\n"
+        "%   [K, Ki] = GAIN_SCHED(v, table) returns proportional and integral gains.\n"
+        "K = lookup_gain(v, table, 'kp');   % proportional\n"
+        "Ki = lookup_gain(v, table, 'ki');\n"
+        "x = v';\n"
+        "end\n"
+    ),
+    "matlab/lookup_gain.m": (
+        "function g = lookup_gain(v, table, name)\n"
+        "% LOOKUP_GAIN Linear interpolation in a gain table.\n"
+        "g = interp1(table.v, table.(name), v);\n"
+        "end\n"
+    ),
+    "matlab/run_all.m": (
+        "%% Load data\n"
+        "load('flight.mat');\n"
+        "table.v = [10 20 30];\n"
+        "%% Schedule\n"
+        "[K, Ki] = gain_sched(15, table);\n"
+        "plot_results\n"
+        "%{\n"
+        "gain_sched(999, table)  % commented out, must not count\n"
+        "%}\n"
+    ),
+    "matlab/plot_results.m": "% PLOT_RESULTS Draw the scheduled gains.\nfigure; plot(1:3);\n",
+    # Shell: a function, a call to it, and a bare command that is not a symbol.
+    "scripts/lib.sh": '#!/usr/bin/env bash\n# helper library\nlog_msg() {\n  echo "$1"\n}\n',
+    "scripts/deploy.sh": "#!/usr/bin/env bash\nsource ./lib.sh\nlog_msg deploying\nrsync -a src/ dest/\n",
+    # C: a header prototype, two definitions, a macro and a call chain.
+    "src/native/util.c": (
+        '#include "core.h"\n#include <stdio.h>\n#define SQUARE(x) ((x) * (x))\n\n'
+        "static int helper_c(int v) {\n    return SQUARE(v);\n}\n\n"
+        "int util_sum(int a, int b) {\n    /* adds via core_add */\n    return core_add(helper_c(a), b);\n}\n"
+    ),
 }
 
 

@@ -1,0 +1,3700 @@
+{
+ "schema": 1,
+ "_comment": "Tier C lexical profiles: data, not code. Each profile says how to blank comments and strings, how a definition, a call, an import and a region look, which words are keywords (never calls), how scopes end (brace, indent, end, none), where documentation sits (before, after, docstring) and whether a file with no definitions is a script. Regexes are Python syntax, applied per line (MULTILINE). 'languages' maps registry language ids to profiles; anything unmapped uses 'default'.",
+ "languages": {
+  "matlab": "matlab",
+  "python": "python",
+  "javascript": "javascript",
+  "typescript": "javascript",
+  "tsx": "javascript",
+  "vue": "javascript",
+  "c": "clike",
+  "cpp": "clike",
+  "objective-c": "clike",
+  "java": "clike",
+  "csharp": "clike",
+  "go": "go",
+  "rust": "rust",
+  "kotlin": "clike",
+  "swift": "clike",
+  "dart": "clike",
+  "scala": "clike",
+  "php": "clike",
+  "groovy": "clike",
+  "d": "clike",
+  "zig": "clike",
+  "solidity": "clike",
+  "glsl": "clike",
+  "wgsl": "clike",
+  "proto": "clike",
+  "shell": "shell",
+  "awk": "shell",
+  "tcl": "shell",
+  "powershell": "powershell",
+  "batch": "batch",
+  "ruby": "endlang",
+  "lua": "endlang",
+  "julia": "endlang",
+  "elixir": "endlang",
+  "vhdl": "vhdl",
+  "verilog": "verilog",
+  "systemverilog": "verilog",
+  "sql": "sql",
+  "fortran": "fortran",
+  "pascal": "pascal",
+  "lisp": "lisp",
+  "clojure": "lisp",
+  "perl": "perl",
+  "r": "r",
+  "make": "make",
+  "cmake": "cmake",
+  "css": "none",
+  "dockerfile": "dockerfile",
+  "haskell": "haskell",
+  "ocaml": "ocaml",
+  "fsharp": "ocaml",
+  "elm": "haskell",
+  "erlang": "erlang",
+  "nim": "python",
+  "gdscript": "python",
+  "cobol": "default",
+  "vb": "vb",
+  "ada": "ada",
+  "assembly": "assembly",
+  "graphql": "none",
+  "hcl": "hcl",
+  "nix": "none",
+  "latex-class": "none"
+ },
+ "profiles": {
+  "default": {
+   "line_comments": [
+    "#",
+    "//",
+    "--",
+    ";"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:def|function|fn|func|sub|proc|procedure|defun|task|macro)\\s+(?P<name>[A-Za-z_]\\w*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:class|struct|interface|trait|module|namespace|enum|type)\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "return",
+    "catch",
+    "sizeof",
+    "function",
+    "def",
+    "elif",
+    "else",
+    "do",
+    "until",
+    "foreach",
+    "case",
+    "with",
+    "print",
+    "typeof",
+    "new",
+    "delete",
+    "throw",
+    "assert",
+    "not",
+    "and",
+    "or",
+    "in",
+    "is",
+    "lambda",
+    "yield",
+    "await",
+    "async",
+    "try",
+    "except",
+    "finally",
+    "raise",
+    "import",
+    "from",
+    "as",
+    "pass",
+    "break",
+    "continue",
+    "when",
+    "unless",
+    "then",
+    "end",
+    "begin",
+    "select",
+    "where",
+    "match"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*(?:import|require|include|use|load|source)\\s+[\"'<]?(?P<module>[\\w./\\\\:-]+)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*(?:#|//|--|%%)\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "matlab": {
+   "line_comments": [
+    "%"
+   ],
+   "block_comments": [
+    [
+     "%{",
+     "%}"
+    ]
+   ],
+   "block_comment_alone": true,
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": null,
+   "matlab_transpose": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*function\\s+(?:(?P<returns>\\[[^\\]]*\\]|[A-Za-z_]\\w*)\\s*=\\s*)?(?P<name>[A-Za-z_]\\w*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*classdef\\s+(?:\\([^)]*\\)\\s*)?(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "bare_calls": "^[ \\t]*(?P<name>[A-Za-z_]\\w*)[ \\t]*;?[ \\t]*$",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "case",
+    "otherwise",
+    "end",
+    "function",
+    "return",
+    "break",
+    "continue",
+    "try",
+    "catch",
+    "parfor",
+    "elseif",
+    "else",
+    "global",
+    "persistent",
+    "classdef",
+    "properties",
+    "methods",
+    "events",
+    "enumeration",
+    "spmd",
+    "clc",
+    "clear",
+    "close",
+    "hold",
+    "figure",
+    "disp",
+    "fprintf",
+    "sprintf",
+    "error",
+    "warning",
+    "zeros",
+    "ones",
+    "eye",
+    "size",
+    "length",
+    "numel",
+    "abs",
+    "sqrt",
+    "exp",
+    "log",
+    "sin",
+    "cos",
+    "tan",
+    "atan2",
+    "max",
+    "min",
+    "sum",
+    "mean",
+    "std",
+    "round",
+    "floor",
+    "ceil",
+    "mod",
+    "rem",
+    "isempty",
+    "isnan",
+    "any",
+    "all",
+    "find",
+    "sort",
+    "linspace",
+    "plot",
+    "subplot",
+    "xlabel",
+    "ylabel",
+    "title",
+    "legend",
+    "grid",
+    "axis",
+    "num2str",
+    "str2num",
+    "strcat",
+    "strcmp",
+    "cell",
+    "struct",
+    "double",
+    "single",
+    "int32",
+    "uint8",
+    "true",
+    "false",
+    "nargin",
+    "nargout",
+    "varargin",
+    "varargout",
+    "pause",
+    "tic",
+    "toc",
+    "rand",
+    "randn",
+    "inv",
+    "det",
+    "eig",
+    "norm",
+    "cross",
+    "dot",
+    "diff",
+    "cumsum",
+    "interp1",
+    "polyfit",
+    "polyval",
+    "fix",
+    "sign",
+    "pi",
+    "eps",
+    "inf",
+    "nan",
+    "input",
+    "load",
+    "save",
+    "exist",
+    "isfield",
+    "fieldnames",
+    "set",
+    "get"
+   ],
+   "imports": [
+    {
+     "kind": "addpath",
+     "regex": "^\\s*addpath\\s*\\(?\\s*['\"](?P<module>[^'\"]+)['\"]"
+    },
+    {
+     "kind": "run",
+     "regex": "\\brun\\s*\\(?\\s*['\"]?(?P<module>[\\w./\\\\-]+\\.m)\\b"
+    },
+    {
+     "kind": "load",
+     "regex": "\\bload\\s*\\(?\\s*['\"]?(?P<module>[\\w./\\\\-]+\\.mat)\\b"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?P<module>[\\w.*]+)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*%%\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "end",
+   "doc_position": "after",
+   "file_kind": "script",
+   "builtins": [
+    "abs",
+    "acker",
+    "acos",
+    "addpath",
+    "addsample",
+    "all",
+    "allmargin",
+    "angle",
+    "any",
+    "append",
+    "area",
+    "arrayfun",
+    "asin",
+    "assert",
+    "assignin",
+    "atan",
+    "atan2",
+    "augstate",
+    "axis",
+    "balreal",
+    "bar",
+    "bdroot",
+    "bin2dec",
+    "bitand",
+    "bitor",
+    "bitshift",
+    "bitxor",
+    "blkdiag",
+    "bode",
+    "bodemag",
+    "butter",
+    "c2d",
+    "canon",
+    "cat",
+    "ccode",
+    "cd",
+    "ceil",
+    "cell",
+    "cell2mat",
+    "cellfun",
+    "char",
+    "cheby1",
+    "chol",
+    "circshift",
+    "clc",
+    "clear",
+    "clf",
+    "clock",
+    "close",
+    "collect",
+    "conj",
+    "connect",
+    "containers.Map",
+    "contour",
+    "conv",
+    "cos",
+    "cosh",
+    "covar",
+    "cputime",
+    "cross",
+    "csvread",
+    "csvwrite",
+    "ctrb",
+    "ctrbf",
+    "cumprod",
+    "cumsum",
+    "cumtrapz",
+    "d2c",
+    "d2d",
+    "damp",
+    "date",
+    "datenum",
+    "datestr",
+    "dcgain",
+    "deal",
+    "dec2bin",
+    "dec2hex",
+    "decimate",
+    "deconv",
+    "delete",
+    "det",
+    "detrend",
+    "deval",
+    "diag",
+    "diff",
+    "dir",
+    "disp",
+    "dlmread",
+    "dlmwrite",
+    "dlqr",
+    "dot",
+    "double",
+    "downsample",
+    "drawnow",
+    "dsolve",
+    "dsort",
+    "eig",
+    "error",
+    "errordlg",
+    "esort",
+    "estim",
+    "etime",
+    "eval",
+    "evalfr",
+    "evalin",
+    "exist",
+    "exp",
+    "expand",
+    "expm",
+    "eye",
+    "factor",
+    "false",
+    "fclose",
+    "feedback",
+    "feval",
+    "fft",
+    "fft2",
+    "fgetl",
+    "fgets",
+    "fieldnames",
+    "figure",
+    "filter",
+    "filtfilt",
+    "find",
+    "find_system",
+    "fir1",
+    "fix",
+    "flip",
+    "fliplr",
+    "flipud",
+    "floor",
+    "fminbnd",
+    "fmincon",
+    "fminsearch",
+    "fopen",
+    "fortran",
+    "fourier",
+    "fprintf",
+    "fread",
+    "freqresp",
+    "freqz",
+    "fscanf",
+    "fsolve",
+    "full",
+    "func2str",
+    "funm",
+    "fwrite",
+    "fzero",
+    "ga",
+    "gca",
+    "gcb",
+    "gcf",
+    "gcs",
+    "get",
+    "get_param",
+    "getdatasamples",
+    "getfield",
+    "getsampleusingtime",
+    "gradient",
+    "gram",
+    "grid",
+    "hessian",
+    "hex2dec",
+    "hist",
+    "histc",
+    "histogram",
+    "hold",
+    "horzcat",
+    "ifft",
+    "ifft2",
+    "ifourier",
+    "ilaplace",
+    "im2double",
+    "imag",
+    "importdata",
+    "impulse",
+    "imread",
+    "imresize",
+    "imshow",
+    "imwrite",
+    "input",
+    "inputdlg",
+    "inputname",
+    "instrfind",
+    "instrreset",
+    "int",
+    "int16",
+    "int2str",
+    "int32",
+    "int64",
+    "int8",
+    "integral",
+    "interp1",
+    "interp2",
+    "intersect",
+    "inv",
+    "ipermute",
+    "isKey",
+    "isa",
+    "iscell",
+    "ischar",
+    "isempty",
+    "isequal",
+    "isfield",
+    "isinf",
+    "islogical",
+    "ismember",
+    "isnan",
+    "isnumeric",
+    "isreal",
+    "issparse",
+    "isstruct",
+    "jacobian",
+    "kalman",
+    "kalmd",
+    "keyboard",
+    "keys",
+    "kron",
+    "laplace",
+    "latex",
+    "legacy_code",
+    "legend",
+    "length",
+    "lft",
+    "limit",
+    "linprog",
+    "linspace",
+    "load",
+    "load_system",
+    "log",
+    "log10",
+    "log2",
+    "logical",
+    "logm",
+    "logspace",
+    "lower",
+    "lqg",
+    "lqgreg",
+    "lqi",
+    "lqr",
+    "lqrd",
+    "lqry",
+    "ls",
+    "lsim",
+    "lsiminfo",
+    "lsqcurvefit",
+    "lsqnonlin",
+    "ltiview",
+    "lu",
+    "margin",
+    "mat2cell",
+    "mat2str",
+    "matlabFunction",
+    "max",
+    "mean",
+    "median",
+    "mesh",
+    "meshgrid",
+    "min",
+    "minreal",
+    "mkdir",
+    "mod",
+    "mode",
+    "modred",
+    "msgbox",
+    "nargchk",
+    "nargin",
+    "narginchk",
+    "nargout",
+    "ndims",
+    "nnz",
+    "nonzeros",
+    "norm",
+    "now",
+    "null",
+    "num2cell",
+    "num2str",
+    "numel",
+    "nyquist",
+    "obsv",
+    "obsvf",
+    "ode113",
+    "ode15s",
+    "ode23",
+    "ode23s",
+    "ode23t",
+    "ode23tb",
+    "ode45",
+    "odeget",
+    "odeset",
+    "ones",
+    "open_system",
+    "optimoptions",
+    "optimset",
+    "orth",
+    "parallel",
+    "path",
+    "pause",
+    "periodogram",
+    "permute",
+    "pie",
+    "pinv",
+    "place",
+    "plot",
+    "plot3",
+    "pole",
+    "polyfit",
+    "polyval",
+    "pretty",
+    "print",
+    "prod",
+    "pwd",
+    "pwelch",
+    "pzmap",
+    "qr",
+    "quad",
+    "quadprog",
+    "questdlg",
+    "quiver",
+    "rand",
+    "randi",
+    "randn",
+    "rank",
+    "readtable",
+    "real",
+    "refresh",
+    "reg",
+    "regexp",
+    "regexprep",
+    "rem",
+    "remove",
+    "repmat",
+    "resample",
+    "reshape",
+    "rgb2gray",
+    "rlocus",
+    "rmdir",
+    "rmfield",
+    "rmpath",
+    "rmse",
+    "roots",
+    "rot90",
+    "round",
+    "save",
+    "save_system",
+    "saveas",
+    "scatter",
+    "serial",
+    "series",
+    "set",
+    "set_param",
+    "setdiff",
+    "setfield",
+    "setuniformtime",
+    "shg",
+    "shiftdim",
+    "sign",
+    "sim",
+    "simplify",
+    "sin",
+    "single",
+    "sinh",
+    "sisotool",
+    "size",
+    "solve",
+    "sort",
+    "sortrows",
+    "sparse",
+    "spectrogram",
+    "sprintf",
+    "sqrt",
+    "sqrtm",
+    "squeeze",
+    "ss",
+    "ss2ss",
+    "ss2tf",
+    "ssdata",
+    "stairs",
+    "std",
+    "stem",
+    "step",
+    "stepinfo",
+    "str2double",
+    "str2func",
+    "str2num",
+    "strcat",
+    "strcmp",
+    "strcmpi",
+    "strfind",
+    "strjoin",
+    "strncmp",
+    "strrep",
+    "strsplit",
+    "strtrim",
+    "struct",
+    "structfun",
+    "subplot",
+    "subs",
+    "sum",
+    "surf",
+    "svd",
+    "swapbytes",
+    "sym",
+    "syms",
+    "tan",
+    "tanh",
+    "taylor",
+    "tcpip",
+    "textscan",
+    "tf",
+    "tf2ss",
+    "tf2zp",
+    "tfdata",
+    "tic",
+    "timeseries",
+    "title",
+    "toc",
+    "trace",
+    "transpose",
+    "trapz",
+    "tril",
+    "triu",
+    "true",
+    "typecast",
+    "tzero",
+    "uicontrol",
+    "uimenu",
+    "uint16",
+    "uint32",
+    "uint64",
+    "uint8",
+    "union",
+    "unique",
+    "upper",
+    "upsample",
+    "validateattributes",
+    "values",
+    "var",
+    "varargin",
+    "varargout",
+    "vertcat",
+    "vpa",
+    "warndlg",
+    "warning",
+    "which",
+    "writetable",
+    "xcorr",
+    "xcov",
+    "xlabel",
+    "xlim",
+    "xlsread",
+    "xlswrite",
+    "ylabel",
+    "ylim",
+    "zero",
+    "zeros",
+    "zlabel",
+    "zlim",
+    "zp2tf",
+    "zpk",
+    "zpkdata"
+   ],
+   "index_syntax": true
+  },
+  "python": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\"\"\"",
+    "'''",
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:async\\s+)?def\\s+(?P<name>[A-Za-z_]\\w*)\\s*\\((?P<params>[^)]*)\\)\\s*(?:->\\s*(?P<returns>[^:]+))?:"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*class\\s+(?P<name>[A-Za-z_]\\w*)\\s*(?:\\((?P<params>[^)]*)\\))?\\s*:"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "elif",
+    "else",
+    "for",
+    "while",
+    "return",
+    "print",
+    "def",
+    "class",
+    "lambda",
+    "yield",
+    "await",
+    "async",
+    "try",
+    "except",
+    "finally",
+    "raise",
+    "with",
+    "as",
+    "import",
+    "from",
+    "pass",
+    "break",
+    "continue",
+    "not",
+    "and",
+    "or",
+    "in",
+    "is",
+    "assert",
+    "del",
+    "global",
+    "nonlocal",
+    "True",
+    "False",
+    "None",
+    "str",
+    "int",
+    "float",
+    "bool",
+    "list",
+    "dict",
+    "set",
+    "tuple",
+    "len",
+    "range",
+    "enumerate",
+    "zip",
+    "isinstance",
+    "super",
+    "type",
+    "print",
+    "open",
+    "sorted",
+    "min",
+    "max",
+    "sum",
+    "any",
+    "all",
+    "map",
+    "filter",
+    "getattr",
+    "setattr",
+    "hasattr",
+    "repr",
+    "format",
+    "iter",
+    "next",
+    "id",
+    "hash",
+    "abs",
+    "round",
+    "input",
+    "vars",
+    "object",
+    "Exception",
+    "ValueError",
+    "TypeError",
+    "KeyError",
+    "RuntimeError",
+    "property",
+    "staticmethod",
+    "classmethod",
+    "dataclass",
+    "field"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*from\\s+(?P<module>[\\w.]+)\\s+import\\s+(?P<names>[^\\n#]+)"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?P<module>[\\w.]+)(?:\\s+as\\s+(?P<alias>\\w+))?"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#\\s*(?:%%|region)\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "indent",
+   "doc_position": "docstring",
+   "file_kind": "module",
+   "globals": [
+    "collections",
+    "datetime",
+    "functools",
+    "itertools",
+    "json",
+    "logging",
+    "math",
+    "np",
+    "numpy",
+    "os",
+    "pandas",
+    "pathlib",
+    "pd",
+    "plt",
+    "re",
+    "shutil",
+    "subprocess",
+    "sys",
+    "time",
+    "typing"
+   ]
+  },
+  "javascript": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'",
+    "`"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s*\\*?\\s*(?P<name>[A-Za-z_$][\\w$]*)\\s*\\((?P<params>[^)]*)\\)"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:export\\s+)?(?:const|let|var)\\s+(?P<name>[A-Za-z_$][\\w$]*)\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:function\\s*\\*?\\s*\\((?P<params>[^)]*)\\)|\\((?P<params2>[^)]*)\\)\\s*(?::[^=]+)?=>|[A-Za-z_$][\\w$]*\\s*=>)"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:export\\s+)?(?:default\\s+)?(?:abstract\\s+)?class\\s+(?P<name>[A-Za-z_$][\\w$]*)\\b"
+    },
+    {
+     "kind": "interface",
+     "regex": "^\\s*(?:export\\s+)?(?:interface|type|enum)\\s+(?P<name>[A-Za-z_$][\\w$]*)\\b"
+    },
+    {
+     "kind": "method",
+     "regex": "^\\s+(?:public\\s+|private\\s+|protected\\s+|static\\s+|async\\s+|readonly\\s+|override\\s+)*(?:get\\s+|set\\s+)?(?P<name>[A-Za-z_$][\\w$]*)\\s*\\((?P<params>[^)]*)\\)\\s*(?::\\s*[^{;]+)?\\s*\\{"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_$][\\w$.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "return",
+    "catch",
+    "function",
+    "typeof",
+    "new",
+    "delete",
+    "throw",
+    "await",
+    "async",
+    "try",
+    "finally",
+    "import",
+    "export",
+    "from",
+    "as",
+    "break",
+    "continue",
+    "case",
+    "default",
+    "do",
+    "else",
+    "in",
+    "of",
+    "instanceof",
+    "void",
+    "yield",
+    "let",
+    "const",
+    "var",
+    "class",
+    "extends",
+    "super",
+    "this",
+    "require",
+    "console.log",
+    "console.error",
+    "console.warn",
+    "parseInt",
+    "parseFloat",
+    "String",
+    "Number",
+    "Boolean",
+    "Array",
+    "Object",
+    "Promise",
+    "setTimeout",
+    "setInterval",
+    "JSON.stringify",
+    "JSON.parse",
+    "Math.floor",
+    "Math.round",
+    "Math.max",
+    "Math.min",
+    "Math.abs"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?:(?P<names>[^'\";]+?)\\s+from\\s+)?['\"](?P<module>[^'\"]+)['\"]"
+    },
+    {
+     "kind": "require",
+     "regex": "\\brequire\\s*\\(\\s*['\"](?P<module>[^'\"]+)['\"]\\s*\\)"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*export\\s+(?:\\*|\\{[^}]*\\})\\s+from\\s+['\"](?P<module>[^'\"]+)['\"]"
+    },
+    {
+     "kind": "import",
+     "regex": "\\bimport\\s*\\(\\s*['\"](?P<module>[^'\"]+)['\"]\\s*\\)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*//\\s*#?region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "module",
+   "builtins": [
+    "Array",
+    "BigInt",
+    "Boolean",
+    "Date",
+    "Error",
+    "Function",
+    "Map",
+    "Number",
+    "Object",
+    "Promise",
+    "Proxy",
+    "RangeError",
+    "Reflect",
+    "RegExp",
+    "Set",
+    "String",
+    "Symbol",
+    "TypeError",
+    "WeakMap",
+    "WeakSet",
+    "alert",
+    "clearInterval",
+    "clearTimeout",
+    "confirm",
+    "decodeURI",
+    "decodeURIComponent",
+    "encodeURI",
+    "encodeURIComponent",
+    "escape",
+    "eval",
+    "fetch",
+    "isFinite",
+    "isNaN",
+    "parseFloat",
+    "parseInt",
+    "prompt",
+    "require",
+    "setInterval",
+    "setTimeout",
+    "unescape"
+   ],
+   "globals": [
+    "$",
+    "_",
+    "array",
+    "buffer",
+    "console",
+    "date",
+    "document",
+    "exports",
+    "globalthis",
+    "history",
+    "intl",
+    "jquery",
+    "json",
+    "localstorage",
+    "location",
+    "math",
+    "module",
+    "navigator",
+    "number",
+    "object",
+    "process",
+    "promise",
+    "reflect",
+    "sessionstorage",
+    "string",
+    "this",
+    "window"
+   ]
+  },
+  "clike": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:(?:public|private|protected|internal|static|final|abstract|sealed|partial|export|template\\s*<[^>]*>)\\s+)*(?:class|struct|interface|enum|union|namespace|trait|record)\\s+(?P<name>[A-Za-z_]\\w*)\\b(?!\\s*;)"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:(?:public|private|protected|internal|static|final|abstract|virtual|override|inline|extern|constexpr|explicit|async|unsafe|export)\\s+)*(?P<returns>[A-Za-z_][\\w:<>,\\s\\*&\\[\\]]*?)\\s+[\\*&]?(?P<name>~?[A-Za-z_][\\w:]*)\\s*\\((?P<params>[^;{}]*?)\\)\\s*(?:const|noexcept|override|final|throws\\s+[\\w,\\s]+)?\\s*(?:->\\s*[\\w<>:\\*&]+\\s*)?\\{"
+    },
+    {
+     "kind": "constructor",
+     "regex": "^\\s*(?:(?:public|private|protected|internal|explicit)\\s+)*(?P<name>[A-Z][\\w:]*)\\s*\\((?P<params>[^;{}]*?)\\)\\s*(?::[^{]+)?\\{"
+    },
+    {
+     "kind": "macro",
+     "regex": "^\\s*#\\s*define\\s+(?P<name>[A-Za-z_]\\w*)\\s*\\((?P<params>[^)]*)\\)"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.:]*(?:->[A-Za-z_]\\w*)*)\\s*\\(",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "switch",
+    "return",
+    "catch",
+    "sizeof",
+    "typeof",
+    "new",
+    "delete",
+    "throw",
+    "try",
+    "case",
+    "default",
+    "do",
+    "else",
+    "break",
+    "continue",
+    "goto",
+    "alignof",
+    "decltype",
+    "static_assert",
+    "static_cast",
+    "dynamic_cast",
+    "reinterpret_cast",
+    "const_cast",
+    "defined",
+    "foreach",
+    "lock",
+    "using",
+    "nameof",
+    "checked",
+    "unchecked",
+    "fixed",
+    "stackalloc",
+    "synchronized",
+    "assert",
+    "instanceof",
+    "super",
+    "this",
+    "base",
+    "select",
+    "where",
+    "printf",
+    "fprintf",
+    "sprintf",
+    "snprintf",
+    "malloc",
+    "calloc",
+    "realloc",
+    "free",
+    "memcpy",
+    "memset",
+    "strlen",
+    "strcpy",
+    "strcmp",
+    "std::cout",
+    "std::cerr",
+    "std::endl",
+    "std::move",
+    "std::forward",
+    "std::make_shared",
+    "std::make_unique",
+    "Console.WriteLine",
+    "System.out.println",
+    "String.format",
+    "Integer.parseInt",
+    "Math.abs",
+    "Math.max",
+    "Math.min"
+   ],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^\\s*#\\s*include\\s*[\"<](?P<module>[^\">]+)[\">]"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?:static\\s+)?(?P<module>[\\w.]+(?:\\.\\*)?)\\s*;"
+    },
+    {
+     "kind": "use",
+     "regex": "^\\s*using\\s+(?!var\\b)(?:static\\s+)?(?P<module>[\\w.]+)\\s*;"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*package\\s+(?P<module>[\\w.]+)\\s*;"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*(?:#|//)\\s*(?:pragma\\s+)?region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "module",
+   "globals": [
+    "arrays",
+    "collections",
+    "console",
+    "fmt",
+    "integer",
+    "list",
+    "map",
+    "math",
+    "std",
+    "string",
+    "system"
+   ]
+  },
+  "go": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'",
+    "`"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*func\\s+(?:\\([^)]*\\)\\s*)?(?P<name>[A-Za-z_]\\w*)\\s*(?:\\[[^\\]]*\\])?\\s*\\((?P<params>[^)]*)\\)\\s*(?P<returns>[^{]*)\\{"
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*type\\s+(?P<name>[A-Za-z_]\\w*)\\s+(?:struct|interface)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "for",
+    "switch",
+    "return",
+    "func",
+    "go",
+    "defer",
+    "select",
+    "case",
+    "default",
+    "else",
+    "range",
+    "make",
+    "new",
+    "len",
+    "cap",
+    "append",
+    "copy",
+    "delete",
+    "panic",
+    "recover",
+    "print",
+    "println",
+    "close",
+    "fmt.Println",
+    "fmt.Printf",
+    "fmt.Sprintf",
+    "fmt.Errorf",
+    "errors.New",
+    "string",
+    "int",
+    "int64",
+    "float64",
+    "bool",
+    "byte",
+    "error",
+    "chan",
+    "map",
+    "struct",
+    "interface",
+    "type",
+    "var",
+    "const"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?:\\w+\\s+)?\"(?P<module>[^\"]+)\""
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s+(?:\\w+\\s+)?\"(?P<module>[\\w./-]+)\"\\s*$"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*//\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "rust": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?(?:const\\s+|async\\s+|unsafe\\s+|extern\\s+\"[^\"]*\"\\s+)*fn\\s+(?P<name>[A-Za-z_]\\w*)\\s*(?:<[^>]*>)?\\s*\\((?P<params>[^)]*)\\)\\s*(?:->\\s*(?P<returns>[^{;]+))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?(?:struct|enum|trait|union)\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    },
+    {
+     "kind": "impl",
+     "regex": "^\\s*impl(?:<[^>]*>)?\\s+(?:[\\w:<>]+\\s+for\\s+)?(?P<name>[A-Za-z_][\\w:]*)"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?mod\\s+(?P<name>[A-Za-z_]\\w*)\\s*\\{"
+    },
+    {
+     "kind": "macro",
+     "regex": "^\\s*macro_rules!\\s+(?P<name>[A-Za-z_]\\w*)"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w:.]*!?)\\s*\\(",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "loop",
+    "match",
+    "return",
+    "fn",
+    "let",
+    "mut",
+    "impl",
+    "struct",
+    "enum",
+    "trait",
+    "mod",
+    "use",
+    "pub",
+    "as",
+    "in",
+    "ref",
+    "move",
+    "async",
+    "await",
+    "unsafe",
+    "where",
+    "type",
+    "Some",
+    "None",
+    "Ok",
+    "Err",
+    "Box::new",
+    "Vec::new",
+    "String::from",
+    "println!",
+    "eprintln!",
+    "format!",
+    "vec!",
+    "panic!",
+    "assert!",
+    "assert_eq!",
+    "write!",
+    "writeln!",
+    "dbg!",
+    "todo!",
+    "unimplemented!",
+    "unreachable!",
+    "Self",
+    "self",
+    "super",
+    "crate"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*(?:pub\\s+)?use\\s+(?P<module>[\\w:]+)"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*(?:pub\\s+)?mod\\s+(?P<module>[A-Za-z_]\\w*)\\s*;"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*extern\\s+crate\\s+(?P<module>[A-Za-z_]\\w*)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*//\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "shell": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:function\\s+)?(?P<name>[A-Za-z_][\\w-]*)\\s*\\(\\s*\\)\\s*\\{?"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*function\\s+(?P<name>[A-Za-z_][\\w-]*)\\s*\\{"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*proc\\s+(?P<name>[A-Za-z_:][\\w:-]*)\\s*\\{(?P<params>[^}]*)\\}"
+    }
+   ],
+   "calls": null,
+   "bare_calls": "^[ \\t]*(?P<name>[A-Za-z_][\\w-]*)\\b",
+   "keywords": [
+    "if",
+    "then",
+    "else",
+    "elif",
+    "fi",
+    "for",
+    "while",
+    "until",
+    "do",
+    "done",
+    "case",
+    "esac",
+    "in",
+    "function",
+    "return",
+    "exit",
+    "echo",
+    "printf",
+    "cd",
+    "ls",
+    "rm",
+    "cp",
+    "mv",
+    "mkdir",
+    "cat",
+    "grep",
+    "sed",
+    "awk",
+    "export",
+    "local",
+    "set",
+    "unset",
+    "shift",
+    "test",
+    "read",
+    "source",
+    "eval",
+    "exec",
+    "trap",
+    "true",
+    "false",
+    "break",
+    "continue",
+    "select",
+    "time",
+    "wait",
+    "kill",
+    "sleep",
+    "puts",
+    "proc",
+    "expr",
+    "foreach",
+    "incr",
+    "lappend",
+    "string",
+    "list",
+    "dict",
+    "namespace",
+    "package",
+    "variable",
+    "global",
+    "upvar",
+    "uplevel",
+    "catch",
+    "error",
+    "BEGIN",
+    "END",
+    "print",
+    "next",
+    "getline"
+   ],
+   "imports": [
+    {
+     "kind": "source",
+     "regex": "^\\s*(?:source|\\.)\\s+[\"']?(?P<module>[\\w./$~-]+)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "script",
+   "builtins": [
+    "awk",
+    "basename",
+    "bc",
+    "cat",
+    "cd",
+    "chmod",
+    "chown",
+    "clang",
+    "cmake",
+    "cp",
+    "curl",
+    "cut",
+    "date",
+    "df",
+    "dirname",
+    "docker",
+    "du",
+    "echo",
+    "egrep",
+    "env",
+    "export",
+    "expr",
+    "fgrep",
+    "find",
+    "g++",
+    "gcc",
+    "git",
+    "grep",
+    "gunzip",
+    "gzip",
+    "head",
+    "kill",
+    "kubectl",
+    "less",
+    "ln",
+    "ls",
+    "make",
+    "mkdir",
+    "more",
+    "mount",
+    "mv",
+    "node",
+    "npm",
+    "pip",
+    "printenv",
+    "printf",
+    "ps",
+    "pwd",
+    "python",
+    "python3",
+    "readlink",
+    "realpath",
+    "rm",
+    "rmdir",
+    "rsync",
+    "scp",
+    "sed",
+    "seq",
+    "sleep",
+    "sort",
+    "ssh",
+    "su",
+    "sudo",
+    "tac",
+    "tail",
+    "tar",
+    "tee",
+    "test",
+    "top",
+    "touch",
+    "tr",
+    "umount",
+    "uniq",
+    "unset",
+    "unzip",
+    "wc",
+    "wget",
+    "whereis",
+    "which",
+    "xargs",
+    "zip"
+   ]
+  },
+  "powershell": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [
+    [
+     "<#",
+     "#>"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "`",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:function|filter|workflow)\\s+(?P<name>[\\w-]+)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:class|enum)\\s+(?P<name>[\\w-]+)\\b"
+    }
+   ],
+   "calls": null,
+   "bare_calls": "(?<![\\w-])(?P<name>[A-Za-z][\\w]*-[A-Za-z][\\w]*)(?![\\w-])",
+   "keywords": [
+    "if",
+    "elseif",
+    "else",
+    "for",
+    "foreach",
+    "while",
+    "do",
+    "until",
+    "switch",
+    "return",
+    "function",
+    "filter",
+    "param",
+    "begin",
+    "process",
+    "end",
+    "try",
+    "catch",
+    "finally",
+    "throw",
+    "break",
+    "continue",
+    "in",
+    "class",
+    "enum",
+    "using",
+    "Write-Host",
+    "Write-Output",
+    "Write-Verbose",
+    "Write-Warning",
+    "Write-Error",
+    "Write-Debug",
+    "Get-ChildItem",
+    "Get-Item",
+    "Get-Content",
+    "Set-Content",
+    "Test-Path",
+    "Join-Path",
+    "Split-Path",
+    "New-Item",
+    "Remove-Item",
+    "Copy-Item",
+    "Move-Item",
+    "Select-Object",
+    "Where-Object",
+    "ForEach-Object",
+    "Sort-Object",
+    "Measure-Object",
+    "Out-Null",
+    "Out-String",
+    "Out-File",
+    "Get-Date",
+    "Start-Process",
+    "Start-Sleep",
+    "Get-Command",
+    "Import-Module",
+    "Export-ModuleMember",
+    "Set-StrictMode",
+    "Set-Location",
+    "Get-Location",
+    "Push-Location",
+    "Pop-Location",
+    "Invoke-Expression",
+    "Invoke-WebRequest",
+    "Invoke-RestMethod",
+    "ConvertTo-Json",
+    "ConvertFrom-Json",
+    "Get-Member",
+    "Add-Member",
+    "New-Object",
+    "Read-Host",
+    "Format-Table",
+    "Format-List",
+    "Compare-Object",
+    "Group-Object",
+    "Resolve-Path",
+    "Get-Random"
+   ],
+   "imports": [
+    {
+     "kind": "source",
+     "regex": "^\\s*\\.\\s+[\"']?(?P<module>[\\w./\\\\$:-]+\\.ps1)"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*Import-Module\\s+[\"']?(?P<module>[\\w./\\\\$:-]+)"
+    },
+    {
+     "kind": "use",
+     "regex": "^\\s*using\\s+(?:module|namespace)\\s+(?P<module>[\\w./\\\\:-]+)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "script",
+   "builtins": []
+  },
+  "batch": {
+   "line_comments": [
+    "rem ",
+    "REM ",
+    "::"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\""
+   ],
+   "string_escape": null,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*:(?P<name>[A-Za-z_]\\w*)\\s*$"
+    }
+   ],
+   "calls": "\\bcall\\s+:(?P<name>[A-Za-z_]\\w*)\\b",
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "run",
+     "regex": "\\bcall\\s+[\"']?(?P<module>[\\w./\\\\%:~-]+\\.(?:bat|cmd))\\b"
+    }
+   ],
+   "regions": [],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "endlang": {
+   "line_comments": [
+    "#",
+    "--"
+   ],
+   "block_comments": [
+    [
+     "=begin",
+     "=end"
+    ],
+    [
+     "--[[",
+     "]]"
+    ],
+    [
+     "#=",
+     "=#"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:def|defp|function|local\\s+function|macro)\\s+(?:self\\.)?(?P<name>[A-Za-z_][\\w.:!?]*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:class|module|defmodule|struct|mutable\\s+struct|abstract\\s+type|defprotocol)\\s+(?P<name>[A-Za-z_][\\w.:]*)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.:!?]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "elsif",
+    "elseif",
+    "else",
+    "for",
+    "while",
+    "until",
+    "return",
+    "def",
+    "defp",
+    "function",
+    "end",
+    "do",
+    "then",
+    "case",
+    "when",
+    "in",
+    "unless",
+    "begin",
+    "rescue",
+    "ensure",
+    "raise",
+    "yield",
+    "puts",
+    "print",
+    "require",
+    "require_relative",
+    "include",
+    "extend",
+    "attr_accessor",
+    "attr_reader",
+    "attr_writer",
+    "local",
+    "and",
+    "or",
+    "not",
+    "nil",
+    "true",
+    "false",
+    "self",
+    "super",
+    "lambda",
+    "proc",
+    "new",
+    "each",
+    "map",
+    "select",
+    "reject",
+    "reduce",
+    "length",
+    "println",
+    "push!",
+    "pop!",
+    "typeof",
+    "eltype",
+    "zeros",
+    "ones",
+    "size",
+    "abs",
+    "sqrt",
+    "IO.puts",
+    "IO.inspect",
+    "Enum.map",
+    "Enum.each",
+    "string.format",
+    "table.insert",
+    "pairs",
+    "ipairs",
+    "tostring",
+    "tonumber",
+    "type"
+   ],
+   "imports": [
+    {
+     "kind": "require",
+     "regex": "^\\s*require(?:_relative)?\\s*\\(?\\s*['\"](?P<module>[^'\"]+)['\"]"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*(?:using|import|alias)\\s+(?P<module>[\\w.:]+)"
+    },
+    {
+     "kind": "include",
+     "regex": "^\\s*include\\s*\\(?\\s*['\"](?P<module>[^'\"]+)['\"]"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "vhdl": {
+   "line_comments": [
+    "--"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "entity",
+     "regex": "^\\s*entity\\s+(?P<name>[A-Za-z_]\\w*)\\s+is\\b"
+    },
+    {
+     "kind": "architecture",
+     "regex": "^\\s*architecture\\s+(?P<name>[A-Za-z_]\\w*)\\s+of\\s+(?P<returns>[A-Za-z_]\\w*)\\s+is\\b"
+    },
+    {
+     "kind": "package",
+     "regex": "^\\s*package\\s+(?:body\\s+)?(?P<name>[A-Za-z_]\\w*)\\s+is\\b"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:pure\\s+|impure\\s+)?(?:function|procedure)\\s+(?P<name>[A-Za-z_]\\w*|\"[^\"]+\")\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "process",
+     "regex": "^\\s*(?P<name>[A-Za-z_]\\w*)\\s*:\\s*process\\b"
+    },
+    {
+     "kind": "component",
+     "regex": "^\\s*component\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "^\\s*(?P<label>[A-Za-z_]\\w*)\\s*:\\s*(?:entity\\s+(?:\\w+\\.)?)?(?P<name>[A-Za-z_]\\w*)\\s*(?:\\([^)]*\\))?\\s*(?=(?:generic|port)\\s+map)",
+   "call_kind": "instantiate",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "loop",
+    "case",
+    "when",
+    "then",
+    "else",
+    "elsif",
+    "end",
+    "process",
+    "begin",
+    "is",
+    "of",
+    "signal",
+    "variable",
+    "constant",
+    "type",
+    "subtype",
+    "port",
+    "generic",
+    "map",
+    "entity",
+    "architecture",
+    "component",
+    "library",
+    "use",
+    "all",
+    "in",
+    "out",
+    "inout",
+    "buffer",
+    "std_logic",
+    "std_logic_vector",
+    "integer",
+    "natural",
+    "boolean",
+    "rising_edge",
+    "falling_edge",
+    "to_integer",
+    "to_unsigned",
+    "to_signed",
+    "unsigned",
+    "signed",
+    "resize",
+    "conv_integer",
+    "std_logic_vector",
+    "others",
+    "null",
+    "wait",
+    "report",
+    "assert",
+    "severity",
+    "return",
+    "function",
+    "procedure",
+    "package",
+    "body",
+    "block",
+    "generate"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*use\\s+(?P<module>[\\w.]+)\\s*;"
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*library\\s+(?P<module>[\\w,\\s]+)\\s*;"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*--\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "verilog": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "module",
+     "regex": "^\\s*module\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:function|task)\\s+(?:automatic\\s+)?(?:[\\w\\[\\]:\\s]+?\\s+)?(?P<name>[A-Za-z_]\\w*)\\s*[;(]"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:class|interface|package|program)\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "^\\s*(?P<name>[A-Za-z_]\\w*)\\s*(?:#\\s*\\([^)]*\\)\\s*)?(?P<label>[A-Za-z_]\\w*)\\s*\\(",
+   "call_kind": "instantiate",
+   "keywords": [
+    "if",
+    "for",
+    "while",
+    "case",
+    "begin",
+    "end",
+    "always",
+    "assign",
+    "initial",
+    "wire",
+    "reg",
+    "input",
+    "output",
+    "inout",
+    "logic",
+    "integer",
+    "parameter",
+    "localparam",
+    "module",
+    "endmodule",
+    "function",
+    "endfunction",
+    "task",
+    "endtask",
+    "generate",
+    "endgenerate",
+    "posedge",
+    "negedge",
+    "else",
+    "default",
+    "return",
+    "typedef",
+    "struct",
+    "enum",
+    "import",
+    "export",
+    "package",
+    "endpackage",
+    "class",
+    "endclass",
+    "interface",
+    "endinterface",
+    "modport",
+    "clocking",
+    "always_ff",
+    "always_comb",
+    "always_latch",
+    "unique",
+    "priority",
+    "repeat",
+    "forever",
+    "fork",
+    "join",
+    "disable",
+    "wait",
+    "or",
+    "and",
+    "not",
+    "signed",
+    "unsigned"
+   ],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^\\s*`include\\s+\"(?P<module>[^\"]+)\""
+    },
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?P<module>[\\w:*]+)\\s*;"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*//\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "sql": {
+   "line_comments": [
+    "--"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "'",
+    "\""
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*create\\s+(?:or\\s+replace\\s+)?(?:function|procedure|proc)\\s+(?P<name>[\\w.\"\\[\\]]+)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*create\\s+(?:or\\s+replace\\s+)?(?:table|view|materialized\\s+view|index|trigger|type|schema|sequence)\\s+(?:if\\s+not\\s+exists\\s+)?(?P<name>[\\w.\"\\[\\]]+)"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "select",
+    "from",
+    "where",
+    "insert",
+    "update",
+    "delete",
+    "into",
+    "values",
+    "set",
+    "and",
+    "or",
+    "not",
+    "in",
+    "exists",
+    "count",
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "coalesce",
+    "cast",
+    "convert",
+    "case",
+    "when",
+    "then",
+    "else",
+    "end",
+    "join",
+    "on",
+    "group",
+    "order",
+    "by",
+    "having",
+    "limit",
+    "offset",
+    "union",
+    "all",
+    "distinct",
+    "as",
+    "is",
+    "null",
+    "like",
+    "between",
+    "create",
+    "table",
+    "view",
+    "index",
+    "drop",
+    "alter",
+    "add",
+    "primary",
+    "key",
+    "foreign",
+    "references",
+    "default",
+    "check",
+    "unique",
+    "constraint",
+    "begin",
+    "commit",
+    "rollback",
+    "declare",
+    "return",
+    "returns",
+    "if",
+    "while",
+    "loop",
+    "for",
+    "exec",
+    "execute",
+    "call",
+    "values",
+    "substring",
+    "concat",
+    "upper",
+    "lower",
+    "trim",
+    "length",
+    "now",
+    "date",
+    "row_number",
+    "over",
+    "partition",
+    "isnull",
+    "nvl",
+    "decode",
+    "to_date",
+    "to_char",
+    "getdate",
+    "dateadd",
+    "datediff",
+    "varchar",
+    "int",
+    "integer",
+    "text",
+    "boolean",
+    "float",
+    "decimal",
+    "numeric",
+    "char",
+    "timestamp"
+   ],
+   "imports": [],
+   "regions": [
+    {
+     "regex": "^\\s*--\\s*region\\b\\s*(?P<title>.*)$"
+    }
+   ],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "fortran": {
+   "line_comments": [
+    "!"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:(?:recursive|pure|elemental|impure|module)\\s+)*(?:[\\w()=,\\s*]+?\\s+)?(?:subroutine|function)\\s+(?P<name>[A-Za-z_]\\w*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*(?:module|program|submodule)\\s+(?!procedure\\b)(?P<name>[A-Za-z_]\\w*)\\b"
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*type\\s*(?:,[^:]*)?(?:::)?\\s*(?P<name>[A-Za-z_]\\w*)\\s*$"
+    }
+   ],
+   "calls": "\\b(?:call\\s+)?(?P<name>[A-Za-z_]\\w*)\\s*\\(",
+   "keywords": [
+    "if",
+    "then",
+    "else",
+    "elseif",
+    "end",
+    "do",
+    "while",
+    "select",
+    "case",
+    "call",
+    "return",
+    "stop",
+    "print",
+    "write",
+    "read",
+    "open",
+    "close",
+    "allocate",
+    "deallocate",
+    "allocated",
+    "size",
+    "shape",
+    "sum",
+    "max",
+    "min",
+    "abs",
+    "sqrt",
+    "exp",
+    "log",
+    "sin",
+    "cos",
+    "tan",
+    "mod",
+    "int",
+    "real",
+    "dble",
+    "nint",
+    "len",
+    "trim",
+    "adjustl",
+    "present",
+    "kind",
+    "huge",
+    "tiny",
+    "epsilon",
+    "matmul",
+    "transpose",
+    "dot_product",
+    "reshape",
+    "lbound",
+    "ubound",
+    "any",
+    "all",
+    "count",
+    "maxval",
+    "minval",
+    "cycle",
+    "exit",
+    "implicit",
+    "none",
+    "integer",
+    "logical",
+    "character",
+    "double",
+    "precision",
+    "complex",
+    "dimension",
+    "intent",
+    "parameter",
+    "subroutine",
+    "function",
+    "program",
+    "module",
+    "contains",
+    "use",
+    "only",
+    "type",
+    "class",
+    "procedure",
+    "interface",
+    "where",
+    "forall",
+    "concurrent"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*use\\s+(?:,\\s*intrinsic\\s*::\\s*)?(?P<module>[A-Za-z_]\\w*)"
+    },
+    {
+     "kind": "include",
+     "regex": "^\\s*include\\s+['\"](?P<module>[^'\"]+)['\"]"
+    }
+   ],
+   "regions": [],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "module",
+   "index_syntax": true
+  },
+  "pascal": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "{",
+     "}"
+    ],
+    [
+     "(*",
+     "*)"
+    ]
+   ],
+   "strings": [
+    "'"
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:class\\s+)?(?:procedure|function|constructor|destructor)\\s+(?P<name>[A-Za-z_][\\w.]*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?P<name>[A-Za-z_]\\w*)\\s*=\\s*(?:class|record|interface|object)\\b"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*(?:unit|program|library)\\s+(?P<name>[A-Za-z_][\\w.]*)\\s*;"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "then",
+    "else",
+    "for",
+    "to",
+    "downto",
+    "while",
+    "do",
+    "repeat",
+    "until",
+    "case",
+    "of",
+    "begin",
+    "end",
+    "procedure",
+    "function",
+    "var",
+    "const",
+    "type",
+    "with",
+    "writeln",
+    "write",
+    "readln",
+    "read",
+    "length",
+    "inc",
+    "dec",
+    "ord",
+    "chr",
+    "high",
+    "low",
+    "exit",
+    "break",
+    "continue",
+    "new",
+    "dispose",
+    "setlength",
+    "copy",
+    "pos",
+    "inttostr",
+    "strtoint",
+    "assigned",
+    "sizeof",
+    "try",
+    "except",
+    "finally",
+    "raise",
+    "nil",
+    "not",
+    "and",
+    "or",
+    "xor",
+    "div",
+    "mod",
+    "shl",
+    "shr",
+    "in",
+    "is",
+    "as",
+    "uses",
+    "unit",
+    "program",
+    "implementation",
+    "interface",
+    "initialization",
+    "finalization",
+    "class",
+    "record",
+    "object",
+    "inherited",
+    "self",
+    "result",
+    "array",
+    "string",
+    "integer",
+    "boolean",
+    "char",
+    "real",
+    "double"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*uses\\s+(?P<module>[^;]+);"
+    },
+    {
+     "kind": "include",
+     "regex": "\\{\\$I(?:NCLUDE)?\\s+(?P<module>[^}]+)\\}"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*\\{\\$REGION\\s*'?(?P<title>[^'}]*)'?\\}"
+    }
+   ],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "lisp": {
+   "line_comments": [
+    ";"
+   ],
+   "block_comments": [
+    [
+     "#|",
+     "|#"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*\\((?:defun|defmacro|defn|defn-|defmethod|defgeneric|define-macro)\\s+(?P<name>[^\\s()]+)\\s*(?:\\((?P<params>[^)]*)\\)|\\[(?P<params2>[^\\]]*)\\])?"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*\\(define\\s+\\((?P<name>[^\\s()]+)(?P<params>[^)]*)\\)"
+    },
+    {
+     "kind": "variable",
+     "regex": "^\\s*\\((?:defvar|defparameter|defconstant|def|defonce|define)\\s+(?P<name>[^\\s()]+)"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*\\((?:defclass|defstruct|defrecord|defprotocol|deftype|ns|defpackage)\\s+(?P<name>[^\\s()]+)"
+    }
+   ],
+   "calls": "\\((?P<name>[A-Za-z_*+\\-/<>=!?][\\w*+\\-/<>=!?.:]*)(?=[\\s)])",
+   "keywords": [
+    "if",
+    "when",
+    "unless",
+    "cond",
+    "case",
+    "let",
+    "let*",
+    "letfn",
+    "loop",
+    "do",
+    "dotimes",
+    "dolist",
+    "progn",
+    "lambda",
+    "fn",
+    "defn",
+    "defun",
+    "setq",
+    "setf",
+    "quote",
+    "function",
+    "and",
+    "or",
+    "not",
+    "car",
+    "cdr",
+    "cons",
+    "list",
+    "first",
+    "rest",
+    "map",
+    "mapcar",
+    "reduce",
+    "filter",
+    "apply",
+    "funcall",
+    "format",
+    "print",
+    "println",
+    "princ",
+    "str",
+    "count",
+    "get",
+    "assoc",
+    "nth",
+    "conj",
+    "vec",
+    "vector",
+    "hash-map",
+    "recur",
+    "throw",
+    "try",
+    "catch",
+    "finally",
+    "eq",
+    "eql",
+    "equal",
+    "null",
+    "nil",
+    "t",
+    "true",
+    "false",
+    "def",
+    "defmacro",
+    "defmethod",
+    "defclass",
+    "defstruct",
+    "require",
+    "import",
+    "use",
+    "ns",
+    "in-ns",
+    "load",
+    "eval",
+    "read",
+    "return",
+    "return-from",
+    "block",
+    "tagbody",
+    "go",
+    "multiple-value-bind",
+    "values",
+    "declare",
+    "the",
+    "error",
+    "assert",
+    "check-type",
+    "incf",
+    "decf",
+    "push",
+    "pop",
+    "length",
+    "append",
+    "reverse",
+    "sort",
+    "min",
+    "max",
+    "+",
+    "-",
+    "*",
+    "/",
+    "=",
+    "<",
+    ">",
+    "<=",
+    ">="
+   ],
+   "imports": [
+    {
+     "kind": "require",
+     "regex": "\\((?:require|load|use|import|ns)\\s+['\"]?(?P<module>[\\w./:-]+)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "after",
+   "file_kind": "module"
+  },
+  "perl": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [
+    [
+     "=pod",
+     "=cut"
+    ],
+    [
+     "=head1",
+     "=cut"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*sub\\s+(?P<name>[A-Za-z_][\\w:]*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*package\\s+(?P<name>[A-Za-z_][\\w:]*)\\s*;"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w:]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "elsif",
+    "else",
+    "unless",
+    "for",
+    "foreach",
+    "while",
+    "until",
+    "do",
+    "return",
+    "sub",
+    "my",
+    "our",
+    "local",
+    "use",
+    "no",
+    "require",
+    "package",
+    "print",
+    "printf",
+    "push",
+    "pop",
+    "shift",
+    "unshift",
+    "splice",
+    "join",
+    "split",
+    "map",
+    "grep",
+    "sort",
+    "reverse",
+    "keys",
+    "values",
+    "each",
+    "exists",
+    "delete",
+    "defined",
+    "undef",
+    "die",
+    "warn",
+    "eval",
+    "ref",
+    "scalar",
+    "length",
+    "substr",
+    "index",
+    "sprintf",
+    "open",
+    "close",
+    "chomp",
+    "chop",
+    "lc",
+    "uc",
+    "wantarray",
+    "bless",
+    "last",
+    "next",
+    "redo",
+    "and",
+    "or",
+    "not",
+    "xor",
+    "eq",
+    "ne",
+    "lt",
+    "gt",
+    "le",
+    "ge",
+    "cmp",
+    "qw",
+    "qq",
+    "q"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*(?:use|require)\\s+(?P<module>[A-Za-z_][\\w:]*)"
+    }
+   ],
+   "regions": [],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "r": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?P<name>[A-Za-z_.][\\w.]*)\\s*(?:<-|=)\\s*function\\s*\\((?P<params>[^)]*)\\)"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_.][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "else",
+    "for",
+    "while",
+    "repeat",
+    "function",
+    "return",
+    "break",
+    "next",
+    "in",
+    "TRUE",
+    "FALSE",
+    "NULL",
+    "NA",
+    "library",
+    "require",
+    "source",
+    "print",
+    "cat",
+    "paste",
+    "paste0",
+    "c",
+    "list",
+    "length",
+    "nrow",
+    "ncol",
+    "dim",
+    "names",
+    "seq",
+    "rep",
+    "sum",
+    "mean",
+    "sd",
+    "var",
+    "min",
+    "max",
+    "abs",
+    "sqrt",
+    "exp",
+    "log",
+    "round",
+    "as.numeric",
+    "as.character",
+    "is.na",
+    "is.null",
+    "data.frame",
+    "matrix",
+    "vector",
+    "apply",
+    "lapply",
+    "sapply",
+    "vapply",
+    "do.call",
+    "stop",
+    "warning",
+    "message",
+    "tryCatch",
+    "invisible",
+    "plot",
+    "lines",
+    "points",
+    "which",
+    "unique",
+    "sort",
+    "order",
+    "rev",
+    "head",
+    "tail",
+    "str",
+    "summary",
+    "table",
+    "factor",
+    "levels",
+    "ifelse",
+    "switch",
+    "setdiff",
+    "union",
+    "intersect",
+    "nchar",
+    "substr",
+    "strsplit",
+    "gsub",
+    "sub",
+    "grepl",
+    "sprintf",
+    "format",
+    "Sys.time",
+    "file.path",
+    "read.csv",
+    "write.csv"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*(?:library|require)\\s*\\(\\s*['\"]?(?P<module>[\\w.]+)['\"]?\\s*\\)"
+    },
+    {
+     "kind": "source",
+     "regex": "^\\s*source\\s*\\(\\s*['\"](?P<module>[^'\"]+)['\"]"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#\\s*(?:region|----+)\\s*(?P<title>.*?)\\s*-*$"
+    }
+   ],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "make": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [],
+   "strings": [],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "target",
+     "regex": "^(?P<name>[A-Za-z_][\\w./%-]*)\\s*::?(?!=)"
+    },
+    {
+     "kind": "function",
+     "regex": "^\\s*define\\s+(?P<name>[A-Za-z_][\\w-]*)"
+    }
+   ],
+   "calls": "\\$\\(call\\s+(?P<name>[A-Za-z_][\\w-]*)",
+   "keywords": [
+    "if",
+    "ifeq",
+    "ifneq",
+    "ifdef",
+    "ifndef",
+    "else",
+    "endif",
+    "include",
+    "define",
+    "endef",
+    "export",
+    "unexport",
+    "override",
+    "vpath",
+    "all",
+    "clean",
+    "install",
+    "test",
+    "PHONY"
+   ],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^\\s*-?include\\s+(?P<module>\\S+)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "cmake": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [
+    [
+     "#[[",
+     "]]"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:function|macro)\\s*\\(\\s*(?P<name>[A-Za-z_]\\w*)(?P<params>[^)]*)\\)"
+    }
+   ],
+   "calls": "^\\s*(?P<name>[A-Za-z_]\\w*)\\s*\\(",
+   "keywords": [
+    "if",
+    "elseif",
+    "else",
+    "endif",
+    "foreach",
+    "endforeach",
+    "while",
+    "endwhile",
+    "function",
+    "endfunction",
+    "macro",
+    "endmacro",
+    "set",
+    "unset",
+    "message",
+    "project",
+    "cmake_minimum_required",
+    "add_executable",
+    "add_library",
+    "target_link_libraries",
+    "target_include_directories",
+    "target_compile_definitions",
+    "target_compile_options",
+    "include_directories",
+    "link_directories",
+    "add_definitions",
+    "add_compile_options",
+    "find_package",
+    "find_library",
+    "find_path",
+    "option",
+    "list",
+    "string",
+    "file",
+    "get_filename_component",
+    "install",
+    "configure_file",
+    "add_custom_command",
+    "add_custom_target",
+    "add_test",
+    "enable_testing",
+    "return",
+    "break",
+    "continue",
+    "math",
+    "execute_process",
+    "add_dependencies",
+    "set_target_properties",
+    "set_property",
+    "get_property",
+    "mark_as_advanced",
+    "cmake_policy",
+    "cmake_parse_arguments"
+   ],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^\\s*include\\s*\\(\\s*(?P<module>[^)\\s]+)"
+    },
+    {
+     "kind": "include",
+     "regex": "^\\s*add_subdirectory\\s*\\(\\s*(?P<module>[^)\\s]+)"
+    }
+   ],
+   "regions": [],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "dockerfile": {
+   "line_comments": [
+    "#"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "stage",
+     "regex": "^\\s*FROM\\s+\\S+\\s+AS\\s+(?P<name>[\\w.-]+)"
+    }
+   ],
+   "calls": null,
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*FROM\\s+(?P<module>[\\w./:@-]+)"
+    },
+    {
+     "kind": "include",
+     "regex": "^\\s*(?:COPY|ADD)\\s+(?:--\\S+\\s+)*(?P<module>[^\\s]+)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "script"
+  },
+  "haskell": {
+   "line_comments": [
+    "--"
+   ],
+   "block_comments": [
+    [
+     "{-",
+     "-}"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^(?P<name>[a-z_][\\w']*)\\s*::"
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*(?:data|newtype|type|class|instance)\\s+(?:\\([^)]*\\)\\s*=>\\s*)?(?P<name>[A-Z][\\w']*)"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*module\\s+(?P<name>[A-Z][\\w.]*)"
+    }
+   ],
+   "calls": null,
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*import\\s+(?:qualified\\s+)?(?P<module>[A-Z][\\w.]*)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "ocaml": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "(*",
+     "*)"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:let|and)\\s+(?:rec\\s+)?(?:inline\\s+)?(?P<name>[a-z_][\\w']*)\\s+(?P<params>[^=]+)="
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*type\\s+(?P<name>[a-z_][\\w']*)"
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*module\\s+(?P<name>[A-Z][\\w']*)"
+    }
+   ],
+   "calls": null,
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*open\\s+(?P<module>[A-Z][\\w.]*)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "erlang": {
+   "line_comments": [
+    "%"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^(?P<name>[a-z]\\w*)\\s*\\((?P<params>[^)]*)\\)\\s*(?:when\\b[^-]*)?->"
+    },
+    {
+     "kind": "module",
+     "regex": "^-module\\s*\\(\\s*(?P<name>\\w+)\\s*\\)"
+    }
+   ],
+   "calls": "\\b(?P<name>[a-z]\\w*(?::[a-z]\\w*)?)\\s*\\(",
+   "keywords": [
+    "case",
+    "of",
+    "if",
+    "end",
+    "fun",
+    "when",
+    "receive",
+    "after",
+    "try",
+    "catch",
+    "throw",
+    "begin",
+    "spawn",
+    "spawn_link",
+    "length",
+    "lists",
+    "io",
+    "erlang",
+    "ok",
+    "error",
+    "true",
+    "false",
+    "self",
+    "is_list",
+    "is_atom",
+    "is_integer",
+    "is_binary",
+    "element",
+    "setelement",
+    "tuple_size",
+    "hd",
+    "tl",
+    "apply",
+    "exit",
+    "link",
+    "register",
+    "whereis",
+    "send",
+    "atom_to_list",
+    "list_to_atom",
+    "integer_to_list",
+    "list_to_integer"
+   ],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^-include(?:_lib)?\\s*\\(\\s*\"(?P<module>[^\"]+)\""
+    },
+    {
+     "kind": "import",
+     "regex": "^-import\\s*\\(\\s*(?P<module>\\w+)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "vb": {
+   "line_comments": [
+    "'"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\""
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:(?:public|private|protected|friend|shared|static|overrides|overridable|async)\\s+)*(?:sub|function|property\\s+(?:get|let|set))\\s+(?P<name>[A-Za-z_]\\w*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "class",
+     "regex": "^\\s*(?:(?:public|private|friend)\\s+)*(?:class|module|structure|interface|enum)\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "then",
+    "else",
+    "elseif",
+    "end",
+    "for",
+    "each",
+    "next",
+    "while",
+    "wend",
+    "do",
+    "loop",
+    "until",
+    "select",
+    "case",
+    "sub",
+    "function",
+    "dim",
+    "as",
+    "set",
+    "let",
+    "new",
+    "call",
+    "return",
+    "exit",
+    "with",
+    "msgbox",
+    "inputbox",
+    "cint",
+    "cstr",
+    "cdbl",
+    "clng",
+    "len",
+    "mid",
+    "left",
+    "right",
+    "trim",
+    "ucase",
+    "lcase",
+    "instr",
+    "replace",
+    "split",
+    "join",
+    "isnull",
+    "isempty",
+    "isnumeric",
+    "ubound",
+    "lbound",
+    "array",
+    "redim",
+    "on",
+    "error",
+    "resume",
+    "goto",
+    "not",
+    "and",
+    "or",
+    "xor",
+    "true",
+    "false",
+    "nothing",
+    "me",
+    "console.writeline",
+    "debug.print",
+    "integer",
+    "string",
+    "boolean",
+    "double",
+    "long",
+    "object",
+    "variant",
+    "byval",
+    "byref",
+    "optional",
+    "class",
+    "module",
+    "property",
+    "get",
+    "private",
+    "public",
+    "friend",
+    "shared",
+    "imports",
+    "option",
+    "explicit"
+   ],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*Imports\\s+(?P<module>[\\w.]+)"
+    }
+   ],
+   "regions": [
+    {
+     "regex": "^\\s*#Region\\s*\"?(?P<title>[^\"]*)\"?"
+    }
+   ],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "module",
+   "index_syntax": true
+  },
+  "ada": {
+   "line_comments": [
+    "--"
+   ],
+   "block_comments": [],
+   "strings": [
+    "\""
+   ],
+   "string_escape": null,
+   "case_insensitive": true,
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^\\s*(?:overriding\\s+)?(?:procedure|function)\\s+(?P<name>[A-Za-z_][\\w.]*)\\s*(?:\\((?P<params>[^)]*)\\))?"
+    },
+    {
+     "kind": "package",
+     "regex": "^\\s*package\\s+(?:body\\s+)?(?P<name>[A-Za-z_][\\w.]*)\\s+is\\b"
+    },
+    {
+     "kind": "type",
+     "regex": "^\\s*type\\s+(?P<name>[A-Za-z_]\\w*)\\b"
+    }
+   ],
+   "calls": "\\b(?P<name>[A-Za-z_][\\w.]*)\\s*\\(",
+   "keywords": [
+    "if",
+    "then",
+    "else",
+    "elsif",
+    "end",
+    "loop",
+    "for",
+    "while",
+    "case",
+    "when",
+    "is",
+    "begin",
+    "declare",
+    "exception",
+    "raise",
+    "return",
+    "procedure",
+    "function",
+    "package",
+    "body",
+    "with",
+    "use",
+    "type",
+    "subtype",
+    "record",
+    "array",
+    "of",
+    "in",
+    "out",
+    "access",
+    "new",
+    "null",
+    "not",
+    "and",
+    "or",
+    "xor",
+    "abs",
+    "mod",
+    "rem",
+    "others",
+    "range",
+    "constant",
+    "renames",
+    "generic",
+    "private",
+    "limited",
+    "tagged",
+    "abstract",
+    "task",
+    "entry",
+    "accept",
+    "select",
+    "delay",
+    "terminate",
+    "pragma",
+    "put",
+    "put_line",
+    "get",
+    "get_line",
+    "new_line",
+    "integer",
+    "float",
+    "boolean",
+    "string",
+    "character",
+    "natural",
+    "positive",
+    "text_io",
+    "ada.text_io"
+   ],
+   "imports": [
+    {
+     "kind": "use",
+     "regex": "^\\s*with\\s+(?P<module>[\\w.,\\s]+);"
+    }
+   ],
+   "regions": [],
+   "scope": "end",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "assembly": {
+   "line_comments": [
+    ";",
+    "#",
+    "//",
+    "@"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "function",
+     "regex": "^(?P<name>[A-Za-z_.$][\\w.$]*)\\s*:"
+    },
+    {
+     "kind": "macro",
+     "regex": "^\\s*(?:\\.macro|%macro|MACRO)\\s+(?P<name>[A-Za-z_.][\\w.]*)"
+    }
+   ],
+   "calls": "^\\s*(?:call|jmp|bl|blx|b|jal|jalr|bsr|jsr|beq|bne|jz|jnz|je|jne)\\s+(?P<name>[A-Za-z_.$][\\w.$]*)",
+   "call_kind": "call",
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "include",
+     "regex": "^\\s*(?:\\.include|%include|include|#include)\\s+[\"'<]?(?P<module>[^\"'>\\s]+)"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "hcl": {
+   "line_comments": [
+    "#",
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\""
+   ],
+   "string_escape": "\\",
+   "definitions": [
+    {
+     "kind": "resource",
+     "regex": "^\\s*(?:resource|data)\\s+\"(?P<returns>[^\"]+)\"\\s+\"(?P<name>[^\"]+)\""
+    },
+    {
+     "kind": "module",
+     "regex": "^\\s*module\\s+\"(?P<name>[^\"]+)\""
+    },
+    {
+     "kind": "variable",
+     "regex": "^\\s*(?:variable|output|locals)\\s+\"?(?P<name>[\\w-]*)\"?"
+    }
+   ],
+   "calls": null,
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "^\\s*source\\s*=\\s*\"(?P<module>[^\"]+)\""
+    }
+   ],
+   "regions": [],
+   "scope": "brace",
+   "doc_position": "before",
+   "file_kind": "module"
+  },
+  "none": {
+   "line_comments": [
+    "//"
+   ],
+   "block_comments": [
+    [
+     "/*",
+     "*/"
+    ]
+   ],
+   "strings": [
+    "\"",
+    "'"
+   ],
+   "string_escape": "\\",
+   "definitions": [],
+   "calls": null,
+   "keywords": [],
+   "imports": [
+    {
+     "kind": "import",
+     "regex": "@import\\s+(?:url\\()?['\"](?P<module>[^'\"]+)['\"]"
+    }
+   ],
+   "regions": [],
+   "scope": "none",
+   "doc_position": "before",
+   "file_kind": "module"
+  }
+ }
+}

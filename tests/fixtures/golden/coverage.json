@@ -1,0 +1,133 @@
+{
+ "by_excluded_by": {
+  "*.log": 1,
+  "build/": 1,
+  "skip-marker": 2
+ },
+ "by_family": {
+  "binary": 2,
+  "code": 20,
+  "data": 2,
+  "document": 12,
+  "text": 1
+ },
+ "by_format": {
+  "csv": 1,
+  "docx": 1,
+  "executable": 1,
+  "image": 1,
+  "ini": 1,
+  "json": 1,
+  "markdown": 6,
+  "pdf": 1,
+  "plain": 4
+ },
+ "by_language": {
+  "c": 3,
+  "javascript": 1,
+  "make": 1,
+  "matlab": 4,
+  "python": 7,
+  "shell": 3,
+  "vhdl": 1
+ },
+ "by_role": {
+  "build": 5,
+  "docs": 4,
+  "product": 26,
+  "test": 1,
+  "vendor": 1
+ },
+ "by_skip_reason": {
+  "binary-content": 1,
+  "catalog-only": 2,
+  "grammar-missing": 19,
+  "missing-dependency": 1
+ },
+ "by_tier": {
+  "A": 13,
+  "B": 0,
+  "C": 20,
+  "D": 4
+ },
+ "code": {
+  "by_language": {
+   "c": {
+    "n_ambiguous": 0,
+    "n_call_sites": 4,
+    "n_external": 0,
+    "n_resolved": 4,
+    "n_unresolved": 0
+   },
+   "javascript": {
+    "n_ambiguous": 0,
+    "n_call_sites": 1,
+    "n_external": 0,
+    "n_resolved": 1,
+    "n_unresolved": 0
+   },
+   "matlab": {
+    "n_ambiguous": 0,
+    "n_call_sites": 4,
+    "n_external": 0,
+    "n_resolved": 4,
+    "n_unresolved": 0
+   },
+   "python": {
+    "n_ambiguous": 1,
+    "n_call_sites": 2,
+    "n_external": 0,
+    "n_resolved": 1,
+    "n_unresolved": 0
+   },
+   "shell": {
+    "n_ambiguous": 0,
+    "n_call_sites": 1,
+    "n_external": 0,
+    "n_resolved": 1,
+    "n_unresolved": 0
+   },
+   "text": {
+    "n_ambiguous": 0,
+    "n_call_sites": 1,
+    "n_external": 0,
+    "n_resolved": 0,
+    "n_unresolved": 1
+   }
+  },
+  "n_ambiguous": 1,
+  "n_bare_dropped": 1,
+  "n_call_sites": 13,
+  "n_external": 0,
+  "n_files_analysed": 20,
+  "n_imports": 6,
+  "n_imports_resolved": 4,
+  "n_index_dropped": 0,
+  "n_resolved": 11,
+  "n_symbols": 25,
+  "n_unresolved": 1
+ },
+ "documents": {
+  "by_adapter": {},
+  "by_determinism": {},
+  "n_documents": 0,
+  "n_parameters": 0,
+  "n_references": 0,
+  "n_scans_detected": 0,
+  "n_sections": 0,
+  "n_terms": 0,
+  "n_truncated": 0
+ },
+ "links": {
+  "by_confidence": {},
+  "by_rel": {},
+  "n_edges": 0
+ },
+ "n_dirs": 14,
+ "n_excluded_dirs": 3,
+ "n_excluded_files": 1,
+ "n_files": 37,
+ "n_skipped": 25,
+ "schema_version": 1,
+ "total_bytes": 1953
+}

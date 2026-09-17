@@ -39,6 +39,8 @@ class Context:
     coverage: dict[str, Any] = field(default_factory=dict)
     artifacts: dict[str, str] = field(default_factory=dict)
     problems: list[str] = field(default_factory=list)
+    code_stats: dict[str, Any] = field(default_factory=dict)
+    adapters: dict[str, Any] = field(default_factory=dict)
     log: Callable[[str], None] = print
 
 
@@ -67,9 +69,24 @@ def stage_discover(ctx: Context) -> None:
     )
 
 
+def stage_code(ctx: Context) -> None:
+    from contextmax.code.run import run_code_stage
+
+    stats = run_code_stage(ctx)
+    ctx.adapters.update(stats.pop("adapters", {}))
+    ctx.code_stats = stats
+
+
+def _coverage_extra(ctx: Context) -> dict[str, Any]:
+    extra: dict[str, Any] = {}
+    if ctx.code_stats:
+        extra["code"] = dict(ctx.code_stats)
+    return extra
+
+
 def stage_catalogs(ctx: Context) -> None:
     assert ctx.discovery is not None
-    ctx.coverage = build_coverage(ctx.discovery.counts)
+    ctx.coverage = build_coverage(ctx.discovery.counts, _coverage_extra(ctx))
     ctx.artifacts["coverage.json"] = write_json(ctx.layout.coverage, ctx.coverage)
     ctx.artifacts["INDEX.md"] = _write_index_md(ctx)
     _write_index_readme(ctx)
@@ -78,13 +95,14 @@ def stage_catalogs(ctx: Context) -> None:
 def stage_manifest(ctx: Context) -> None:
     assert ctx.discovery is not None
     if not ctx.coverage:
-        ctx.coverage = build_coverage(ctx.discovery.counts)
+        ctx.coverage = build_coverage(ctx.discovery.counts, _coverage_extra(ctx))
     manifest = build_manifest(
         layout=ctx.layout,
         config=ctx.config,
         files=ctx.discovery.files,
         build_state=ctx.state.data,
         coverage=ctx.coverage,
+        adapters=ctx.adapters,
     )
     write_json(ctx.layout.manifest, manifest)
     ctx.log(
@@ -131,6 +149,19 @@ def _write_index_md(ctx: Context) -> str:
     for folder, count in sorted(folders.items(), key=lambda kv: (-kv[1], kv[0])):
         lines.append(f"| {folder} | {count} |")
     lines.append("")
+    code = cov.get("code", {})
+    if code.get("n_symbols"):
+        n_sites = code.get("n_call_sites", 0)
+        pct = (100.0 * code.get("n_resolved", 0) / n_sites) if n_sites else 0.0
+        lines += [
+            "## Code",
+            "",
+            f"{code['n_symbols']} symbols in {code.get('n_files_analysed', 0)} analysed files. "
+            f"{code.get('n_resolved', 0)} of {n_sites} call sites resolve inside the project ({pct:.0f}%); "
+            f"{code.get('n_ambiguous', 0)} ambiguous, {code.get('n_external', 0)} external, "
+            f"{code.get('n_unresolved', 0)} unresolved. Details per symbol in `CODEMAP.md`.",
+            "",
+        ]
     if cov["by_skip_reason"]:
         lines += ["## What was not fully indexed", "", "| Reason | Files |", "|---|---|"]
         for reason, count in sorted(cov["by_skip_reason"].items(), key=lambda kv: (-kv[1], kv[0])):
@@ -140,6 +171,9 @@ def _write_index_md(ctx: Context) -> str:
         "## Files in this index",
         "",
         "- `nodes/files.jsonl` — one row per file: type, tier, role, size, hash.",
+        "- `nodes/symbols.jsonl` — every function, class, script and region with signature, doc and span.",
+        "- `edges/calls.jsonl` — call sites with resolution status, candidates and counts; `edges/imports.jsonl`, `edges/contains.jsonl`.",
+        "- `CODEMAP.md` — the symbol tables per folder, with citations.",
         "- `skipped.jsonl` — every file not fully analysed and why.",
         "- `coverage.json` — counts by tier, language, format, role and reason.",
         "- `manifest.json` — provenance, identity hashes and the completeness verdict.",
@@ -164,6 +198,7 @@ def _write_index_readme(ctx: Context) -> None:
 
 STAGE_TABLE: dict[str, Stage] = {
     "discover": Stage("discover", stage_discover),
+    "code": Stage("code", stage_code),
     "catalogs": Stage("catalogs", stage_catalogs),
     "manifest": Stage("manifest", stage_manifest),
 }
