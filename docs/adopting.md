@@ -17,6 +17,22 @@ py -3.14 -m venv .venv                       # any Python 3.11 or newer
 `cmx` and `contextmax` are then available inside that virtual environment. Run
 `cmx doctor` to see what the machine can read.
 
+## Grammars (optional, once)
+
+With the `[code]` extra installed, ContextMAX can parse most languages with real syntax trees
+(tier B) instead of lexical patterns (tier C). Grammars come from a bundle that must be fetched
+once, with a network connection:
+
+```
+cmx grammars fetch --for-project      # the languages present in the current index
+cmx grammars fetch python matlab c    # or name them
+cmx grammars status                   # what is provisioned and which languages have tags queries
+```
+
+Indexing itself never downloads anything: a grammar that was not fetched leaves its files at
+tier C, and `cmx status` says so. Grammars live under `~/.contextmax/grammars`
+(`CONTEXTMAX_GRAMMAR_DIR` to move them).
+
 ## Index a project
 
 ```

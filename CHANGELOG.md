@@ -3,6 +3,35 @@
 All notable changes to ContextMAX are recorded here. The format follows
 Keep a Changelog, and the project follows Semantic Versioning.
 
+## [0.2.0] - 2026-09-17
+
+Phase 2, real code analysis: syntax trees wherever a grammar exists, still never touching the
+network while indexing.
+
+### Added
+- Grammar provisioning: `cmx grammars fetch <names> | --for-project | --all`, `status`, `list`;
+  a ledger under `~/.contextmax/grammars` (`CONTEXTMAX_GRAMMAR_DIR`); indexing only loads
+  grammars whose bundle is already present. `cmx doctor` reports the grammar state.
+- Tier B generic analyzer (`treesitter-tags-v1`): definitions and call references from each
+  grammar's bundled tags query with exact spans and nesting; prototypes distinguished from
+  definitions; lexical imports, regions and macros merged in; lexical call sites, marked as such,
+  when a tags query has no reference patterns.
+- Tier A Python plugin (`python-ast-v1`): exact spans, nested definitions, module-level and
+  class-body calls, constants, fields, decorators, docstrings, typed parameters, and resolution
+  hints that follow imports and `self`/`cls` (evidence `import-resolved`, `self`, `class`).
+- Per-file analysis cache (`cache/`) keyed by content hash, adapter and version; a cached
+  rebuild is byte-identical to `cmx index --full`.
+- A worker process for tier B that survives native crashes: the file is recorded as
+  `grammar-crash`, analysed lexically, and the worker restarts on the rest.
+- Confidence by tier and evidence on every call edge; per-tier counts in coverage; `CODEMAP.md`
+  shows the tier of every symbol.
+
+### Changed
+- The tree-sitter bindings are pinned below 0.26: 0.26 crashes with the language pack's
+  grammars.
+- Golden and determinism tests run with an empty grammar folder so results never depend on what
+  a machine has downloaded; CI provisions grammars and runs the tier B tests on three systems.
+
 ## [0.1.0] - 2026-09-17
 
 Phase 1, the walking skeleton: a person or an agent can index a project, ask cited questions,

@@ -70,8 +70,11 @@ def render_files(config, layout, coverage: dict[str, Any] | None) -> dict[str, s
     keywords = [k for k in config.data["project"].get("keywords", []) if k]
     languages = sorted(cov.get("by_language", {}), key=lambda k: -cov["by_language"][k])[:6]
     formats_ = sorted(cov.get("by_format", {}), key=lambda k: -cov["by_format"][k])[:6]
+    project_label = (
+        config.name if config.name.lower().endswith("project") else f"{config.name} project"
+    )
     description_bits = [
-        f"Search, navigate and cite the {config.name} project through its ContextMAX index",
+        f"Search, navigate and cite the {project_label} through its ContextMAX index",
         "(files, code symbols and call graph, document outlines, references, links).",
         "Use when asked where something is, how code works, who calls what, what would break,",
         "or what a document says about this project.",

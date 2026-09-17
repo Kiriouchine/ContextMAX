@@ -228,6 +228,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_query_parser(sub)
     add_skill_parser(sub)
+    from contextmax.grammars_cli import add_grammars_parser
+
+    add_grammars_parser(sub)
 
     p = sub.add_parser("doctor", help="check the environment, readers, grammars and index")
     p.add_argument("--root")

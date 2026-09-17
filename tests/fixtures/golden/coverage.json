@@ -44,13 +44,13 @@
   "adapter-not-implemented": 4,
   "binary-content": 1,
   "catalog-only": 2,
-  "grammar-missing": 19,
+  "grammar-missing": 13,
   "missing-dependency": 1
  },
  "by_tier": {
-  "A": 13,
+  "A": 19,
   "B": 0,
-  "C": 20,
+  "C": 14,
   "D": 8
  },
  "code": {
@@ -78,10 +78,10 @@
    },
    "python": {
     "n_ambiguous": 0,
-    "n_call_sites": 2,
+    "n_call_sites": 3,
     "n_external": 0,
     "n_resolved": 2,
-    "n_unresolved": 0
+    "n_unresolved": 1
    },
    "shell": {
     "n_ambiguous": 0,
@@ -98,17 +98,22 @@
     "n_unresolved": 1
    }
   },
+  "by_tier": {
+   "A": 6,
+   "B": 0,
+   "C": 14
+  },
   "n_ambiguous": 0,
   "n_bare_dropped": 1,
-  "n_call_sites": 13,
+  "n_call_sites": 14,
   "n_external": 0,
   "n_files_analysed": 20,
   "n_imports": 6,
   "n_imports_resolved": 4,
   "n_index_dropped": 0,
   "n_resolved": 12,
-  "n_symbols": 25,
-  "n_unresolved": 1
+  "n_symbols": 26,
+  "n_unresolved": 2
  },
  "documents": {
   "by_adapter": {
@@ -133,7 +138,7 @@
   "n_words": 166
  },
  "graph": {
-  "code_nodes": 23,
+  "code_nodes": 24,
   "code_truncated": 0,
   "doc_edges": 3,
   "doc_module_links": 2,
@@ -160,7 +165,7 @@
  "n_excluded_dirs": 3,
  "n_excluded_files": 1,
  "n_files": 41,
- "n_skipped": 29,
+ "n_skipped": 23,
  "schema_version": 1,
  "total_bytes": 2914
 }

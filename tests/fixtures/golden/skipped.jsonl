@@ -15,15 +15,9 @@
 {"detected_as": null, "file": "nested", "reason": "folder holds a .contextmax-skip marker or is the index", "reason_code": "skip-marker", "size": null}
 {"detected_as": "shell", "file": "scripts/deploy.sh", "reason": "grammar 'bash' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 74}
 {"detected_as": "shell", "file": "scripts/lib.sh", "reason": "grammar 'bash' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 63}
-{"detected_as": "python", "file": "scripts/noext", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 34}
 {"detected_as": "shell", "file": "scripts/run.sh", "reason": "grammar 'bash' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 28}
-{"detected_as": "python", "file": "src/app/__init__.py", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 0}
 {"detected_as": "python", "file": "src/app/broken.py", "reason": "file contains binary data despite its name", "reason_code": "binary-content", "size": 25}
-{"detected_as": "python", "file": "src/app/main.py", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 106}
-{"detected_as": "python", "file": "src/app/util.py", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 49}
 {"detected_as": "c", "file": "src/native/core.c", "reason": "grammar 'c' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 68}
 {"detected_as": "c", "file": "src/native/core.h", "reason": "grammar 'c' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 28}
 {"detected_as": "c", "file": "src/native/util.c", "reason": "grammar 'c' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 218}
 {"detected_as": "javascript", "file": "src/web/index.js", "reason": "grammar 'javascript' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 44}
-{"detected_as": "python", "file": "tests/test_main.py", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 33}
-{"detected_as": "python", "file": "vendor/lib.py", "reason": "grammar 'python' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 6}

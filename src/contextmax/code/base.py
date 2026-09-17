@@ -60,7 +60,13 @@ class CallSite:
     qualifier: str | None
     line: int
     col: int
-    kind: str = "call"  # call | bare | instantiate | reference
+    kind: str = "call"  # call | bare | instantiate | reference | index
+    # A tier A plugin may say where the name comes from: ("module", "name") for an import,
+    # ("__self__", "method") for self.method(), ("__class__", "method") for cls.method().
+    hint: tuple[str, str] | None = None
+    # "syntax" when a grammar or plugin found it, "lexical" when a pattern did (tier B files
+    # whose tags query has no reference patterns keep their calls, at low confidence).
+    source: str = "syntax"
 
 
 @dataclass

@@ -121,7 +121,13 @@ def _tier_for(
         if det.plugin and det.plugin in plugins:
             return "A", None, None
         if det.grammar and grammars.is_provisioned(det.grammar):
-            return "B", None, None
+            if grammars.has_tags(det.grammar):
+                return "B", None, None
+            return (
+                "C",
+                "no-tags-query",
+                f"grammar '{det.grammar}' has no tags query; lexical analysis only",
+            )
         if det.grammar:
             return (
                 "C",

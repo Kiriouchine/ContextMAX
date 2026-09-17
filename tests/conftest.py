@@ -15,6 +15,18 @@ from contextmax.cli import main
 from fixtures.corpus import build_corpus
 
 
+@pytest.fixture(autouse=True)
+def isolated_grammars(tmp_path_factory, monkeypatch):
+    """Tier B depends on what a machine has downloaded; tests see an empty grammar folder
+    unless they opt in (see tests/unit/test_treesitter.py)."""
+    from contextmax import grammars
+
+    monkeypatch.setenv(grammars.GRAMMAR_DIR_ENV, str(tmp_path_factory.mktemp("grammars-empty")))
+    grammars.has_tags.cache_clear()
+    yield
+    grammars.has_tags.cache_clear()
+
+
 @pytest.fixture
 def corpus(tmp_path: Path) -> Path:
     return build_corpus(tmp_path / "corpus")

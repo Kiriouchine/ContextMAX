@@ -39,6 +39,7 @@ CALLABLE_KINDS = frozenset(
         "type",
         "stage",
         "resource",
+        "prototype",
     }
 )
 
@@ -161,6 +162,9 @@ def _narrow(
     non_file = [c for c in callable_cands if c.symbol.qualname != "(file)"]
     if non_file:
         callable_cands = non_file  # a real definition beats the file that merely bears the name
+    defined = [c for c in callable_cands if c.symbol.kind != "prototype"]
+    if defined:
+        callable_cands = defined  # a body beats a declaration
     if len(callable_cands) == 1:
         return callable_cands[0], "unique-name", callable_cands
     same_file = [c for c in callable_cands if c.key == key]
@@ -241,6 +245,7 @@ def resolve_project(
         language = analysis.language
         adapter = analysis.adapter
         tier = analysis.tier
+        prefix = {"A": "plugin", "B": "grammar"}.get(tier, "lexical")
         # Group call sites per (caller, callee name, qualifier).
         grouped: dict[tuple[str | None, str, str | None, str], list[CallSite]] = defaultdict(list)
         for site in analysis.calls:
@@ -255,12 +260,27 @@ def resolve_project(
             site_dicts = [
                 {"line": s.line, "col": s.col} for s in sorted(sites, key=lambda s: (s.line, s.col))
             ]
-            cands = list(index.by_qualname.get(f"{qualifier}.{name}", [])) if qualifier else []
-            evidence = "qualified-name" if cands else None
-            if not cands:
-                cands = list(index.by_name.get(name, []))
-            winner, ev, cands = _narrow(cands, analysis.key) if cands else (None, None, [])
-            evidence = evidence or ev
+            hint = sites[0].hint
+            winner, evidence, cands = (
+                _resolve_hint(index, analysis, src_ref, hint, name) if hint else (None, None, [])
+            )
+            if winner is None and not cands:
+                cands = list(index.by_qualname.get(f"{qualifier}.{name}", [])) if qualifier else []
+                evidence = "qualified-name" if cands else None
+                if not cands:
+                    cands = list(index.by_name.get(name, []))
+                    if tier == "A" and qualifier and hint is None and cands:
+                        # The receiver is a value the plugin could not type: the bare name is a
+                        # lead, never a resolution. Keep every candidate visible.
+                        cands = [c for c in cands if c.symbol.kind in CALLABLE_KINDS] or cands
+                        winner, ev = None, "unknown-receiver"
+                    else:
+                        winner, ev, cands = (
+                            _narrow(cands, analysis.key) if cands else (None, None, [])
+                        )
+                else:
+                    winner, ev, cands = _narrow(cands, analysis.key) if cands else (None, None, [])
+                evidence = evidence or ev
             if winner is None and not cands:
                 stem_refs = index.by_stem.get(name, [])
                 if len(stem_refs) == 1:
@@ -291,8 +311,10 @@ def resolve_project(
                         dst=winner.id,
                         rel=rel,
                         tier=tier,
-                        confidence="low",
-                        evidence=f"lexical:{evidence}",
+                        confidence=_confidence(
+                            "C" if sites[0].source == "lexical" else tier, evidence
+                        ),
+                        evidence=f"{prefix}:{evidence}",
                         adapter=adapter,
                         status="resolved",
                         dst_name=name,
@@ -310,7 +332,7 @@ def resolve_project(
                         rel=rel,
                         tier=tier,
                         confidence="low",
-                        evidence="lexical:ambiguous",
+                        evidence=f"{prefix}:{evidence or 'ambiguous'}",
                         adapter=adapter,
                         status="ambiguous",
                         dst_name=(f"{qualifier}.{name}" if qualifier else name),
@@ -340,7 +362,7 @@ def resolve_project(
                         rel=rel,
                         tier=tier,
                         confidence=None,
-                        evidence="lexical:" + reason,
+                        evidence=f"{prefix}:" + reason,
                         adapter=adapter,
                         status=status,
                         dst_name=(f"{qualifier}.{name}" if qualifier else name),
@@ -362,7 +384,7 @@ def resolve_project(
                     rel="imports",
                     tier=tier,
                     confidence="medium" if target else None,
-                    evidence=f"lexical:{imp.kind}",
+                    evidence=f"{prefix}:{imp.kind}",
                     adapter=adapter,
                     status="resolved"
                     if target
@@ -384,7 +406,7 @@ def resolve_project(
                         rel="contains",
                         tier=tier,
                         confidence="high",
-                        evidence="lexical:definition",
+                        evidence=f"{prefix}:definition",
                         adapter=adapter,
                     )
                 )
@@ -400,7 +422,7 @@ def resolve_project(
                             rel="contains",
                             tier=tier,
                             confidence="high",
-                            evidence="lexical:nesting",
+                            evidence=f"{prefix}:nesting",
                             adapter=adapter,
                         )
                     )
@@ -424,6 +446,70 @@ def resolve_project(
         "stats": stats,
         "index": index,
     }
+
+
+def _confidence(tier: str, evidence: str | None) -> str:
+    """Tier A: high when the plugin followed an import, self, the same file or a qualified name;
+    tier B: medium at best; tier C: always low."""
+    if tier == "C":
+        return "low"
+    strong = evidence in (
+        "import-resolved",
+        "self",
+        "class",
+        "same-file",
+        "qualified-name",
+        "recursion",
+    )
+    if tier == "A":
+        return "high" if strong else "medium"
+    return "medium" if strong or evidence in ("unique-name", "file-name") else "low"
+
+
+def _resolve_hint(
+    index: ProjectIndex,
+    analysis: FileAnalysis,
+    src_ref: SymbolRef,
+    hint: tuple[str, str],
+    name: str,
+):
+    """Follow a plugin hint: (module, name) through imports, or self/cls inside a class."""
+    module, target = hint
+    if module in ("__self__", "__class__"):
+        owner = src_ref.symbol.parent or src_ref.symbol.qualname
+        # Walk up to the enclosing class: the caller may be a method or a nested function.
+        cls = owner
+        while cls:
+            refs = [r for r in index.by_qualname.get(cls, []) if r.key == analysis.key]
+            if refs and refs[0].symbol.kind in ("class", "struct"):
+                break
+            cls = refs[0].symbol.parent if refs else None
+        if cls:
+            members = [
+                r for r in index.by_qualname.get(f"{cls}.{target}", []) if r.key == analysis.key
+            ]
+            if len(members) == 1:
+                return members[0], "self" if module == "__self__" else "class", []
+        return None, None, []
+    imp = Import(module=module, line=0, kind="import", relative=module.startswith("."))
+    file_key = resolve_import_target(index, analysis.key, imp, analysis.language)
+    if file_key is None:
+        return None, None, []
+    wanted = target or name
+    in_file = [
+        r
+        for r in index.refs
+        if r.key == file_key and r.symbol.name == wanted and r.symbol.parent is None
+    ]
+    if len(in_file) == 1:
+        return in_file[0], "import-resolved", []
+    if len(in_file) > 1:
+        return None, None, in_file
+    if not target:  # `import pkg` then pkg.name(): the module itself may be the target
+        file_syms = [r for r in index.refs if r.key == file_key and r.symbol.qualname == "(file)"]
+        if file_syms and name == wanted:
+            return file_syms[0], "import-resolved", []
+    return None, None, []
 
 
 def _caller_ref(index: ProjectIndex, key: str, caller_q: str | None) -> SymbolRef | None:

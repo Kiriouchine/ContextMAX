@@ -106,18 +106,16 @@ def run_doctor(root_arg: str | None = None) -> tuple[list[Check], int]:
                     else "not installed (fine)",
                 )
             )
-    ledger = grammars.provisioned()
-    if grammars.pack_installed():
-        checks.append(
-            Check(
-                "grammars",
-                "provisioned",
-                "ok" if ledger else "warn",
-                f"{len(ledger)} grammar(s) in {grammars.grammar_dir()}"
-                if ledger
-                else f"none provisioned yet; run `contextmax grammars fetch` (folder {grammars.grammar_dir()})",
-            )
+    gst = grammars.status()
+    if gst["pack_installed"]:
+        state = "ok" if gst["with_tags"] else "warn"
+        detail = (
+            f"pack {gst['pack_version']}; {gst['n_provisioned']} grammar(s) provisioned in {gst['folder']}; "
+            f"tier B ready for {len(gst['with_tags'])} of them"
+            if gst["bundle_present"]
+            else f"pack {gst['pack_version']} installed but no grammar bundle yet; run `contextmax grammars fetch --for-project`"
         )
+        checks.append(Check("grammars", "provisioned", state, detail))
     else:
         checks.append(
             Check(
@@ -127,7 +125,6 @@ def run_doctor(root_arg: str | None = None) -> tuple[list[Check], int]:
                 "tree-sitter-language-pack not installed; all code falls to tier C",
             )
         )
-
     # Project -----------------------------------------------------------------------------
     root: Path | None = None
     try:

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
@@ -33,6 +34,8 @@ ARTIFACTS = (
 def run() -> int:
     golden = ROOT / "tests" / "fixtures" / "golden"
     with tempfile.TemporaryDirectory(prefix="contextmax-golden-") as tmp:
+        # Golden files never depend on which grammars this machine has provisioned.
+        os.environ["CONTEXTMAX_GRAMMAR_DIR"] = str(Path(tmp) / "grammars-empty")
         root = build_corpus(Path(tmp) / "corpus")
         if main(["init", str(root), "--slug", "sample", "--name", "Sample", "--no-gitignore"]) != 0:
             return 1
