@@ -12,7 +12,7 @@
 
 ContextMAX is a downloadable, local, offline tool that a person (or an AI agent on their behalf) runs on any folder or set of files. It indexes, graphs and links everything it finds **deterministically, with no AI in the loop**, and then generates skills and agent instructions so that Claude Code, Claude Desktop, VS Code Copilot, Cursor, Windsurf, Codex and any other AI system know how to search, navigate and cite the result. The purpose is to give a researcher, human or AI, a very fast way into a project's knowledge base with exact pointers back to the original sources.
 
-The author built a predecessor for this idea (Windows-only, profile-driven, engineering-programme oriented). Its strongest ideas are carried forward; its limitations are designed out. The new repo `C:\Users\maste\Documents\ContextMAX` is empty (only `.git`, branch `master`, no commits).
+The author built a predecessor for this idea (Windows-only, profile-driven, engineering-programme oriented). Its strongest ideas are carried forward; its limitations are designed out. The plan was written against an empty repository.
 
 ### Decisions already taken with the user
 
