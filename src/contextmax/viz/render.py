@@ -190,6 +190,20 @@ def run_viz_stage(ctx) -> dict[str, Any]:
     # --- docs ----------------------------------------------------------------------------
     documents = _load(layout, "nodes/documents.jsonl")
     references = _load(layout, "nodes/references.jsonl")
+    parameters = _load(layout, "nodes/parameters.jsonl")
+    params_by_doc: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for p in parameters:
+        params_by_doc[p["doc"]].append(
+            {
+                "label": p["label"],
+                "display": p.get("display"),
+                "unit": p.get("unit_norm") or p.get("unit"),
+                "formula": p.get("formula"),
+                "source_kind": p.get("source_kind"),
+                "hidden": p.get("hidden"),
+                "cite": p["cite"],
+            }
+        )
     ref_summary: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for r in references:
         state = (
@@ -230,6 +244,7 @@ def run_viz_stage(ctx) -> dict[str, Any]:
                 "determinism": d["determinism"],
                 "sections": d["n_sections"],
                 "words": d["n_words"],
+                "parameters": d.get("n_parameters", 0),
                 "refs_summary": ", ".join(
                     f"{k} {v}" for k, v in sorted(ref_summary.get(d["id"], {}).items())
                 )
@@ -255,13 +270,14 @@ def run_viz_stage(ctx) -> dict[str, Any]:
         "section_mentions": {
             k: sorted(v, key=lambda r: r["label"]) for k, v in sorted(section_mentions.items())
         },
+        "parameters": {k: v[:100] for k, v in sorted(params_by_doc.items())},
         "project": project,
     }
     docs_body = (
         '<div class="toolbar"><input id="search" type="search" placeholder="search documents"></div>'
         '<main><div class="canvas" id="canvas"></div><aside class="panel"><div id="panel"></div><h2>Documents</h2><ul class="list" id="doc-list"></ul></aside></main>'
     )
-    docs_data = _trim(docs_data, max_bytes, "sections", "section_mentions")
+    docs_data = _trim(docs_data, max_bytes, "sections", "section_mentions", "parameters")
     written["docs.html"] = _write(
         ctx,
         layout.viz_dir / "docs.html",

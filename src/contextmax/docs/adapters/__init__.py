@@ -30,12 +30,14 @@ def adapters() -> dict[str, FormatAdapter]:
     from contextmax.docs.adapters.plain import PlainAdapter
     from contextmax.docs.adapters.rst import RstAdapter
     from contextmax.docs.adapters.rtf import RtfAdapter
+    from contextmax.docs.adapters.sheet import SheetAdapter
 
     table: dict[str, FormatAdapter] = {}
     for adapter in (
         MarkdownAdapter(), PlainAdapter(), HtmlAdapter(), LatexAdapter(), PdfAdapter(), BibtexAdapter(),
         NotebookAdapter(), RstAdapter(), AsciidocAdapter(), OrgAdapter(), EmailAdapter(), ConfigAdapter(),
         OoxmlAdapter(), OdfAdapter(), EpubAdapter(), RtfAdapter(), ImageAdapter(), LegacyOfficeAdapter(),
+        SheetAdapter(),
     ):
         table[adapter.id] = adapter
     return table

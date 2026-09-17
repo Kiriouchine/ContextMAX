@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from contextmax.docs import adapters as adapter_registry
+from contextmax.docs import params as params_module
 from contextmax.docs import refs as refs_module
 from contextmax.docs import structure as structure_module
 from contextmax.docs.base import DocumentTree, ExtractionError
@@ -37,6 +38,13 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     }
     files = ctx.discovery.files
     all_keys = {row["file"] for row in files}
+    doc_cfg = ctx.config.data.get("documents", {})
+    units_extra = list(doc_cfg.get("units_extra", []))
+    sheet = adapter_registry.get("sheet-v1")
+    if sheet is not None:  # bounds and units come from the project's config
+        sheet.max_rows = int(doc_cfg.get("sheet_max_rows", 400))
+        sheet.max_cols = int(doc_cfg.get("sheet_max_cols", 64))
+        sheet.units_extra = units_extra
     candidates = [row for row in files if _wants_document(row)]
     trees: list[tuple[dict[str, Any], DocumentTree, structure_module.Structure]] = []
     problems: list[str] = []
@@ -96,6 +104,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     doc_rows: list[dict[str, Any]] = []
     section_rows: list[dict[str, Any]] = []
     ref_rows: list[dict[str, Any]] = []
+    param_rows: list[dict[str, Any]] = []
     text_index: list[dict[str, Any]] = []
     by_adapter: dict[str, int] = defaultdict(int)
     by_determinism: dict[str, int] = defaultdict(int)
@@ -109,6 +118,9 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         refs = refs_module.build_references(tree, key, structure, catalog)
         ref_rows.extend(refs)
         own = doc_id(key)
+        doc_params = params_module.cell_parameters(tree, key, structure)
+        doc_params += params_module.prose_quantities(tree, key, structure, units_extra)
+        param_rows.extend(doc_params)
         doc_rows.append(
             {
                 "id": own,
@@ -132,6 +144,7 @@ def run_documents_stage(ctx) -> dict[str, Any]:
                 "n_footnotes": structure.footnotes,
                 "n_code_blocks": structure.code_blocks,
                 "n_references": len(refs),
+                "n_parameters": len(doc_params),
                 "toc": structure.toc,
                 "toc_source": tree.metadata.get("toc_source", "derived"),
                 "scan_detected": bool(tree.metadata.get("scan_detected")),
@@ -189,17 +202,24 @@ def run_documents_stage(ctx) -> dict[str, Any]:
     ctx.artifacts["nodes/references.jsonl"] = write_jsonl(
         layout.nodes / "references.jsonl", ref_rows
     )
+    ctx.artifacts["nodes/parameters.jsonl"] = write_jsonl(
+        layout.nodes / "parameters.jsonl", param_rows
+    )
     ctx.artifacts["text/index.jsonl"] = write_jsonl(layout.text_dir / "index.jsonl", text_index)
-    docmap = render_docmap(doc_rows, section_rows, ref_rows)
+    docmap = render_docmap(doc_rows, section_rows, ref_rows, param_rows)
     ctx.artifacts["DOCMAP.md"] = sha256_bytes(atomic_write_text(layout.index / "DOCMAP.md", docmap))
     ctx.extra_skipped.extend(extra_skipped)
     for problem in problems:
         ctx.problems.append(f"documents: {problem}")
     n_ext = sum(1 for r in ref_rows if r["external"])
     n_unres = sum(1 for r in ref_rows if not r["external"] and r["resolved"] is None)
+    by_source: dict[str, int] = defaultdict(int)
+    for p in param_rows:
+        by_source[p["source_kind"]] += 1
     ctx.log(
         f"  {len(doc_rows)} documents, {len(section_rows)} sections, {n_words} words; {len(ref_rows)} references: "
         f"{len(ref_rows) - n_ext - n_unres} resolved, {n_ext} external, {n_unres} unresolved; "
+        f"{len(param_rows)} parameters ({', '.join(f'{k} {v}' for k, v in sorted(by_source.items())) or 'none'}); "
         f"{len(extra_skipped)} extraction failures"
     )
     adapters_used = {
@@ -216,6 +236,8 @@ def run_documents_stage(ctx) -> dict[str, Any]:
         "n_references": len(ref_rows),
         "n_references_external": n_ext,
         "n_references_unresolved": n_unres,
+        "n_parameters": len(param_rows),
+        "n_parameters_by_source": dict(sorted(by_source.items())),
         "n_words": n_words,
         "n_extraction_failures": len(extra_skipped),
         "by_adapter": dict(sorted(by_adapter.items())),
@@ -267,6 +289,7 @@ def render_docmap(
     docs: list[dict[str, Any]],
     sections: list[dict[str, Any]],
     refs: list[dict[str, Any]],
+    params: list[dict[str, Any]] | None = None,
     cap_sections: int = 200,
 ) -> str:
     by_doc_sections: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -275,6 +298,9 @@ def render_docmap(
     by_doc_refs: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in refs:
         by_doc_refs[r["doc"]].append(r)
+    by_doc_params: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for p in params or []:
+        by_doc_params[p["doc"]].append(p)
     lines = [
         "# Document map",
         "",
@@ -329,5 +355,10 @@ def render_docmap(
                     + ", ".join(f"`{u}`" for u in unresolved[:20])
                     + (" …" if len(unresolved) > 20 else "")
                 )
+        params_here = by_doc_params.get(doc["id"], [])
+        if params_here:
+            labels = sorted({p["label"] for p in params_here})
+            shown = ", ".join(f"`{x}`" for x in labels[:12]) + (" …" if len(labels) > 12 else "")
+            lines += ["", f"Parameters: {len(params_here)} ({shown}); values in `nodes/parameters.jsonl`, `cmx q param <label>`"]
         lines.append("")
     return "\n".join(lines)

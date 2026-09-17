@@ -211,3 +211,36 @@ def legacy_doc() -> bytes:
     """A genuine Word 97 .doc (two headings, one paragraph) converted once by LibreOffice and
     stored base64-encoded next to this module."""
     return base64.b64decode((Path(__file__).parent / "report_doc.b64").read_text(encoding="ascii"))
+
+
+ODS = zipped(
+    {
+        "mimetype": b"application/vnd.oasis.opendocument.spreadsheet",
+        "content.xml": (
+            f"<office:document-content {ODF_NS}><office:body><office:spreadsheet>"
+            '<table:table table:name="Params"><table:table-row>'
+            '<table:table-cell office:value-type="string"><text:p>label</text:p></table:table-cell>'
+            '<table:table-cell office:value-type="string"><text:p>value</text:p></table:table-cell>'
+            '<table:table-cell office:value-type="string"><text:p>unit</text:p></table:table-cell>'
+            "</table:table-row><table:table-row>"
+            '<table:table-cell office:value-type="string"><text:p>servo error</text:p></table:table-cell>'
+            '<table:table-cell office:value-type="float" office:value="2"><text:p>2</text:p></table:table-cell>'
+            '<table:table-cell office:value-type="string"><text:p>deg</text:p></table:table-cell>'
+            "</table:table-row><table:table-row>"
+            '<table:table-cell office:value-type="string"><text:p>doubled</text:p></table:table-cell>'
+            '<table:table-cell table:formula="of:=[.B2]*2" office:value-type="float" office:value="4"><text:p>4</text:p></table:table-cell>'
+            '<table:table-cell table:number-columns-repeated="3"/>'
+            "</table:table-row></table:table></office:spreadsheet></office:body></office:document-content>"
+        ).encode(),
+    }
+)
+
+
+def gains_xlsx() -> bytes:
+    """A workbook made once with openpyxl: labels, units, a formula, a hidden row, two sheets."""
+    return base64.b64decode((Path(__file__).parent / "gains_xlsx.b64").read_text(encoding="ascii"))
+
+
+def book_xls() -> bytes:
+    """A legacy Excel 97 workbook converted once by LibreOffice from a three-row CSV."""
+    return base64.b64decode((Path(__file__).parent / "book_xls.b64").read_text(encoding="ascii"))

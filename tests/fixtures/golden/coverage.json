@@ -8,7 +8,7 @@
   "binary": 3,
   "code": 20,
   "data": 7,
-  "document": 28,
+  "document": 31,
   "text": 1
  },
  "by_format": {
@@ -29,6 +29,7 @@
   "markdown": 6,
   "notebook": 1,
   "odp": 1,
+  "ods": 1,
   "odt": 1,
   "org": 1,
   "pdf": 1,
@@ -37,6 +38,8 @@
   "rst": 1,
   "rtf": 1,
   "toml": 1,
+  "xls": 1,
+  "xlsx": 1,
   "xml": 1,
   "yaml": 1
  },
@@ -52,23 +55,22 @@
  "by_role": {
   "build": 5,
   "docs": 19,
-  "product": 33,
+  "product": 36,
   "test": 1,
   "vendor": 1
  },
  "by_skip_reason": {
-  "adapter-not-implemented": 1,
   "binary-content": 1,
   "catalog-only": 3,
   "grammar-missing": 13,
-  "missing-dependency": 1,
+  "missing-dependency": 3,
   "reader-unavailable": 1
  },
  "by_tier": {
-  "A": 38,
+  "A": 40,
   "B": 0,
   "C": 14,
-  "D": 7
+  "D": 8
  },
  "code": {
   "by_language": {
@@ -149,35 +151,41 @@
    "org-v1": 1,
    "plain-v1": 5,
    "rst-v1": 1,
-   "rtf-v1": 1
+   "rtf-v1": 1,
+   "sheet-v1": 2
   },
   "by_determinism": {
-   "intrinsic": 35
+   "intrinsic": 37
   },
-  "n_documents": 35,
+  "n_documents": 37,
   "n_extraction_failures": 0,
-  "n_parameters": 0,
+  "n_parameters": 7,
+  "n_parameters_by_source": {
+   "cell": 3,
+   "formula-literal": 1,
+   "prose": 3
+  },
   "n_references": 44,
   "n_references_external": 9,
   "n_references_unresolved": 4,
   "n_scans_detected": 0,
-  "n_sections": 44,
+  "n_sections": 46,
   "n_terms": 0,
   "n_truncated": 0,
-  "n_words": 519
+  "n_words": 567
  },
  "graph": {
   "code_nodes": 24,
   "code_truncated": 0,
-  "doc_edges": 12,
+  "doc_edges": 14,
   "doc_module_links": 3,
-  "doc_nodes": 35,
+  "doc_nodes": 37,
   "overview_nodes": 15
  },
  "links": {
   "by_confidence": {
    "high": 16,
-   "low": 14,
+   "low": 15,
    "medium": 13
   },
   "by_rel": {
@@ -186,16 +194,17 @@
    "depends_on": 9,
    "links": 12,
    "mentions_file": 13,
-   "mentions_symbol": 4
+   "mentions_symbol": 4,
+   "shares_parameter": 1
   },
-  "n_edges": 43,
+  "n_edges": 44,
   "n_generic_suppressed": 0
  },
  "n_dirs": 15,
  "n_excluded_dirs": 3,
  "n_excluded_files": 1,
- "n_files": 59,
- "n_skipped": 22,
+ "n_files": 62,
+ "n_skipped": 23,
  "schema_version": 1,
- "total_bytes": 21869
+ "total_bytes": 33704
 }

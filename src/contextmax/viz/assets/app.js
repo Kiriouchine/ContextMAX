@@ -214,7 +214,7 @@
       const wrap = el("div", { class: "section" });
       wrap.appendChild(el("h3", {}, [chip(d.format), chip(d.adapter), chip(d.determinism), document.createTextNode(" " + d.title)]));
       const dl = el("dl", { class: "kv" });
-      for (const [k, v] of [["file", d.file], ["words", String(d.words)], ["sections", String(d.sections)], ["references", d.refs_summary || "none"]]) { dl.appendChild(el("dt", { text: k })); dl.appendChild(el("dd", { text: v })); }
+      for (const [k, v] of [["file", d.file], ["words", String(d.words)], ["sections", String(d.sections)], ["parameters", String(d.parameters || 0)], ["references", d.refs_summary || "none"]]) { dl.appendChild(el("dt", { text: k })); dl.appendChild(el("dd", { text: v })); }
       wrap.appendChild(dl);
       wrap.appendChild(el("h2", { text: "Outline" }));
       const secs = sectionsByDoc.get(id) || [];
@@ -228,6 +228,15 @@
         const ul = el("ul"); li.appendChild(ul); stack.push([s.depth, ul]);
       }
       wrap.appendChild(tree);
+      const params = (DATA.parameters || {})[id] || [];
+      if (params.length) {
+        wrap.appendChild(el("h2", { text: `Parameters (${d.parameters})` }));
+        const pl = el("ul", { class: "list" });
+        for (const p of params) pl.appendChild(el("li", {}, [chip(p.source_kind), el("span", { class: "mono", text: p.label }), el("span", { text: " = " + p.display + (p.unit ? " " + p.unit : "") + (p.formula ? "  " + p.formula : "") + (p.hidden ? "  (hidden)" : "") }), el("span", { class: "cite", text: " " + p.cite })]));
+        if (params.length < d.parameters) pl.appendChild(el("li", { class: "note", text: `… ${d.parameters - params.length} more in nodes/parameters.jsonl (cmx q param <label>)` }));
+        wrap.appendChild(pl);
+        wrap.appendChild(el("p", { class: "note", text: "A parameter's identity is its label, not its number. Values are read as stored; verify at the cited cell or line." }));
+      }
       canvas.appendChild(wrap);
       panel.innerHTML = "";
       panel.appendChild(el("h3", { text: "Links from this document" }));

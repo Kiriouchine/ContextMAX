@@ -26,6 +26,7 @@ ARTIFACTS = (
     "nodes/documents.jsonl",
     "nodes/sections.jsonl",
     "nodes/references.jsonl",
+    "nodes/parameters.jsonl",
     "skipped.jsonl",
     "coverage.json",
 )

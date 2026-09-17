@@ -34,6 +34,17 @@ Phase 3, documents wave, in progress.
   and XML entity declarations are refused with the reason recorded.
 - Discovery consults each adapter's `available()` and records `reader-unavailable` with the
   adapter's own reason (for example "install LibreOffice").
+- `sheet-v1`: `.xlsx` (openpyxl, formulas and cached values, hidden rows and columns), `.xls`
+  (xlrd), `.ods`/`.fods` and `.csv`/`.tsv` (standard library) as one text line per cell and
+  one parameter record per value cell: label from the cell to the left or the column header,
+  unit from `[unit]`, a neighbouring unit cell or the header, formula text and its numeric
+  literals as separate unit-less rows, hidden flag, sheet cites (`book.xlsx Gains!B2`); bounds
+  from `documents.sheet_max_rows` and `sheet_max_cols` are announced.
+- `nodes/parameters.jsonl`: spreadsheet cells plus prose quantities (`2.0 deg`, `50 Hz`) from
+  every document, labelled by the preceding phrase; a small unit alias table
+  (`documents.units_extra` extends it, `Nm` and `nm` stay distinct); `cmx q param <label>
+  [--compare] [--value N --unit U]` with an agree/differ verdict per label; `shares_parameter`
+  edges between documents; parameters listed in `DOCMAP.md`, `INDEX.md` and `docs.html`.
 
 ### Fixed
 - The `max_lines` limit no longer excludes container formats (PDF, Office): three large PDFs

@@ -3,7 +3,8 @@
 {"detected_as": "executable", "file": "bin/blob.bin", "reason": "compiled artifact", "reason_code": "catalog-only", "size": 14}
 {"detected_as": "image", "file": "bin/logo.gif", "reason": "image catalogued with its dimensions; content is not read (no OCR)", "reason_code": "catalog-only", "size": 13}
 {"detected_as": "image", "file": "bin/photo.png", "reason": "image catalogued with its dimensions; content is not read (no OCR)", "reason_code": "catalog-only", "size": 29}
-{"detected_as": "csv", "file": "data/table.csv", "reason": "sheet-v1 is not implemented in this version", "reason_code": "adapter-not-implemented", "size": 37}
+{"detected_as": "xls", "file": "data/book.xls", "reason": "reading xls needs xlrd", "reason_code": "missing-dependency", "size": 5632}
+{"detected_as": "xlsx", "file": "data/gains.xlsx", "reason": "reading xlsx needs openpyxl", "reason_code": "missing-dependency", "size": 5603}
 {"detected_as": "doc-legacy", "file": "docs/legacy.doc", "reason": "no converter found: install LibreOffice (soffice) to read legacy .doc/.ppt files", "reason_code": "reader-unavailable", "size": 10240}
 {"detected_as": "pdf", "file": "docs/paper.pdf", "reason": "reading pdf needs pypdf", "reason_code": "missing-dependency", "size": 37}
 {"detected_as": "vhdl", "file": "hdl/top.vhd", "reason": "grammar 'vhdl' is not provisioned; lexical analysis only", "reason_code": "grammar-missing", "size": 26}

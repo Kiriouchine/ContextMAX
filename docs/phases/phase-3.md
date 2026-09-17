@@ -122,6 +122,23 @@ and synthetic fixtures (`tests/fixtures/office.py`) reused by the corpus. Findin
   (`…pptx slide 25 §attitude-estimation`), 247 images are catalogued with their dimensions,
   one PowerPoint template went through LibreOffice as environment-bound; 299 documents in total.
 
+### Session 3 — done 2026-09-17
+
+Delivered every item of deliverable 3 (`docs/units.py`, `docs/params.py`,
+`docs/adapters/sheet.py`, `cmx q param`, `shares_parameter`). Findings:
+
+- Unit aliases must be matched case-sensitively first: `Nm` is torque, `nm` is length, and a
+  case-folded table silently turned one into the other.
+- Prose labels: the phrase before a quantity, trimmed of edge stop words, restarted after the
+  previous quantity (otherwise "deg at a sample rate" leaked the previous unit), never split at
+  a colon ("torque limit: 1.5 Nm"), and never starting with table debris ("4 0 029"). Labels
+  from PDF tables remain noisy; each carries its context and cite so an agent can check.
+- The archive's six `KF_comparisons*.xlsx` workbooks have no left-hand labels: their column
+  headers (`gskfo`, `ekf`, `kf`, `omega3` …) become the labels, recorded as `label_from:
+  header`. Result: 648 cell parameters, 964 prose quantities, 43 `shares_parameter` edges.
+- The compare verdict groups by the exact normalised label; "servo error" (two sheets) and
+  "servo error stayed" (a report) are neighbours, not the same parameter, and both are shown.
+
 ## Acceptance
 
 1. Every corpus format yields a document with an outline or a recorded reason; goldens are

@@ -453,6 +453,84 @@ class Index:
         }
 
     # --- documents -------------------------------------------------------------------------
+    # --- parameters ------------------------------------------------------------------------
+    def parameter(
+        self,
+        query: str,
+        compare: bool = False,
+        value: float | None = None,
+        unit: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """Parameters whose label contains every word of `query` (identity is the label, never
+        the number). `compare` groups hits by normalised label and says whether documents
+        agree; `value`/`unit` find where a given quantity appears."""
+        from contextmax.docs.params import norm_label
+        from contextmax.docs.units import normalise_unit
+
+        tokens = norm_label(query).split()
+        sql = "select payload from nodes where kind = 'parameter'"
+        params: list[Any] = []
+        for token in tokens:
+            sql += " and lower(name) like ?"
+            params.append(f"%{token}%")
+        rows = self._nodes(sql + " order by id", tuple(params))
+        want_unit = normalise_unit(unit) if unit else None
+        hits: list[dict[str, Any]] = []
+        for row in rows:
+            label_tokens = set(row.get("label_norm", "").split())
+            if tokens and not all(any(t in lt for lt in label_tokens) for t in tokens):
+                continue
+            if value is not None:
+                got = row.get("value")
+                if not isinstance(got, (int, float)) or isinstance(got, bool):
+                    continue
+                if abs(float(got) - float(value)) > 1e-9 * max(1.0, abs(float(value))):
+                    continue
+            if want_unit and row.get("unit_norm") != want_unit:
+                continue
+            hits.append(
+                {
+                    k: row.get(k)
+                    for k in (
+                        "id", "label", "label_norm", "value", "display", "unit", "unit_norm", "formula",
+                        "source_kind", "doc", "file", "sheet", "cell", "hidden", "context", "cite",
+                    )
+                }
+            )
+        result: dict[str, Any] = {
+            "query": query,
+            "n": len(hits),
+            "hits": hits[:limit],
+            "truncated": len(hits) > limit,
+            "note": "A parameter's identity is its label; verify each value at the cited cell or line.",
+        }
+        if compare:
+            groups: dict[str, list[dict[str, Any]]] = {}
+            for hit in hits:
+                groups.setdefault(hit["label_norm"], []).append(hit)
+            comparison = []
+            for label_norm, members in sorted(groups.items()):
+                distinct = sorted(
+                    {(str(m["display"]), m.get("unit_norm") or "") for m in members}
+                )
+                docs = sorted({m["doc"] for m in members})
+                comparison.append(
+                    {
+                        "label_norm": label_norm,
+                        "n_values": len(members),
+                        "n_documents": len(docs),
+                        "distinct_values": [f"{d} {u}".strip() for d, u in distinct],
+                        "verdict": "agree" if len(distinct) == 1 else "differ",
+                        "where": [
+                            {"display": m["display"], "unit": m.get("unit_norm") or m.get("unit"), "cite": m["cite"]}
+                            for m in members
+                        ][:limit],
+                    }
+                )
+            result["comparison"] = comparison
+        return result
+
     def find_document(self, query: str, limit: int = 20) -> dict[str, Any]:
         rows = self._nodes(
             "select payload from nodes where kind = 'document' and (name like ? or file like ?) order by case when name = ? then 0 else 1 end, id limit ?",

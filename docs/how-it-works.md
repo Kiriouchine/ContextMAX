@@ -73,6 +73,15 @@ node `ref:<file>#<key>`; `\cite{key}` resolves to it with high confidence, and t
 `file` field resolves to the project document when present. Every adapter records caps
 (`TRUNCATED: …`) and reader warnings in the document's `notes`.
 
+Spreadsheets (`sheet-v1`: xlsx through openpyxl, xls through xlrd, ods and csv with the
+standard library) become one text line per cell and one parameter record per value cell in
+`nodes/parameters.jsonl`: label (the cell to the left, else the column header), unit (from
+`[unit]`, a neighbouring unit cell or the header, normalised through a small alias table),
+formula and its numeric literals, hidden flag, and a cell cite such as `book.xlsx Gains!B2`.
+Prose quantities (`2.0 deg`) from every document join the same file with the preceding phrase
+as label. A parameter's identity is its label, never its number: `cmx q param <label>
+--compare` groups values by label across documents and says whether they agree.
+
 ## Links and graph
 
 `link/run.py` produces graded edges: reference-derived links, section-to-symbol mentions

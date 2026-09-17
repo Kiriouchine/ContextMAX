@@ -31,6 +31,7 @@ VERBS = (
     "explain",
     "skipped",
     "source",
+    "param",
 )
 
 
@@ -54,6 +55,9 @@ def add_query_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--kind", action="append", help="search: restrict to a node kind (repeatable)")
     p.add_argument("--reason", help="skipped: filter by reason")
     p.add_argument("--context", type=int, default=0, help="source: extra lines around the range")
+    p.add_argument("--compare", action="store_true", help="param: group by label and report agreement")
+    p.add_argument("--value", type=float, help="param: only this numeric value")
+    p.add_argument("--unit", help="param: only this unit (aliases normalised)")
     p.set_defaults(func=cmd_query)
 
 
@@ -120,11 +124,27 @@ def _dispatch(index, verb: str, a: list[str], args, depth) -> Any:
         return index.skipped(args.reason or (a[0] if a else None), args.limit)
     if verb == "source":
         return index.source(a[0], context=args.context)
+    if verb == "param":
+        return index.parameter(" ".join(a), compare=args.compare, value=args.value, unit=args.unit, limit=args.limit)
     raise QueryError(f"unknown verb {verb}")
 
 
 def _render(verb: str, result: Any) -> None:
     w = sys.stdout.write
+    if verb == "param":
+        w(f"{result['n']} parameter(s) for '{result['query']}'\n")
+        for hit in result["hits"]:
+            unit = f" {hit['unit_norm'] or hit['unit']}" if (hit.get("unit_norm") or hit.get("unit")) else ""
+            formula = f"  {hit['formula']}" if hit.get("formula") else ""
+            hidden = "  (hidden)" if hit.get("hidden") else ""
+            w(f"  {hit['label']} = {hit['display']}{unit}{formula}{hidden}  [{hit['source_kind']}]  {hit['cite']}\n")
+        for group in result.get("comparison", []):
+            w(
+                f"  {group['label_norm']}: {group['verdict']} across {group['n_documents']} document(s), "
+                f"values {', '.join(group['distinct_values'])}\n"
+            )
+        w(f"{result['note']}\n")
+        return
     if verb == "status":
         comp = result.get("completeness") or {}
         w(f"{result['project']['name']} ({result['project']['slug']})  index {result['index']}\n")

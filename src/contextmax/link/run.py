@@ -182,6 +182,7 @@ def run_links_stage(ctx) -> dict[str, Any]:
     sections = _load(layout, "nodes/sections.jsonl")
     documents = _load(layout, "nodes/documents.jsonl")
     references = _load(layout, "nodes/references.jsonl")
+    parameters = _load(layout, "nodes/parameters.jsonl")
     calls = _load(layout, "edges/calls.jsonl")
     imports = _load(layout, "edges/imports.jsonl")
 
@@ -216,6 +217,40 @@ def run_links_stage(ctx) -> dict[str, Any]:
                 adapter=ADAPTER,
                 kind=kind,
                 sites=[{"line": ref.get("line") or 0, "col": 1}],
+            )
+        )
+
+    # 1b. Documents sharing named parameters (a parameter's identity is its label).
+    label_docs: dict[str, set[str]] = defaultdict(set)
+    for p in parameters:
+        if p.get("source_kind") == "formula-literal" or len(p.get("label_norm") or "") < 3:
+            continue
+        label_docs[p["label_norm"]].add(p["doc"])
+    owner_cap = min(max_owners, max(2, len(documents) // 2))
+    pair_labels: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for label, docs in sorted(label_docs.items()):
+        if len(docs) > owner_cap:
+            continue  # a label owned by most documents says nothing about any pair
+        owners_sorted = sorted(docs)
+        for i, a in enumerate(owners_sorted):
+            for b in owners_sorted[i + 1 :]:
+                pair_labels[(a, b)].append(label)
+    min_shared = int(config.get("min_shared_parameters", 1))
+    for (a, b), labels in sorted(pair_labels.items()):
+        if len(labels) < min_shared:
+            continue
+        confidence = "high" if len(labels) >= 5 else ("medium" if len(labels) >= 2 else "low")
+        rows.append(
+            edge_row(
+                src=a,
+                dst=b,
+                rel="shares_parameter",
+                tier="A",
+                confidence=confidence,
+                evidence="parameters:" + ", ".join(labels[:5]) + (" …" if len(labels) > 5 else ""),
+                adapter=ADAPTER,
+                kind="parameter",
+                count=len(labels),
             )
         )
 

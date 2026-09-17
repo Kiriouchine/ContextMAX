@@ -16,7 +16,7 @@ from typing import Any
 
 from contextmax.io.jsonl import iter_jsonl, read_json
 
-STORE_SCHEMA = 3
+STORE_SCHEMA = 4
 MAX_FTS_TEXT = 200_000
 
 
@@ -207,6 +207,34 @@ def build_store(layout, con: sqlite3.Connection, artifact_hash: str) -> dict[str
         start, end = row["text_range"]
         body = text_cache.get(row["doc"], "")[start:end]
         fts_rows.append((row["id"], "section", row["title"], body[:MAX_FTS_TEXT]))
+    for row in _rows(layout.index / "nodes" / "parameters.jsonl"):
+        add_node(
+            row,
+            "parameter",
+            "doc",
+            row["label"],
+            row["file"],
+            None,
+            None,
+            None,
+            row.get("line"),
+            row.get("line"),
+            row["cite"],
+            row["doc"],
+            row.get("section"),
+        )
+        fts_rows.append(
+            (
+                row["id"],
+                "parameter",
+                row["label"],
+                " ".join(
+                    str(x)
+                    for x in (row.get("display"), row.get("unit"), row.get("formula"), row.get("context"))
+                    if x
+                ),
+            )
+        )
     for row in _rows(layout.index / "nodes" / "references.jsonl"):
         add_node(
             row,

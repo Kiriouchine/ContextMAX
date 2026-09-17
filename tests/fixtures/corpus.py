@@ -161,6 +161,12 @@ FILES: dict[str, bytes | str] = {
     "docs/memo.rtf": office.RTF,
     "docs/legacy.doc": office.legacy_doc(),
     "bin/logo.gif": office.GIF,
+    # Phase 3 session 3: spreadsheets. The ods is built in-process; the xlsx (openpyxl) and
+    # xls (LibreOffice) were generated once and are catalogued as missing-dependency under
+    # test isolation, read for real in the reader tests.
+    "data/params.ods": office.ODS,
+    "data/gains.xlsx": office.gains_xlsx(),
+    "data/book.xls": office.book_xls(),
 }
 
 

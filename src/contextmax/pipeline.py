@@ -268,7 +268,8 @@ def _write_index_md(ctx: Context) -> str:
             "",
             f"{docs['n_documents']} documents with {docs.get('n_sections', 0)} sections and "
             f"{docs.get('n_words', 0)} words; {docs.get('n_references', 0)} references "
-            f"({docs.get('n_references_external', 0)} external, {docs.get('n_references_unresolved', 0)} unresolved). "
+            f"({docs.get('n_references_external', 0)} external, {docs.get('n_references_unresolved', 0)} unresolved); "
+            f"{docs.get('n_parameters', 0)} parameters (`cmx q param <label> --compare`). "
             "Outlines per document in `DOCMAP.md`; text cache under `text/`.",
             "",
         ]
