@@ -1,173 +1,225 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Vsevolod Kiriouchine
-"""Parameters: named quantities. A parameter's identity is its label, never its number.
+"""Values with a name: one spelling per number and per unit, the numbers typed into a formula,
+and the SQLite database that answers `contextmax params`.
 
-Spreadsheet cells arrive as `cell` blocks whose `extra["param"]` the sheet adapter filled in;
-prose quantities (`2.0 deg`, `50 Hz`) are found here in paragraphs, list items and table rows,
-with the nearest preceding phrase as the label. Every record carries where it came from."""
-
+A value is known by what it measures ("settle time"), not by its number: the same number
+turns up everywhere, a label does not. The number then tells whether two documents agree.
+"""
 from __future__ import annotations
 
+import decimal
+import json
+import os
 import re
-from typing import Any
+import sqlite3
+from pathlib import Path
 
-from contextmax.docs.base import DocumentTree
-from contextmax.docs.structure import Structure
-from contextmax.docs.units import alias_table, normalise_unit, quantity_pattern
-from contextmax.model.ids import doc_id
+from contextmax import util
 
-MAX_PROSE_PER_DOC = 200
-LABEL_WORDS = 6
-STOP_EDGE = {
-    "of", "to", "at", "is", "was", "are", "be", "by", "in", "on", "for", "the", "a", "an", "within", "than",
-    "about", "approximately", "around", "=", "≈", "~", "from", "and", "or", "with", "as", "that", "this",
-    "which", "it", "its", "has", "have", "had", "set", "equal", "equals", "value", "values", "roughly", "up",
-    "down", "below", "above", "under", "over", "between", "per", "every", "each", "least", "most", "only",
-}
-SENTENCE_SPLIT = re.compile(r"(?<=[a-zA-Z\)])[.;!?]\s+|\n")  # a colon introduces a value, so it stays
-TOKEN = re.compile(r"[A-Za-z0-9_µ°%/^·.-]+")
+FORMAT_VERSION = 1
+RANGE_DASH = "–"
+
+# Each unit with the spellings documents and workbooks use for it. A spelling is looked up as
+# written, then lower-cased, except where case is the difference (newton-metre vs nanometre).
+_SPELLINGS = (
+    ("", ("n/a", "na", "n.a.", "[-]", "--", "-", "")),
+    ("deg", ("deg", "degrees", "degree", "°")),
+    ("um", ("µm", "μm")), ("us", ("µs", "μs")),
+    ("uA", ("µa", "ua")), ("uV", ("µv", "uv")), ("uH", ("µh", "uh")),
+    ("ohm", ("ω", "\N{OHM SIGN}", "ohm")),
+    ("counts", ("count", "counts")), ("bits", ("bit", "bits")), ("bytes", ("byte", "bytes")),
+    ("V", ("v",)), ("mV", ("mv",)), ("kV", ("kv",)), ("A", ("a",)), ("mA", ("ma",)),
+    ("W", ("w",)), ("mW", ("mw",)), ("kW", ("kw",)),
+    ("Hz", ("hz",)), ("kHz", ("khz",)), ("MHz", ("mhz",)), ("GHz", ("ghz",)),
+    ("Pa", ("pa",)), ("kPa", ("kpa",)), ("MPa", ("MPa",)), ("mPa", ("mPa",)), ("dB", ("db",)),
+    ("°C", ("°c",)), ("Nm", ("Nm",)), ("mNm", ("mNm", "mnm")), ("nm", ("nm",)),
+    ("rpm", ("rpm",)), ("ppm", ("ppm",)), ("s", ("sec",)),
+)
+UNIT_OF = {spelling: unit for unit, spellings in _SPELLINGS for spelling in spellings}
+CASE_MATTERS = frozenset({"Nm", "nm", "MPa", "mPa"})
+
+_SPACES = re.compile(r"\s+")
+_TRAILING_MARKS = re.compile(r"[.,;:=\s–\-]+$")
+_QUOTED_TEXT = re.compile(r'"(?:[^"]|"")*"')               # a string in a formula; "" is a quote inside it
+CELL_ADDRESS = re.compile(r"""
+    (?: (?: [A-Za-z_][A-Za-z0-9_. ]* | '[^']+' ) ! )?      # sheet name, bare or quoted, then !
+    [$]? [A-Z][A-Z]?[A-Z]? [$]? \d{1,7}                    # column letters, row number
+""", re.VERBOSE)
+_TYPED_NUMBER = re.compile(r"""
+    (?<! [$._A-Za-z0-9] )                     # not the tail of a name, address or number
+    [+-]? \d+ (?: [,.] \d+ )? (?: [eE] [+-]? \d+ )?
+    (?! [._A-Za-z0-9] )
+""", re.VERBOSE)
+
+# Row labels found on every inspection form; they name nothing in particular.
+_SAYS_NOTHING = frozenset("""
+    a accept average b c comment comments count date fail id index item major max mean min minor
+    n/a na no no. nok nr number ok pass qty quantity reject remarks result rev revision sum total
+    typ unit units value x y yes z
+""".split())
 
 
-def norm_label(label: str) -> str:
-    """Comparison key: lower-case words separated by single spaces."""
-    words = re.findall(r"[a-z0-9µ°%/^]+", label.lower().replace("_", " "))
-    return " ".join(words)
-
-
-def _label_before(text: str, end: int, floor: int = 0) -> str:
-    """The phrase preceding position `end` inside its sentence (and after `floor`, the end of
-    the previous quantity), trimmed of edge stop words."""
-    head = text[floor:end]
-    sentence = SENTENCE_SPLIT.split(head)[-1]
-    words = TOKEN.findall(sentence)
-    words = words[-LABEL_WORDS:]
-    while words and (words[-1].lower() in STOP_EDGE or not re.search(r"[A-Za-z]", words[-1])):
-        words.pop()
-    while words and (words[0].lower() in STOP_EDGE or not re.search(r"[A-Za-z]", words[0])):
-        words.pop(0)  # table debris such as "4 0 029" never starts a label
-    label = " ".join(words)
-    return label if re.search(r"[A-Za-z]{3,}", label) else ""
-
-
-def _number(text: str) -> float | int | None:
-    cleaned = text.replace(",", ".") if text.count(",") == 1 and "." not in text else text.replace(",", "")
+def _canon_piece(piece: str) -> str:
+    """One number of a value: decimal comma or point, trailing zeros dropped, -0 is 0."""
+    token = piece.strip().replace(",", ".")
     try:
-        value = float(cleaned)
-    except ValueError:
-        return None
-    if value.is_integer() and "." not in cleaned and "e" not in cleaned.lower():
-        return int(value)
-    return value
+        text = format(decimal.Decimal(token).normalize(), "f")
+    except decimal.InvalidOperation:
+        return token
+    return text if text not in ("", "-0") else "0"
 
 
-def prose_quantities(
-    tree: DocumentTree, key: str, structure: Structure, units_extra: list[str] | None = None
-) -> list[dict[str, Any]]:
-    pattern = quantity_pattern(units_extra)
-    table = alias_table(units_extra)
-    rows: list[dict[str, Any]] = []
-    own = doc_id(key)
-    counters: dict[str | None, int] = {}
-    page_unit = tree.metadata.get("page_unit", "page")
-    line_prefix = " ¶" if tree.metadata.get("line_unit") == "paragraph" else ":"
-    for idx, block in enumerate(tree.blocks):
-        if block.kind not in ("paragraph", "list_item", "table"):
-            continue
-        text = block.text or ("\n".join("\t".join(r) for r in block.rows or []))
-        if not text:
-            continue
-        section = structure.block_section[idx] if idx < len(structure.block_section) else None
-        last_end = 0
-        for m in pattern.finditer(text):
-            value = _number(m.group("num"))
-            if value is None:
-                continue
-            raw_unit = m.group("long") or m.group("short")
-            label = _label_before(text, m.start(), last_end)
-            last_end = m.end()
-            if not label or len(label) < 2:
-                continue
-            n = counters.get(section, 0) + 1
-            counters[section] = n
-            if n > MAX_PROSE_PER_DOC:
-                continue
-            sec_path = section.split("#", 1)[1] if section and "#" in section else "_"
-            if block.page:
-                where = f"p.{block.page}" if page_unit == "page" else f"{page_unit} {block.page}"
-                cite = f"{key} {where}"
-            else:
-                cite = f"{key}{line_prefix}{block.line}"
-            rows.append(
-                {
-                    "id": f"param:{key}#{sec_path}~{n}",
-                    "kind": "parameter",
-                    "family": "doc",
-                    "name": label,
-                    "label": label,
-                    "label_norm": norm_label(label),
-                    "value": value,
-                    "display": m.group("num"),
-                    "unit": raw_unit,
-                    "unit_norm": normalise_unit(raw_unit, table),
-                    "formula": None,
-                    "source_kind": "prose",
-                    "doc": own,
-                    "section": section,
-                    "file": key,
-                    "sheet": None,
-                    "cell": None,
-                    "header": None,
-                    "hidden": False,
-                    "line": block.line,
-                    "page": block.page,
-                    "context": text[max(0, m.start() - 60) : m.end() + 40].replace("\n", " ").strip(),
-                    "cite": cite,
-                }
-            )
-    total = sum(counters.values())
-    if total > MAX_PROSE_PER_DOC:
-        tree.notes.append(f"TRUNCATED: {total} prose quantities found, first {MAX_PROSE_PER_DOC} per section kept")
-    return rows
+def canon_number(value) -> str:
+    """One spelling per number, so 1, 1.0 and 1,0 meet; a range such as 4-20 keeps its dash."""
+    pieces = str(value or "").strip().split(RANGE_DASH)
+    return RANGE_DASH.join(map(_canon_piece, pieces))
 
 
-def cell_parameters(tree: DocumentTree, key: str, structure: Structure) -> list[dict[str, Any]]:
-    """Parameter rows from the sheet adapter's `cell` blocks."""
-    rows: list[dict[str, Any]] = []
-    own = doc_id(key)
-    for idx, block in enumerate(tree.blocks):
-        record = block.extra.get("param") if block.kind == "cell" else None
-        if not record:
-            continue
-        section = structure.block_section[idx] if idx < len(structure.block_section) else None
-        base = f"param:{key}#{record['sheet']}!{record['cell']}"
-        common = {
-            "kind": "parameter",
-            "family": "doc",
-            "doc": own,
-            "section": section,
-            "file": key,
-            "line": block.line,
-            "page": block.page,
-            "cite": f"{key} {record['sheet']}!{record['cell']}",
-        }
-        rows.append({**common, "id": base, "name": record["label"], **record})
-        for n, literal in enumerate(record.get("literals") or [], start=1):
-            rows.append(
-                {
-                    **common,
-                    **record,
-                    "id": f"{base}~lit{n}",
-                    "name": f"{record['label']} (literal in formula)",
-                    "label": f"{record['label']} (literal in formula)",
-                    "label_norm": norm_label(record["label"]) + " literal",
-                    "value": literal,
-                    "display": str(literal),
-                    "unit": None,
-                    "unit_norm": None,
-                    "source_kind": "formula-literal",
-                    "literals": None,
-                }
-            )
-    for row in rows:
-        row.pop("literals", None)
-    return rows
+def canon_unit(unit) -> str:
+    text = str(unit or "").strip()
+    if text in UNIT_OF:
+        return UNIT_OF[text]
+    folded = text.lower()
+    return UNIT_OF[folded] if folded in UNIT_OF and text not in CASE_MATTERS else text
+
+
+def canon_label(label) -> str:
+    """What the value measures: spacing and case folded, qualifiers such as 'nominal' kept."""
+    spaced = _SPACES.sub(" ", str(label or "")).strip()
+    return _TRAILING_MARKS.sub("", spaced).lower()
+
+
+def _is_decimal(piece: str) -> bool:
+    try:
+        decimal.Decimal(piece.strip())
+    except ArithmeticError:
+        return False
+    return True
+
+
+def all_numbers(value) -> bool:
+    return all(_is_decimal(p) for p in str(value or "").split(RANGE_DASH))
+
+
+def says_nothing(label_norm: str) -> bool:
+    return (not label_norm or len(label_norm) < 3 or label_norm in _SAYS_NOTHING
+            or not re.search(r"[a-z]", label_norm))
+
+
+def formula_constants(formula) -> list[str]:
+    """Numbers typed into a formula, first appearance first. Quoted text and cell addresses
+    are blanked before the search, so D5 or 'Sheet 2'!C7 never yield a number."""
+    body = _QUOTED_TEXT.sub(" ", formula or "")
+    body = CELL_ADDRESS.sub(lambda m: "R" + " " * (len(m.group(0)) - 1), body)
+    found: dict[str, None] = {}
+    for m in _TYPED_NUMBER.finditer(body):
+        number = m.group(0)
+        if number[0] in "+-" and _is_operator(number[0], body[:m.start()].rstrip()):
+            number = number[1:]
+        found.setdefault(number)
+    return list(found)
+
+
+def _is_operator(sign: str, before: str) -> bool:
+    """A plus is never part of a typed number; a minus after a value or a bracket subtracts."""
+    return sign == "+" or bool(before) and (before[-1].isalnum() or before[-1] in ")]%")
+
+
+# Settings for a small, reproducible file; set before the first table is made.
+_PRAGMAS = (("page_size", 4096), ("journal_mode", "OFF"), ("synchronous", "OFF"), ("temp_store", "MEMORY"),
+            ("user_version", FORMAT_VERSION))
+_TABLES = """
+    CREATE TABLE sources (
+        id INTEGER PRIMARY KEY, file_key TEXT NOT NULL UNIQUE, doc_ref TEXT NOT NULL,
+        folder TEXT, relative_path TEXT, ext TEXT, doc_type TEXT, category TEXT, stage TEXT, module TEXT);
+    CREATE TABLE places (
+        id INTEGER PRIMARY KEY, source INTEGER NOT NULL REFERENCES sources(id),
+        sheet TEXT, cell TEXT, label TEXT, label_norm TEXT NOT NULL, formula TEXT, hidden INTEGER NOT NULL,
+        context TEXT);
+    CREATE TABLE entries (
+        id INTEGER PRIMARY KEY, place INTEGER NOT NULL REFERENCES places(id), origin TEXT NOT NULL,
+        kind TEXT NOT NULL, value TEXT NOT NULL, value_as_written TEXT NOT NULL, value_shown TEXT NOT NULL,
+        value_norm TEXT NOT NULL, value_exact_norm TEXT NOT NULL,
+        unit TEXT NOT NULL, unit_as_written TEXT NOT NULL, unit_norm TEXT NOT NULL);
+"""
+_INDEXES = """
+    CREATE INDEX ix_entries_value ON entries(value_norm, unit_norm);
+    CREATE INDEX ix_entries_exact ON entries(value_exact_norm, unit_norm);
+    CREATE INDEX ix_entries_origin ON entries(origin);
+    CREATE INDEX ix_entries_place ON entries(place);
+    CREATE INDEX ix_places_label ON places(label_norm);
+    CREATE INDEX ix_places_source ON places(source);
+    CREATE INDEX ix_sources_doc ON sources(doc_ref);
+    ANALYZE;
+"""
+# Column -> key of a source record; doc_ref falls back to the file's own key.
+_SOURCE_COLUMNS = {"file_key": "file_key", "doc_ref": "node_ref", "folder": "folder", "relative_path": "relative_path",
+                   "ext": "ext", "doc_type": "kind", "category": "category", "stage": "stage", "module": "module"}
+_PLACE_COLUMNS = ("source", "sheet", "cell", "label", "label_norm", "formula", "hidden", "context")
+_ENTRY_FIELDS = ("origin", "kind", "value", "value_as_written", "value_shown", "value_norm", "value_exact_norm",
+                 "unit", "unit_as_written", "unit_norm")
+
+
+def _insert(table: str, columns) -> str:
+    columns = list(columns)
+    return f"INSERT INTO {table}({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))})"
+
+
+def _source_row(source: dict) -> list:
+    row = [source.get(key) for key in _SOURCE_COLUMNS.values()]
+    row[1] = row[1] or source["file_key"]
+    return row
+
+
+def _place_key(row: dict) -> tuple:
+    """Rows of one document share a place when they come from the same cell (with the same
+    label, formula and hidden flag) or, outside a workbook, from the same sentence."""
+    in_cell = bool(row.get("sheet") and row.get("cell"))
+    return (row.get("sheet"), row.get("cell"), row.get("label"), row.get("formula"), bool(row.get("hidden")),
+            None if in_cell else row.get("context"))
+
+
+def write_database(rows_path: Path, db_path: Path, sources: list[dict]) -> dict:
+    """The value list as three tables (sources, places, entries) with an index per lookup.
+
+    Built in a temporary file and moved into place when complete. The same rows in the same
+    order give the same bytes, so the database counts towards the output fingerprint.
+    """
+    tmp = db_path.with_name(db_path.name + ".tmp")
+    tmp.unlink(missing_ok=True)
+    con = sqlite3.connect(str(tmp))
+    try:
+        for name, value in _PRAGMAS:
+            con.execute(f"PRAGMA {name}={value}")
+        con.executescript(_TABLES)
+        source_id = {}
+        for source in sorted(sources, key=lambda s: s["file_key"]):
+            source_id[source["file_key"]] = con.execute(_insert("sources", _SOURCE_COLUMNS), _source_row(source)).lastrowid
+        add_place, add_entry = _insert("places", _PLACE_COLUMNS), _insert("entries", ("place", *_ENTRY_FIELDS))
+        entries = places = 0
+        current_doc, place_of = None, {}
+        for row in _rows(rows_path):
+            if row["file_key"] != current_doc:
+                current_doc, place_of = row["file_key"], {}
+            key = _place_key(row)
+            if key not in place_of:
+                values = (source_id[current_doc], row.get("sheet"), row.get("cell"), row.get("label"),
+                          row.get("label_norm") or "", row.get("formula"), int(bool(row.get("hidden"))), row.get("context"))
+                place_of[key] = con.execute(add_place, values).lastrowid
+                places += 1
+            con.execute(add_entry, (place_of[key], *(row[field] for field in _ENTRY_FIELDS)))
+            entries += 1
+        con.executescript(_INDEXES)
+        con.commit()
+        con.execute("VACUUM")
+        con.commit()
+    finally:
+        con.close()
+    os.replace(tmp, db_path)
+    return {"rows_count": entries, "sources_count": len(source_id), "places_count": places,
+            "sha256": util.hash_file(db_path), "bytes": os.path.getsize(db_path)}
+
+
+def _rows(path: Path):
+    """The value rows one at a time: the file can be large."""
+    with Path(path).open(encoding="utf-8") as fh:
+        yield from (json.loads(line) for line in fh if not line.isspace())

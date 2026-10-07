@@ -1,91 +1,24 @@
-name: ci
+name: tests
 
 on:
   push:
-    branches: [master, main]
   pull_request:
 
 jobs:
   test:
-    name: ${{ matrix.os }} / py${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest]
         python: ["3.11", "3.13"]
+    runs-on: ${{ matrix.os }}
+    env:
+      CONTEXTMAX_NO_OFFICE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install
-        run: python -m pip install -e ".[dev,code,pdf,office]"
-      - name: Provision grammars for tier B tests
-        run: python -m contextmax grammars fetch matlab c javascript python
-      - name: Lint
-        run: ruff check src tests
-      # Job logs need repository admin rights to download, so the name of the uploaded artifact
-      # carries the first failing test: that name is readable from the public API.
-      - name: Tests
-        id: tests
-        shell: bash
-        run: |
-          set +e
-          pytest -q --no-header > "pytest-${{ matrix.os }}-${{ matrix.python }}.txt" 2>&1
-          code=$?
-          tail -n 60 "pytest-${{ matrix.os }}-${{ matrix.python }}.txt"
-          first=$(grep -m1 '^FAILED' "pytest-${{ matrix.os }}-${{ matrix.python }}.txt" \
-            | sed 's/^FAILED //; s/ .*//; s#.*/##; s#[^A-Za-z0-9._-]#-#g' | cut -c1-60)
-          echo "first=${first:-ok}" >> "$GITHUB_OUTPUT"
-          exit $code
-      - name: Diagnose golden drift
-        if: failure()
-        id: drift
-        shell: bash
-        run: |
-          set +e
-          python scripts/golden_diff.py --first > "drift-${{ matrix.os }}-${{ matrix.python }}.txt" 2>&1
-          cat "drift-${{ matrix.os }}-${{ matrix.python }}.txt"
-          token=$(grep -m1 '^TOKEN=' "drift-${{ matrix.os }}-${{ matrix.python }}.txt" | cut -d= -f2-)
-          echo "token=${token:-none}" >> "$GITHUB_OUTPUT"
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          # Artifact names are capped at 255 characters; a longer name fails the upload.
-          name: ci-${{ matrix.os }}-${{ matrix.python }}--${{ steps.tests.outputs.first }}--${{ steps.drift.outputs.token }}
-          path: |
-            pytest-${{ matrix.os }}-${{ matrix.python }}.txt
-            drift-${{ matrix.os }}-${{ matrix.python }}.txt
-      - name: Artifact hash of the fixture corpus
-        id: hash
-        shell: bash
-        run: |
-          python scripts/corpus_hash.py --out hash-${{ matrix.os }}-${{ matrix.python }}.txt
-          short=$(tr -d '\r\n' < hash-${{ matrix.os }}-${{ matrix.python }}.txt | cut -c1-12)
-          echo "short=$short" >> "$GITHUB_OUTPUT"
-          echo "artifact identity: $short"
-      # The hash prefix in the artifact name makes cross-platform drift visible from the
-      # public API without downloading anything.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hash-${{ matrix.os }}-${{ matrix.python }}-${{ steps.hash.outputs.short }}
-          path: hash-${{ matrix.os }}-${{ matrix.python }}.txt
-
-  cross-os-identity:
-    name: artifact hash identical on every OS
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: hash-*
-          path: hashes
-      - name: Compare
-        run: |
-          for f in hashes/*/*.txt; do printf '%s  %s\n' "$(tr -d '\r\n' < "$f")" "$f"; done
-          distinct=$(cat hashes/*/*.txt | tr -d '\r' | sed '/^$/d' | sort -u | wc -l | tr -d ' ')
-          if [ "$distinct" != "1" ]; then
-            echo "artifact identity differs across platforms ($distinct distinct hashes)"; exit 1; fi
-          echo "artifact identity identical on every platform"
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m ruff check src tests
+      - run: python -m pytest -o addopts="" -q

@@ -1,3 +1,1 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Vsevolod Kiriouchine
-"""Code analysis: the plugin contract, the tier C lexical analyzer and project-wide resolution."""
+"""Stage 2: code maps. One map per code base, the same files whatever the language."""

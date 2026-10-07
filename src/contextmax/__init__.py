@@ -1,7 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Vsevolod Kiriouchine
-"""ContextMAX: deterministic, offline indexing, graphing and linking of code and documents."""
+"""ContextMAX: deterministic maps of a project's code and documents, and the links between them."""
 
-from contextmax.version import ENGINE_ID, SCHEMA_VERSION, __version__
-
-__all__ = ["ENGINE_ID", "SCHEMA_VERSION", "__version__"]
+VERSION = "0.4.0"
+__version__ = VERSION

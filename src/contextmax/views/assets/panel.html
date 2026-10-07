@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ContextMAX</title>
+<link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script>
+<style>
+.fold { display:flex; flex-wrap:wrap; align-items:center; gap:12px 18px; padding:14px 18px; background:var(--surface); border:1px solid var(--rule); border-radius:12px; }
+.fold .who { flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.seg { display:flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
+.seg button { border:0; background:var(--surface); padding:7px 13px; min-height:38px; }
+.seg button + button { border-left:1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background:var(--text); color:var(--paper); }
+.log { background:var(--sunken); border-radius:10px; padding:12px 14px; max-height:300px; overflow:auto; font-size:12.5px; line-height:19px; white-space:pre-wrap; }
+.stepper { display:flex; gap:8px 22px; flex-wrap:wrap; margin:0; padding:0; list-style:none; }
+.stepper li { display:flex; align-items:center; gap:8px; color:var(--text-2); }
+.stepper b { width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--text-3); font-size:13px; }
+.stepper li.is-on { color:var(--text); font-weight:600; } .stepper li.is-on b { background:var(--text); color:var(--paper); border-color:var(--text); }
+.checks li { display:flex; gap:10px; line-height:20px; min-width:0; }
+.checks li > span { min-width:0; overflow-wrap:anywhere; }
+.checks i { flex:none; width:10px; height:10px; margin-top:5px; border-radius:50%; background:var(--ok); }
+.checks i.lvl-warn { background:var(--caution); border-radius:0; clip-path:polygon(50% 0,100% 100%,0 100%); }
+.checks i.lvl-fail { background:var(--conflict); }
+</style></head>
+<body class="page">
+<header class="masthead"><span class="wordmark">Context<b>MAX</b></span>
+<label class="hstack" style="margin:0;gap:8px"><span class="quiet">Project</span><select id="proj" style="min-height:36px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);padding:4px 8px"></select></label>
+<span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
+<main class="column" style="gap:26px">
+<section id="newbox" class="tile" style="display:none;max-width:620px">
+<h1 class="headline" style="font-size:28px">Start a project</h1>
+<p class="quiet">A project is a set of folders that belong together: code, documents, or both. Nothing is ever written inside them.</p>
+<div class="hstack"><label for="newname" class="quiet">Name</label><input id="newname" style="flex:1;min-height:40px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface)" placeholder="My project"><button type="button" class="btn" id="create">Create</button></div>
+</section>
+<div id="main" style="display:none;flex-direction:column;gap:26px">
+<div class="hstack" style="justify-content:space-between;margin:0"><ol class="stepper"><li class="is-on" id="s1"><b>1</b>Choose folders</li><li id="s2"><b>2</b>Check this PC</li><li id="s3"><b>3</b>Build</li></ol><span class="quiet fixed" id="ws"></span></div>
+<div><h1 class="headline" style="font-size:30px">Which folders should ContextMAX read?</h1>
+<p class="quiet" style="margin:6px 0 0;max-width:760px;line-height:22px">Pick as many as you like, on any drive. Nothing is written inside them; the index is kept in the working folder shown above. Say for each one whether it holds code, documents or both.</p></div>
+<div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
+<section style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px">
+<div id="folders" style="display:flex;flex-direction:column;gap:10px"></div>
+<div class="hstack"><button type="button" class="btn ghost" id="pick" style="border-style:dashed;border-width:1.5px">Add a folder…</button>
+<input id="typed" placeholder="or paste a folder path" style="flex:1;min-width:220px;min-height:36px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface)"><button type="button" class="btn ghost" id="addtyped">Add</button></div>
+<label class="hstack"><input type="checkbox" id="cloud" style="width:18px;height:18px">Download files that are still in the cloud before reading them</label>
+<section class="tile" style="margin-top:10px"><h2 class="sec" style="margin:0">Build</h2>
+<div class="hstack"><button type="button" class="btn" data-depth="documents">Read documents and build</button><button type="button" class="btn ghost" data-depth="quick">Quick refresh</button><button type="button" class="btn ghost" data-depth="full">Rebuild everything</button></div>
+<p class="quiet" id="built" style="margin:0"></p>
+<div class="log fixed" id="log" style="display:none"></div>
+<div class="hstack" id="after" style="display:none"><a class="btn" id="home" target="_blank" href="#">Open the project</a><button type="button" class="btn ghost" id="skill">Install the AI skill</button><span class="quiet" id="skillmsg"></span></div>
+</section>
+</section>
+<aside class="tile" style="flex:1 1 320px;min-width:0"><h2 class="sec" style="margin:0">This PC</h2><ul class="checks" id="checks" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px"><li class="quiet">Checking…</li></ul></aside>
+</div></div>
+</main>
+<script>
+(function () {
+  var TOKEN = "__TOKEN__", safe = CMX.safe, $ = CMX.$, slug = decodeURIComponent(location.hash.slice(1)) || CMX.store.get("panel:project") || "";
+  function api(action, body) {
+    return fetch("/api/" + action, { method: "POST", headers: { "Content-Type": "application/json", "X-CMX-Token": TOKEN }, body: JSON.stringify(Object.assign({ slug: slug }, body || {})) })
+      .then(function (r) { return r.json(); }).then(function (j) { if (j.error) { alert(j.error); throw new Error(j.error); } return j; });
+  }
+  function repaint(st) {
+    var sel = $("#proj");
+    sel.innerHTML = st.projects.map(function (p) { return '<option value="' + safe(p.slug) + '"' + (p.slug === slug ? " selected" : "") + ">" + safe(p.slug) + "</option>"; }).join("") + '<option value="">New project…</option>';
+    var P = st.project;
+    $("#newbox").style.display = P ? "none" : "flex"; $("#newbox").style.flexDirection = "column";
+    $("#main").style.display = P ? "flex" : "none";
+    if (!P) { sel.value = ""; return; }
+    CMX.store.set("panel:project", slug);
+    $("#ws").textContent = P.workspace;
+    $("#cloud").checked = !!P.download_cloud_files;
+    $("#folders").innerHTML = P.folders.length ? P.folders.map(function (f) {
+      return '<div class="fold"><div class="who"><b>' + safe(f.name) + '</b><span class="fixed quiet" style="font-size:13px;overflow-wrap:anywhere">' + safe(f.path) + "</span></div>" +
+        '<div class="seg" role="group" aria-label="What ' + safe(f.name) + ' holds">' + ["documents", "code", "both"].map(function (h) { return '<button type="button" data-holds="' + h + '" data-name="' + safe(f.name) + '" aria-pressed="' + (f.holds === h) + '">' + h[0].toUpperCase() + h.slice(1) + "</button>"; }).join("") + "</div>" +
+        '<span class="fixed" style="min-width:80px;text-align:right">' + (f.files === null || f.files === undefined ? "" : CMX.num(f.files) + " files") + "</span>" +
+        (f.exists ? '<span class="status ok">Ready</span>' : '<span class="status bad">Not found</span>') +
+        '<button type="button" class="btn ghost" data-remove="' + safe(f.name) + '" aria-label="Remove ' + safe(f.name) + '">Remove</button></div>';
+    }).join("") : '<div class="tile"><p class="quiet" style="margin:0">No folders yet. Add the folders that hold this project\'s code and documents.</p></div>';
+    $("#built").textContent = P.built ? "Last built " + new Date(P.built).toLocaleString() + " · confidence " + P.confidence + (P.problems.length ? " · " + P.problems.join("; ") : "") : "Not built yet.";
+    $("#after").style.display = P.home ? "flex" : "none";
+    if (P.home) $("#home").href = P.home;
+    $("#s3").classList.toggle("is-on", !!P.built); $("#s2").classList.toggle("is-on", P.folders.length > 0);
+  }
+  function load() { return api("state").then(repaint); }
+  $("#proj").onchange = function () { slug = this.value; location.hash = slug; load(); };
+  $("#create").onclick = function () { api("create", { name: $("#newname").value }).then(function (st) { slug = st.project.slug; location.hash = slug; repaint(st); }); };
+  $("#pick").onclick = function () { api("pick").then(function (r) { if (r.path) return api("add", { path: r.path, holds: "both" }).then(repaint); }); };
+  $("#addtyped").onclick = function () { var p = $("#typed").value.trim(); if (p) api("add", { path: p, holds: "both" }).then(function (st) { $("#typed").value = ""; repaint(st); }); };
+  $("#cloud").onchange = function () { api("option", { download_cloud_files: this.checked }).then(repaint); };
+  $("#folders").addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-holds]"); if (b) { api("holds", { name: b.getAttribute("data-name"), holds: b.getAttribute("data-holds") }).then(repaint); return; }
+    b = ev.target.closest("[data-remove]"); if (b && confirm("Stop reading " + b.getAttribute("data-remove") + "? Its files are not touched.")) api("remove", { name: b.getAttribute("data-remove") }).then(repaint);
+  });
+  CMX.$$("[data-depth]").forEach(function (b) {
+    b.onclick = function () {
+      var log = $("#log"); log.style.display = "block"; log.textContent = ""; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = true; });
+      api("build", { depth: b.getAttribute("data-depth") }).then(function (r) {
+        var next = 0;
+        (function poll() {
+          api("job", { job: r.job, since: next }).then(function (j) {
+            next = j.next; if (j.lines.length) { log.textContent += j.lines.join("\n") + "\n"; log.scrollTop = log.scrollHeight; }
+            if (!j.done) return setTimeout(poll, 600);
+            log.textContent += j.code === 0 ? "\doneCount." : "\nThe build stopped with a problem (see above).";
+            CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); load();
+          });
+        })();
+      });
+    };
+  });
+  $("#skill").onclick = function () { api("skill").then(function (r) { $("#skillmsg").textContent = "Installed: " + r.lines.join(" · "); }); };
+  api("checkup").then(function (r) {
+    $("#checks").innerHTML = r.checks.map(function (c) { return '<li><i class="' + (c.level === "ok" ? "" : "lvl-" + c.level) + '"></i><span><b>' + safe(c.what) + '</b><br><span class="quiet">' + safe(c.detail) + "</span></span></li>"; }).join("");
+  });
+  load();
+})();
+</script></body></html>

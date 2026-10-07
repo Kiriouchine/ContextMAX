@@ -1,11 +1,15 @@
 ContextMAX
-Copyright 2026 Vsevolod Kiriouchine
+Copyright 2026 Sev Kiriouchine (Vsevolod Kiriouchine)
 
 This product is licensed under the Apache License, Version 2.0.
 See the LICENSE file for the full terms.
 
-The default installation depends only on the Python standard library.
-Optional extras pull in third-party packages under their own permissive
-licenses (MIT, BSD, ISC or Apache-2.0). The only copyleft option is the
-explicitly opt-in "mupdf" extra (PyMuPDF, AGPL-3.0); it is never installed
-by default and `contextmax doctor` reports it when present.
+Third-party software included:
+
+  vis-network 10.1.2 (src/contextmax/views/assets/vis-network.min.js)
+  Copyright (c) 2011-2017 Almende B.V., (c) 2017-2019 visjs contributors
+  Dual licensed under the Apache License 2.0 and the MIT License; used here under the
+  Apache License 2.0. Both license texts are in third_party/vis-network/.
+
+Dependencies installed alongside, under their own permissive licenses:
+  openpyxl (MIT), xlrd (BSD), pypdfium2 (Apache-2.0 or BSD-3-Clause; PDFium BSD-3-Clause).

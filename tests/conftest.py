@@ -1,47 +1,19 @@
-# SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Vsevolod Kiriouchine
-"""Shared fixtures: a synthetic corpus and an initialised project."""
-
+"""One built demo project shared by the tests. Office is switched off so no test starts Word or Excel."""
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+import os
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from contextmax.cli import main
-from fixtures.corpus import build_corpus
+os.environ["CONTEXTMAX_NO_OFFICE"] = "1"
 
 
-@pytest.fixture(autouse=True)
-def isolated_grammars(tmp_path_factory, monkeypatch):
-    """Tier B depends on what a machine has downloaded; tests see an empty grammar folder
-    unless they opt in (see tests/unit/test_treesitter.py)."""
-    from contextmax import grammars
+@pytest.fixture(scope="session")
+def built(tmp_path_factory):
+    home = tmp_path_factory.mktemp("home")
+    os.environ["CONTEXTMAX_HOME"] = str(home)
+    from contextmax import demo, pipeline
 
-    monkeypatch.setenv(grammars.GRAMMAR_DIR_ENV, str(tmp_path_factory.mktemp("grammars-empty")))
-    monkeypatch.setenv("CONTEXTMAX_NO_OPTIONAL_READERS", "1")
-    grammars.has_tags.cache_clear()
-    yield
-    grammars.has_tags.cache_clear()
-
-
-@pytest.fixture
-def corpus(tmp_path: Path) -> Path:
-    return build_corpus(tmp_path / "corpus")
-
-
-@pytest.fixture
-def project(corpus: Path) -> Path:
-    assert (
-        main(["init", str(corpus), "--slug", "sample", "--name", "Sample", "--no-gitignore"]) == 0
-    )
-    return corpus
-
-
-@pytest.fixture
-def built(project: Path) -> Path:
-    assert main(["index", "--root", str(project), "--quiet"]) == 0
-    return project
+    proj = demo.create_project(tmp_path_factory.mktemp("src") / "demo")
+    pipeline.build(proj, depth="documents", ocr=False)
+    return proj
