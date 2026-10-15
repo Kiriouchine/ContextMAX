@@ -292,7 +292,10 @@
       select: function (id) { select(id, F[id] ? F[id].m : null); },
       focusFn: function (id) { describeFn(id); var p = D.drafting.circles[String(id)]; if (p) pz.center(p[0], p[1], 700); },
       selectModule: function (mi) { select(null, mi); var b = D.drafting.blocks.filter(function (x) { return x.m === mi; })[0]; if (b) pz.center(b.x + b.w / 2, b.y + b.h / 2, Math.max(700, b.w * 1.6)); },
-      showImpact: function (ids) { Object.keys(circles).forEach(function (k) { circles[k].classList.toggle("lo", ids.indexOf(+k) < 0); circles[k].classList.toggle("hi", ids.indexOf(+k) >= 0); }); },
+      showImpact: function (ids) {
+        var hit = {}; ids.forEach(function (i) { hit[i] = true; });
+        Object.keys(circles).forEach(function (k) { circles[k].classList.toggle("lo", !hit[k]); circles[k].classList.toggle("hi", !!hit[k]); });
+      },
       onTheme: function () { draw(); }
     };
   })();
@@ -304,6 +307,7 @@
       var L = D.metro;
       svg = CMX.freshSvg(canvas);
       var where = {}; L.lines.forEach(function (ln) { ln.stations.forEach(function (s) { where[s[0]] = [s[1], ln.y]; }); });
+      var crossing = {}; L.links.forEach(function (k) { crossing[k[0]] = true; crossing[k[1]] = true; });
       gLinks = CMX.el("g", {}, svg);
       var gLines = CMX.el("g", {}, svg), gSt = CMX.el("g", {}, svg);
       L.links.forEach(function (k) {
@@ -324,7 +328,7 @@
         ln.stations.forEach(function (s) { var n = F[s[0]].n; seenName[n] = (seenName[n] || 0) + 1; });
         ln.stations.forEach(function (s, i) {
           var f = F[s[0]];
-          var cross = L.links.some(function (k) { return k[0] === f.id || k[1] === f.id; });
+          var cross = !!crossing[f.id];
           var dot = CMX.el("circle", { cx: s[1], cy: ln.y, r: cross ? 9 : 7, fill: CMX.css("--surface"), stroke: CMX.css("--text"), "stroke-width": cross ? 4 : 3, style: "cursor:pointer" }, gSt);
           CMX.el("title", {}, dot, f.q + " · " + f.c + " callers");
           dot.addEventListener("click", function () { if (!svg.dataset.dragged) describeFn(f.id); });

@@ -173,8 +173,11 @@ def write_map(out: Path, target: dict, defs: list[dict], files: dict, extras: di
                    key=lambda d: (d["module"], d["name"], d["file"]))
     lookup = defaultdict(list)
     for d in defs:
-        lookup[d["name"]].append({"file": d["file"], "line": d["first_line"], "module": d["module"], "role": d["role"],
-                                  "lang": d["lang"], "id": d["id"]})
+        place = {"file": d["file"], "line": d["first_line"], "module": d["module"], "role": d["role"],
+                 "lang": d["lang"], "id": d["id"]}
+        if d["lang"] == "C++":
+            place["qualname"] = d["qualname"]           # documents may name it as Class::method
+        lookup[d["name"]].append(place)
 
     util.save_jsonl(out / "function-list.jsonl", defs)
     util.save_json(out / "file-list.json", dict(sorted(files.items())))
@@ -205,6 +208,8 @@ def write_map(out: Path, target: dict, defs: list[dict], files: dict, extras: di
         "module_depth": extras.get("module_depth", 1),
         "modules": {name: m["functions_count"] for name, m in modules.items()},
     }
+    if extras.get("cpp"):
+        overview["cpp"] = extras["cpp"]
     util.save_json(out / "overview.json", overview)
     util.save_text(out / "code-guide.md", _guide(target, overview, modules, defs, calls_between, entry))
     return overview
@@ -230,6 +235,14 @@ def _guide(target: dict, ov: dict, modules: dict, defs: list[dict], calls_betwee
            f"| Calls not followed | {ov['indirect_calls_count']} through a pointer or an object; "
            f"{ov['ambiguous_calls_count']} to a name defined more than once (one was chosen, the others are "
            "listed under `ambiguous` in `function-list.jsonl`) |", ""]
+    cpp = ov.get("cpp")
+    if cpp:
+        unread = cpp["files_with_syntax_errors_count"]
+        out[-1:-1] = [f"| C++ | {cpp['files_count']} files read by {cpp['parser'] or 'nothing: ' + cpp['problem']}"
+                      f"{'; ' + str(unread) + ' with text the parser could not fully read (listed in overview.json)' if unread else ''}. "
+                      "A method called on an object whose type the text does not state is not followed: it is listed "
+                      "in `indirect-calls.json` with the name of the method (every definition of that name is in "
+                      "`name-lookup.json`); a virtual method lists the methods that override it under `overridden_by` |"]
     node = {name: f"M{n}" for n, name in enumerate(sorted(modules))}
     out += ["## How the modules call each other", "", "```mermaid", "flowchart LR"]
     out += [f'  {node[name]}["{name}"]' for name in sorted(modules)]

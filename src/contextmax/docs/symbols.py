@@ -15,6 +15,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from contextmax import util
+from contextmax.code import cpp_lang
 
 _DEFINE_NAME = re.compile(r"^ \s* \# \s* define \s+ ([_A-Za-z]\w*)", re.MULTILINE | re.VERBOSE)
 _INNER_CAPITAL = re.compile(r"[a-z][A-Z]")
@@ -57,6 +58,16 @@ def _c_constants(path: Path, module: str, target: str, into: dict) -> None:
             into[name].add((target, module, "constant"))
 
 
+def _cpp_constants(path: Path, module: str, target: str, into: dict) -> None:
+    try:
+        text = util.load_text(path)
+    except OSError:
+        return
+    for name in cpp_lang.constants(text):
+        if _constant_name(name) and not name.endswith(_GUARD_ENDINGS):
+            into[name].add((target, module, "constant"))
+
+
 def _python_constants(path: Path, module: str, target: str, into: dict) -> None:
     try:
         tree = ast.parse(util.load_text(path))
@@ -84,10 +95,16 @@ def collect_names(code_dir: Path, targets: list[dict]) -> tuple[dict, dict]:
             places = {(name, d["module"], "function") for d in definitions if d.get("module")}
             if places and reads_as_code(symbol):
                 exact[symbol] |= places
+            for d in definitions:
+                # a C++ name written with its class or namespace (`Controller::clamp`) always reads as code
+                pieces = (d.get("qualname") or "").split("::")
+                for k in range(len(pieces) - 1):
+                    if d.get("module"):
+                        exact["::".join(pieces[k:])].add((name, d["module"], "function"))
         root = Path(t["root"])
         readers = {".h": _c_constants, ".hpp": _c_constants, ".py": _python_constants}
         for rel, info in (util.load_json(base / "file-list.json", default={}) or {}).items():
-            reader = readers.get(os.path.splitext(rel)[1].lower())
+            reader = _cpp_constants if info.get("lang") == "C++" else readers.get(os.path.splitext(rel)[1].lower())
             if reader:
                 reader(root / rel, info["module"], name, exact)
         for entity in util.load_jsonl(base / "hdl-entities.jsonl"):

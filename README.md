@@ -6,10 +6,13 @@ its source, and the links between all of them. Then let your AI answer with cita
 ContextMAX reads the folders you choose (code, documents, or both) and builds an index with scripts
 alone: no AI in the build, the same folders always give the same index. It never writes into your folders.
 
-- **Code**: every function in C, Python and MATLAB with its exact file and line, who calls it and what
-  it calls, and what breaks if it changes. VHDL as its entity hierarchy. A call through a pointer is
+- **Code**: every function in C, C++, Python and MATLAB with its exact file and line, who calls it and
+  what it calls, and what breaks if it changes. VHDL as its entity hierarchy. A call through a pointer is
   counted and shown, never guessed; a call to a name defined twice goes to the nearest definition, and
-  the other candidates are listed with it.
+  the other candidates are listed with it. C++ is read by a real parser (tree-sitter): namespaces,
+  classes, base classes, overloads, virtual methods, constructors, and calls between C and C++; a method
+  called on an object is followed through the object's declared type, and where the text does not state
+  the type it is listed with its candidates instead. A `.h` file is C++ when its own text is.
 - **Documents**: Word, PDF, Excel, CSV, Markdown, text, RTF, and old .doc/.xls through Microsoft Office
   when it is installed. Copies and revisions of one document fold into one, with every copy listed.
   Each document gets a lifecycle stage, its headings, its "shall" statements and its values.
@@ -33,7 +36,8 @@ It does everything a normal Windows program's installer does, for your user acco
    If that download is not possible (a company proxy may block it), a Python 3.11 or newer that is
    already on the PC is used; the packages still need the internet, or the offline installer below.
 2. **ContextMAX and its readers** (openpyxl for Excel, xlrd for old .xls, pypdfium2 for PDF, RapidOCR
-   for scanned PDFs, with its Cyrillic model) in a private environment, `%USERPROFILE%\ContextMAX\.venv`.
+   for scanned PDFs, with its Cyrillic model, tree-sitter for C++) in a private environment,
+   `%USERPROFILE%\ContextMAX\.venv`.
    About 110 MB from PyPI and 8 MB from ModelScope, each model checked against a fixed SHA-256.
 3. **A ContextMAX shortcut** in the Start menu and on the desktop, the **`contextmax`** command for a
    terminal (a new terminal window finds it), and an entry in **Settings > Apps** with an Uninstall

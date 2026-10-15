@@ -17,6 +17,9 @@ dependencies = [
     "pypdfium2>=4.30,<6",
     "rapidocr>=3.10,<4",
     "onnxruntime>=1.20,<2",
+    # The C++ reader: pinned, so every PC parses C++ the same way and builds the same map.
+    "tree-sitter==0.26.0",
+    "tree-sitter-cpp==0.23.4",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

@@ -63,6 +63,7 @@ COPY_PREFIX = re.compile(r"^(?:" + _any("copy of", "kopie van", "kopie von", "co
 RECURRING = re.compile(_any("meeting", "minutes", r"\bmom\b", "status", "weekly", "daily", r"\bnotes?\b", "report",
                             r"\blog\b", "agenda"), re.I)
 IDENT_RE = re.compile(r"[_0-9A-Za-z]+")
+QUALIFIED_RE = re.compile(r"[_A-Za-z]\w*(?:::~?[_A-Za-z]\w*)+")
 WORDS_RE = re.compile(r"[0-9a-z]+")
 GENERIC_TITLE_WORDS = frozenset("""
     a and copy data doc document draft file final for in list meeting minutes new notes of old overview plan
@@ -273,15 +274,52 @@ def topic_words(rules: Rules, code_dir: Path, targets: list[dict]) -> dict[str, 
     return kw
 
 
-def dominant_module(text: str, keywords: dict[str, str]) -> str | None:
+_ALNUM_RUN = re.compile(r"[a-z0-9]+")
+
+
+class TopicIndex:
+    """The topic words, filed under their first run of letters and digits, so a text is read once
+    however many words there are. A topic word counts as a whole word only (no letter or digit on
+    either side), and its occurrences never overlap one another, as one search per word would find."""
+
+    def __init__(self, keywords: dict[str, str]):
+        self.by_first: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        self.searched: list[tuple[re.Pattern, str]] = []        # words that do not begin with a letter or digit
+        for word, module in keywords.items():
+            first = _ALNUM_RUN.match(word)
+            if first:
+                self.by_first[first.group()].append((word, module))
+            else:
+                self.searched.append((re.compile(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])"), module))
+
+    def counts(self, low: str) -> Counter:
+        """Mentions per module in a lower-cased text. A match starts where a run begins, and that
+        run is the word's own first run, so only the words filed under it can match there."""
+        counts: Counter = Counter()
+        next_free: dict[str, int] = {}
+        size = len(low)
+        for run in _ALNUM_RUN.finditer(low):
+            words = self.by_first.get(run.group())
+            if not words:
+                continue
+            at = run.start()
+            for word, module in words:
+                end = at + len(word)
+                if at >= next_free.get(word, 0) and low.startswith(word, at) and \
+                        (end >= size or not _ALNUM_RUN.match(low[end])):
+                    counts[module] += 1
+                    next_free[word] = end
+        for rx, module in self.searched:
+            n = len(rx.findall(low))
+            if n:
+                counts[module] += n
+        return counts
+
+
+def dominant_module(text: str, topics: TopicIndex) -> str | None:
     """A subject only when it clearly dominates: three mentions or more and a lead of two over the
     next. Documents that touch many parts stay unplaced instead of going to whoever wins a tie."""
-    low = text.lower()
-    counts = Counter()
-    for word, module in keywords.items():
-        n = len(re.findall(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])", low))
-        if n:
-            counts[module] += n
+    counts = topics.counts(text.lower())
     ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     if not ranked:
         return None
@@ -290,8 +328,10 @@ def dominant_module(text: str, keywords: dict[str, str]) -> str | None:
     return top if lead_count >= 3 and lead_count >= runner + 2 else None
 
 
-def _name_rows(text: str, exact: dict, folded: dict) -> list[dict]:
+def _name_rows(text: str, exact: dict, folded: dict, qualified: bool = False) -> list[dict]:
     tokens = IDENT_RE.findall(text)
+    if qualified:                                     # C++ names written with their scope: Controller::clamp
+        tokens += QUALIFIED_RE.findall(text)
     counts = Counter(tokens)
     fcounts = Counter(t.lower() for t in tokens)
     per = defaultdict(lambda: dict(symbols={}, targets=set()))
@@ -334,11 +374,13 @@ def code_links(proj: Project, core: list[dict], rules: Rules) -> tuple[list[dict
     targets = [t for t in proj.code_targets if (proj.code_dir / t["name"]).is_dir()]
     exact, folded = SYM.collect_names(proj.code_dir, targets)
     keywords = topic_words(rules, proj.code_dir, targets)
+    topics = TopicIndex(keywords)
+    qualified = any("::" in name for name in exact)
     edges = []
     for doc in core:
         text = _text(proj, doc.get("cached_text"))
-        rows = _name_rows(text, exact, folded)
-        doc.update(about_module=dominant_module(text, keywords), linked_code=bool(rows),
+        rows = _name_rows(text, exact, folded, qualified)
+        doc.update(about_module=dominant_module(text, topics), linked_code=bool(rows),
                    modules=[r["module"] for r in rows], main_module=next((r["module"] for r in rows), doc.get("module")))
         for i, r in enumerate(rows):
             # strength follows how many distinct code names the document uses for this module
@@ -579,28 +621,33 @@ def _title_words(s: str) -> tuple[str, ...]:
 def _citations(core: list[dict], texts: dict) -> list[dict]:
     """A document cites another when it writes that document's title (three words or more, not all
     generic) or its file name with the extension. Matched on whole words, never inside a word."""
-    patterns: dict[str, list[tuple[tuple[str, ...], str, str]]] = defaultdict(list)
+    # Every title, filed under its first word and its length: at each word of a text, one lookup per
+    # length tells which titles are written there, however many titles begin with that word.
+    patterns: dict[tuple[str, int], dict[tuple[str, ...], list[tuple[str, str]]]] = defaultdict(lambda: defaultdict(list))
     for d in core:
         name = d["title"]
         for title in dict.fromkeys(t for t in (name, d.get("doc_title") or "") if t):
             words = _title_words(VERSION_TAIL.sub("", title) or title)
             meaningful = [w for w in words if w not in GENERIC_TITLE_WORDS and not w.isdigit()]
             if len(words) >= 3 and len("".join(words)) >= 15 and len(meaningful) >= 2:
-                patterns[words[0]].append((words, d["key"], "title"))
+                patterns[(words[0], len(words))][words].append((d["key"], "title"))
         ext = (d.get("ext") or "").lstrip(".").lower()
         full = _title_words(name) + ((ext,) if ext else ())
         if ext and len("".join(full)) >= 8 and len(full) >= 2:
-            patterns[full[0]].append((full, d["key"], "file name"))
+            patterns[(full[0], len(full))][full].append((d["key"], "file name"))
+    lengths: dict[str, list[int]] = defaultdict(list)
+    for first, size in sorted(patterns):
+        lengths[first].append(size)
     edges = []
     for d in core:
         words = WORDS_RE.findall(texts[d["key"]].lower())
         hits: Counter = Counter()
         how: dict[str, str] = {}
         for i, w in enumerate(words):
-            for pat, key, kind in patterns.get(w, ()):
-                if key == d["key"]:
-                    continue
-                if tuple(words[i:i + len(pat)]) == pat:
+            for size in lengths.get(w, ()):
+                for key, kind in patterns[(w, size)].get(tuple(words[i:i + size]), ()):
+                    if key == d["key"]:
+                        continue
                     hits[key] += 1
                     if how.get(key) != "file name":
                         how[key] = kind
@@ -676,6 +723,12 @@ def docs_of_code(proj: Project, core: list[dict], edges: list[dict]) -> dict:
         sym = util.load_json(proj.code_dir / t["name"] / "name-lookup.json", default={}) or {}
         vh = util.load_json(proj.code_dir / t["name"] / "hdl-name-lookup.json", default={}) or {}
         vh_lower = {k.lower(): k for k in vh}
+        scoped = {}                                    # `Controller::clamp` -> `clamp`, for C++ names
+        for short, definitions in sym.items():
+            for d in definitions:
+                pieces = (d.get("qualname") or "").split("::")
+                for k in range(len(pieces) - 1):
+                    scoped.setdefault("::".join(pieces[k:]), short)
         modules, functions = defaultdict(dict), defaultdict(dict)
         for e in edges:
             if t["name"] not in e["targets"]:
@@ -687,7 +740,7 @@ def docs_of_code(proj: Project, core: list[dict], edges: list[dict]) -> dict:
             for s in e["symbols"]:
                 if t["name"] not in s["targets"]:
                     continue
-                name = s["sym"] if s["sym"] in sym else vh_lower.get(s["sym"].lower())
+                name = s["sym"] if s["sym"] in sym else scoped.get(s["sym"]) or vh_lower.get(s["sym"].lower())
                 if name and s["kind"] in _NAMED_KINDS:
                     functions[name][e["document_key"]] = {**entry, "n": s["n"]}
         out[t["name"]] = {

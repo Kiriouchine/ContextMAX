@@ -11,6 +11,30 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
 - Code maps for C (macros that stand for functions, calls through pointers counted, names defined twice
   recorded), Python (resolution through imports and `self`), MATLAB (indexing told apart from calls)
   and VHDL (entity hierarchy, design top, orphans).
+- C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx` and more, and every `.h` whose own text is C++) read
+  by tree-sitter's C++ parser, pinned so every PC builds the same map: each function and method with its
+  namespaces and class (`motor::Controller::clamp`), its kind (function, method, constructor, destructor,
+  operator) and exact lines. Calls are followed through the caller's class and its base classes, the
+  namespaces and `using namespace`, qualified names, and the declared type of the object (parameters,
+  local variables, fields, `this`, pointers, references, smart pointers, type aliases, `auto` from
+  `new`, `make_unique` and constructors); constructors count as calls (`Motor m(2)`, `new Motor`, base
+  classes and fields a constructor initialises). Overloads are told apart by their number of arguments;
+  a virtual method records the methods that override it. C++ calls C functions and C calls C++
+  functions with C linkage. What the text cannot settle is counted, never guessed: a method called on an
+  object of unknown type (with the name of the method and how many could be meant), a call through a
+  variable, a field or a pointer. A file the parser cannot fully read is named in `overview.json`.
+  Documents can name C++ code with its scope (`Controller::clamp`), and C++ constants (`#define`,
+  `constexpr`, `const` in capitals) are names documents can link through. On 7,000 generated C++
+  files the code map takes about 14 s and is the same, byte for byte, on every build.
+- Large projects build much faster, with every result unchanged: placing a document on a part of the
+  code reads its text once instead of once per module, and finding cited titles looks each title up by
+  its first word and length. On a made-up project of 10,060 code files and 10,000 documents the build
+  went from 21 to under 5 minutes (linking documents to code 570 s to 28 s, citations 372 s to 10 s),
+  and every file of the index stayed byte for byte the same.
+- The documents page's Network view opens on a large project: it laid out 9,620 documents and their
+  links in about 18 s, where it had not finished after 5 minutes. Every link is still drawn as its
+  own line; a large network is laid out once and then stands still, hides its lines only while it is
+  dragged or zoomed, and starts from a fixed seed, so the same documents give the same picture.
 - Document text cache: PDF, Word, RTF, text, Excel and CSV, old Office files through Word and Excel,
   scanned PDFs through text recognition; copies folded by name and size; files in the cloud
   kept pending; incremental, with pruning after a safe write.

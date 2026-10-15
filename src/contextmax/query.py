@@ -16,12 +16,13 @@ from pathlib import Path
 
 from contextmax import util
 from contextmax.catalogue import SKIP_DIR_NAMES
-from contextmax.code import c_lang, matlab_lang, python_lang, vhdl_lang
+from contextmax.code import c_lang, cpp_lang, matlab_lang, python_lang, vhdl_lang
 from contextmax.code.common import list_sources
 from contextmax.docs import params as P
 from contextmax.docs import sheets
 
-CODE_SUFFIXES = c_lang.EXTENSIONS | python_lang.EXTENSIONS | matlab_lang.EXTENSIONS | vhdl_lang.EXTENSIONS
+CODE_SUFFIXES = (c_lang.EXTENSIONS | cpp_lang.EXTENSIONS | python_lang.EXTENSIONS | matlab_lang.EXTENSIONS
+                 | vhdl_lang.EXTENSIONS)
 
 
 # == status ==

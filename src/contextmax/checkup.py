@@ -21,11 +21,12 @@ def checks() -> list[dict]:
     bits = struct.calcsize("P") * 8
     add("ok" if sys.version_info >= (3, 11) else "fail", f"Python {sys.version.split()[0]} ({bits}-bit)", sys.executable)
     for mod, what in (("openpyxl", "Excel .xlsx/.xlsm values and formulas"), ("xlrd", "old Excel .xls values"),
-                      ("pypdfium2", "PDF text and page images for text recognition")):
+                      ("pypdfium2", "PDF text and page images for text recognition"),
+                      ("tree_sitter", "the parser that reads C++"), ("tree_sitter_cpp", "the C++ grammar")):
         try:
             importlib.import_module(mod)
             try:
-                version = importlib.metadata.version(mod)
+                version = importlib.metadata.version(mod.replace("_", "-"))
             except importlib.metadata.PackageNotFoundError:
                 version = ""
             add("ok", f"{mod} {version}".strip(), what)

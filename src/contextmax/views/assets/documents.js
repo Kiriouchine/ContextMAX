@@ -11,6 +11,7 @@
     samepart: { label: "same part", title: "about the same part of the code, next stage" }
   };
   var kindsOn = { cites: true, quotes: true, shares: true, samepart: false, onlyCoded: false };
+  var BIG_NODES = 1500, BIG_LINKS = 15000;     // above either, a map is drawn the cheaper way (every line still drawn)
   var linksOf = N.map(function () { return []; });
   E.forEach(function (e, i) { linksOf[e.a].push(i); linksOf[e.b].push(i); });
   var modIndex = {}; D.modules.forEach(function (m, i) { modIndex[m] = i; });
@@ -134,9 +135,11 @@
                      smooth: { type: "curvedCW", roundness: 0.18 }, arrows: e.k === "cites" || e.k === "quotes" ? { to: { enabled: true, scaleFactor: 0.45 } } : undefined,
                      title: e.k === "shares" ? e.shared_count + " shared values" + (e.differ_count ? ", " + e.differ_count + " differ" : "") : KIND[e.k].title });
       });
+      var large = items.length > BIG_NODES || links.length > BIG_LINKS;
       nodes = new vis.DataSet(items);
       net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: new vis.DataSet(links) },
-        { physics: false, layout: { improvedLayout: false }, interaction: { hover: true, hoverConnectedEdges: true, tooltipDelay: 120 } });
+        { physics: false, layout: { improvedLayout: false },
+          interaction: { hover: true, hoverConnectedEdges: true, tooltipDelay: 120, hideEdgesOnDrag: large, hideEdgesOnZoom: large } });
       net.once("afterDrawing", function () { net.fit(); });
       net.on("click", function (p) { if (p.nodes.length && typeof p.nodes[0] === "number") showDoc(p.nodes[0]); });
     }
@@ -226,28 +229,39 @@
                      color: { background: n.code.length ? CMX.css("--doc") : CMX.css("--doc-tint"), border: CMX.css("--doc"), highlight: { background: CMX.css("--doc"), border: CMX.css("--focus") } },
                      font: { color: ink, size: 12, strokeWidth: 4, strokeColor: bg, face: "Segoe UI" }, title: n.t + " · " + n.st });
       });
+      var drawn = {};                          // document id -> drawn, looked up once per link instead of searched
+      items.forEach(function (x) { drawn[x.id] = true; });
       var mods = {};
-      N.forEach(function (n) { if (!items.some(function (x) { return x.id === n.id; })) return; n.code.forEach(function (c) { mods[c.m] = true; }); });
+      N.forEach(function (n) { if (!drawn[n.id]) return; n.code.forEach(function (c) { mods[c.m] = true; }); });
       Object.keys(mods).sort().forEach(function (m) {
         items.push({ id: "m:" + m, label: m, shape: "box", margin: 8, color: { background: CMX.css("--code-tint"), border: CMX.css("--code") }, font: { color: CMX.css("--code-ink"), face: "Cascadia Mono, Consolas, monospace", size: 12 }, title: "code module " + m });
       });
       var links = [];
       E.forEach(function (e, i) {
-        if (!visibleEdge(e) || !nodes_has(items, e.a) || !nodes_has(items, e.b)) return;
+        if (!visibleEdge(e) || !drawn[e.a] || !drawn[e.b]) return;
         links.push({ id: "e" + i, from: e.a, to: e.b, color: { color: edgeColor(e), opacity: 0.6 }, dashes: e.k === "quotes" ? [5, 4] : e.k === "samepart" ? [10, 6] : false,
                      width: e.k === "shares" ? 1 + Math.min(4, e.shared_count / 3) : 1.4, arrows: e.k === "cites" || e.k === "quotes" ? { to: { enabled: true, scaleFactor: 0.4 } } : undefined });
       });
       N.forEach(function (n) {
-        n.code.forEach(function (c) { if (nodes_has(items, n.id)) links.push({ from: n.id, to: "m:" + c.m, color: { color: CMX.css("--code"), opacity: 0.55 }, width: c.c === "strong" ? 4 : c.c === "some" ? 2.2 : 1.2, dashes: c.c === "one" ? [4, 4] : false }); });
+        if (!drawn[n.id]) return;
+        n.code.forEach(function (c) { links.push({ from: n.id, to: "m:" + c.m, color: { color: CMX.css("--code"), opacity: 0.55 }, width: c.c === "strong" ? 4 : c.c === "some" ? 2.2 : 1.2, dashes: c.c === "one" ? [4, 4] : false }); });
       });
+      // Every link is drawn as its own line at any size. A large network is laid out once, with
+      // straight lines and without the slow first layout, and then stands still instead of being
+      // simulated and redrawn on every frame; it hides its lines only while it is dragged or zoomed.
+      // The layout starts from a fixed seed, so the same documents give the same picture.
+      var large = items.length > BIG_NODES || links.length > BIG_LINKS;
       nodes = new vis.DataSet(items);
       net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: new vis.DataSet(links) },
-        { physics: { solver: "forceAtlas2Based", forceAtlas2Based: { gravitationalConstant: -60, springLength: 110 }, stabilization: { iterations: 250 } },
-          interaction: { hover: true, tooltipDelay: 120 }, edges: { smooth: { type: "continuous" } } });
+        { physics: { solver: "forceAtlas2Based", forceAtlas2Based: { gravitationalConstant: -60, springLength: 110 },
+                     stabilization: { iterations: large ? 100 : 250, updateInterval: 50 } },
+          layout: { improvedLayout: !large, randomSeed: 7 },
+          interaction: { hover: !large, tooltipDelay: 120, hideEdgesOnDrag: large, hideEdgesOnZoom: large },
+          edges: { smooth: large ? false : { type: "continuous" } } });
+      if (large) net.once("stabilizationIterationsDone", function () { net.setOptions({ physics: { enabled: false } }); });
       net.on("click", function (p) { if (p.nodes.length && typeof p.nodes[0] === "number") showDoc(p.nodes[0]); });
       if (!items.length) canvas.innerHTML = '<div class="empty">No document links of the kinds switched on.</div>';
     }
-    function nodes_has(items, id) { for (var i = 0; i < items.length; i++) if (items[i].id === id) return true; return false; }
     return {
       id: "network", label: "Network", title: "Linked documents and the code modules they name, laid out by physics",
       enter: function () { linkToggles(); crumbs.innerHTML = "<b>Network</b> <span class=\"quiet\">only documents with a link are drawn</span>"; build(); if (selected !== null) showDoc(selected); else overview(); },
