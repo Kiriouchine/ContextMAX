@@ -14,6 +14,7 @@ def test_registry_places(monkeypatch):
     """No test ever writes the real PATH, Apps entry or contextmax-open: link: their default places point
     under HKCU\\Software\\ContextMAX-tests, whatever a test passes or forgets to pass."""
     if sys.platform != "win32":
+        yield                       # no Windows registry to keep away from
         return
     from contextmax import install
 
