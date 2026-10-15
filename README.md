@@ -18,20 +18,46 @@ alone: no AI in the build, the same folders always give the same index. It never
   the code.
 - **Values**: every number with a unit and every spreadsheet cell, found by its name, with the sheet and
   cell it came from and the formula behind it.
-- **Your AI**: a skill for Claude Code and GitHub Copilot that answers in three parts (what the code
-  does, what the documents intend, and whether they agree), cites every claim, and says what it did not
-  check.
+- **Your AI**: a skill for Claude Code, GitHub Copilot and Codex that answers in three parts (what the
+  code does, what the documents intend, and whether they agree), cites every claim, and says what it did
+  not check. Start one from the project's Home page, or ask a model that runs on this PC (Ollama,
+  llama.cpp, LM Studio): nothing leaves the PC.
 
 ## Install
 
-1. Python 3.11 or newer from python.org.
-2. Double-click **`setup.cmd`**. It creates a private environment in `%USERPROFILE%\ContextMAX\.venv`
-   and leaves your own Python alone. No administrator rights.
-3. Double-click **`ContextMAX.cmd`**. The window opens in your browser: name a project, add its folders
-   with the folder picker, say what each holds, and press **Read documents and build**.
+Double-click **`setup.cmd`**. Nothing has to be installed first, and no administrator rights are needed.
+It does everything a normal Windows program's installer does, for your user account only:
 
-The `contextmax` command below lives in `%USERPROFILE%\ContextMAX\.venv\Scripts`: add that folder to
-your PATH, or type the full path. To try everything on a small made-up project first: `contextmax demo`.
+1. **Python**: a private copy of the official Python (15 MB from nuget.org, checked against a fixed
+   SHA-256) in `%USERPROFILE%\ContextMAX\python`. Your own Python, if you have one, is left alone.
+   If that download is not possible (a company proxy may block it), a Python 3.11 or newer that is
+   already on the PC is used; the packages still need the internet, or the offline installer below.
+2. **ContextMAX and its readers** (openpyxl for Excel, xlrd for old .xls, pypdfium2 for PDF, RapidOCR
+   for scanned PDFs, with its Cyrillic model) in a private environment, `%USERPROFILE%\ContextMAX\.venv`.
+   About 110 MB from PyPI and 8 MB from ModelScope, each model checked against a fixed SHA-256.
+3. **A ContextMAX shortcut** in the Start menu and on the desktop, the **`contextmax`** command for a
+   terminal (a new terminal window finds it), and an entry in **Settings > Apps** with an Uninstall
+   button. Uninstalling removes the program and keeps your projects.
+4. A check of what this PC can read, then the ContextMAX window opens.
+
+Run `setup.cmd` again at any time to update. `ContextMAX.cmd` in this folder works too: the first time,
+it runs `setup.cmd` for you.
+
+In the window: name a project, add its folders with the folder picker, say what each holds, and press
+**Read documents and build**. To try everything on a small made-up project first, run `contextmax demo`.
+
+### A PC without internet
+
+On a PC with internet, double-click **`make-offline-installer.cmd`**. It makes
+`dist\ContextMAX-<version>-offline.zip` (about 140 MB): the program, the same Python, every package and
+ContextMAX itself as wheels, each pinned by its SHA-256 (so the other PC builds nothing and checks every
+file), the Cyrillic model, and `wheels\THIRD-PARTY.txt` with each package's licence. Before the zip is
+written, it installs the whole bundle once in a scratch folder with the network shut off, so a bundle
+that would not install is never made. Copy the zip to the other PC, unzip it and double-click
+`setup.cmd`: it installs from the zip alone.
+
+It runs with a Python this PC already has: that of an installed ContextMAX, or a Python 3.11 or newer.
+Only when there is none does it first install ContextMAX here (it says so).
 
 ## The pages
 
@@ -46,7 +72,32 @@ works offline, from the folder. A switch at the top right gives light or dark.
 | **Connections** | Your code bases and the links a call graph cannot see (between programs, chips and devices), which you write once in `notes\connections.json`. |
 
 Click anything for its details: file and line with an **Open in editor** link, callers and calls,
-documents that name it, and the documents it links to.
+documents that name it, and the documents it links to. In **Bubbles**, a bubble with an arrow going into
+a box opens: double-click it for the functions inside (or, for a function of another module, that
+module). A document's details have **Open document**, **Show in folder** and **Extracted text** (in a new
+tab). The pages ask the ContextMAX window to open a file; a page opened straight from the folder uses a
+`contextmax-open:` link, which setup.cmd registers for your user. Either way only a file inside a
+ContextMAX project (its folders or its working folder) is opened, and only a document: a program, a
+script or source code is shown in its folder instead, never started. A link, which any web page can
+start, opens only formats that carry no code (PDF, Word, Excel and PowerPoint without macros, text,
+images); older and macro-enabled Office files open from the window, or are shown in their folder.
+
+### Ask your AI
+
+On the Home page, opened from the ContextMAX window, **Ask your AI** starts an assistant in the project's
+working folder, with the ContextMAX skill installed for it: **VS Code with Claude** (opens the project
+and Claude's chat), **VS Code** (for Copilot), **Claude Code** and **Codex** (in a terminal, when they
+are installed). ContextMAX prepares the working folder for them: `CLAUDE.md` and `AGENTS.md` say what the
+project is and which skill to use (in a block between two marks: what an assistant or you write there
+stays), `.claude\settings.json` lets Claude Code read the project's folders (and no longer one taken out
+of the project), and `<project>.code-workspace` opens them all in VS Code.
+
+**A model on this PC** asks Ollama, llama.cpp's server or LM Studio, whichever runs. ContextMAX first finds
+what the question is about in the index, by itself (functions with their code, passages of the documents,
+named values), gives only that to the model, and lists those sources with links; the answer cites them
+as [1], [2]. Nothing leaves the PC. Larger models answer better: on made-up questions a 26 to 31 billion
+parameter model (gemma4, qwen3-coder) found that two documents disagree where an 8 billion one did not.
+The first question loads the model and takes longer.
 
 ## From the command line
 
@@ -61,7 +112,7 @@ contextmax find my-project symbol pid_step
 contextmax find my-project impact pid_step
 contextmax params my-project --name "settle time" --compare
 contextmax sheet my-project --key Error_budget --trace "Budget!B7"
-contextmax skill install my-project         # Claude Code and Copilot
+contextmax skill install my-project         # Claude Code, Copilot, and Codex where it is installed
 contextmax share my-project D:\shared\maps  # a portable copy for colleagues (--dry-run to preview)
 contextmax selfcheck my-project             # a verdict and a JSON file to send to whoever helps
 contextmax checkup                          # what this PC can read
@@ -79,6 +130,8 @@ documents\          text\ and sheets\ (what was read), doc-list.jsonl (documents
                     params.sqlite (every value), links\ (document and code links), document-guide.md
 pages\              the pages
 notes\              project-notes.md and connections.json: knowledge people write down
+CLAUDE.md, AGENTS.md, .claude\, <project>.code-workspace
+                    for assistants started from Ask your AI (written by ContextMAX)
 ```
 
 ## The rules it keeps
@@ -102,15 +155,35 @@ notes\              project-notes.md and connections.json: knowledge people writ
 |---|---|
 | Microsoft Word | old `.doc` files; `.rtf` files as Word shows them (without Word, a built-in reader) |
 | Microsoft Excel | formulas of old `.xls` files, and workbooks the Python reader rejects |
-| Windows text recognition | scanned PDFs (add a language in Windows settings) |
+| Windows text recognition | scanned PDFs, in the languages added under Settings > Time & language |
 | VS Code | **Open in editor** links jump to the exact line |
 
-Without them, old `.doc` files are listed as not read with the reason (`documents\not-read.csv`), old
-`.xls` files are read for their values without their formulas (their text says so), and scanned PDFs
-stay without text and are counted on the home page.
+Without them, old `.doc` files are listed as not read with the reason (`documents\not-read.csv`), and
+old `.xls` files are read for their values without their formulas (their text says so).
 
-Word, Excel and text recognition each run as a short PowerShell step with a time limit, and a step
-that runs out of time stops any Word or Excel it started. Security software sometimes holds such a step
+### Scanned PDFs
+
+A PDF with almost no text per page is a scan. Its pages are rendered at 300 dpi and read page by page:
+first by Windows' own text recognition in your first language, and where that does not read as words
+(a page in another script, a page turned on the scanner), by your other Windows languages and by
+RapidOCR, which setup.cmd installs: its own model reads Latin script (47 languages), Chinese and
+Japanese, the Cyrillic model Russian and other Cyrillic languages. A page still unread is turned a
+quarter, three quarters and half a turn; the way up with the longest flat lines of text is the page's,
+and every reader tries it that way up. The text that reads most as words wins. A slanted scan is
+straightened before its lines are put into rows, tables keep their rows, a two-column page is read
+column by column, and each document records which reader and language read it (`ocr_readers` in
+`documents\text-index.jsonl`).
+
+Nothing is silent: a scan nothing could read keeps its reason as `ocr_problem`, and a scan with pages
+whose best text still does not read as words (`ocr_doubtful_pages`) is counted; both show on the home
+page. A scan that could not be read is tried again when the file changes, when the PC gains a reader
+(a Windows language, RapidOCR's Cyrillic model), or with `build --full`.
+
+RapidOCR needs the Microsoft Visual C++ 2015-2022 runtime, which almost every Windows PC has; the
+check after setup says when it is missing (installing it needs an administrator).
+
+Word, Excel and Windows' text recognition each run as a short PowerShell step with a time limit (RapidOCR
+runs inside ContextMAX), and a step that runs out of time stops any Word or Excel it started. Security software sometimes holds such a step
 until it times out. When that happens to the first check, the build continues as if the readers were
 missing and records why (`documents\text-info.json`, and the reason given for each `.doc` file); a
 scanned PDF whose text recognition failed keeps its reason as `ocr_problem` in

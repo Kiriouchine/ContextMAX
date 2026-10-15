@@ -175,7 +175,9 @@ def safe_name(name: str) -> str:
 def html_json(obj) -> str:
     """JSON that can sit inside a <script> element without ending it early."""
     s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-    return s.replace("</", "<\\/").replace("<!--", "<\\!--")
+    # every < as <: still JSON (unlike <\!--, which made a page with "<!--" in its data show nothing),
+    # and neither </script> nor <!-- can end or bend the element
+    return s.replace("<", "\\u003c")
 
 
 def say(stage: str, message: str) -> None:

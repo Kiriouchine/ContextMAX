@@ -12,9 +12,11 @@ license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Sev Kiriouchine" }]
 requires-python = ">=3.11"
 dependencies = [
-    "openpyxl>=3.1",
-    "xlrd>=2.0",
-    "pypdfium2>=4.30",
+    "openpyxl>=3.1,<4",
+    "xlrd>=2.0,<3",
+    "pypdfium2>=4.30,<6",
+    "rapidocr>=3.10,<4",
+    "onnxruntime>=1.20,<2",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

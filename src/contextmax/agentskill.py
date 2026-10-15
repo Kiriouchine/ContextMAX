@@ -14,7 +14,8 @@ from pathlib import Path
 
 from contextmax import util
 
-HOSTS = {"claude": Path.home() / ".claude" / "skills", "copilot": Path.home() / ".copilot" / "skills"}
+HOSTS = {"claude": Path.home() / ".claude" / "skills", "copilot": Path.home() / ".copilot" / "skills",
+         "codex": Path.home() / ".codex" / "skills"}
 
 
 def _keywords(proj) -> str:
@@ -196,6 +197,8 @@ def install(proj, host: str = "all", python: str | None = None) -> list[str]:
     for name, base in HOSTS.items():
         if host not in ("all", name):
             continue
+        if host == "all" and name == "codex" and not base.parent.exists():
+            continue                    # Codex is not on this PC: no folder made for it
         dest = base / f"contextmax-{proj.slug}"
         dest.mkdir(parents=True, exist_ok=True)
         util.save_text(dest / "SKILL.md", text)

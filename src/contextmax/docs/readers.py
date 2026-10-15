@@ -10,9 +10,7 @@ from __future__ import annotations
 import html
 import os
 import re
-import struct
 import zipfile
-import zlib
 from contextlib import closing
 from pathlib import Path
 
@@ -239,50 +237,3 @@ def extract(in_path: str, out_path: str) -> dict:
         return reader(in_path, out_path)
     except Exception as exc:  # noqa: BLE001 - one bad file must never stop the batch
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-
-
-# == page images for text recognition (no imaging library needed) ==
-
-def png_bytes(width: int, height: int, rgb: bytes) -> bytes:
-    """A minimal PNG encoder for 8-bit RGB rows."""
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-    stride = width * 3
-    raw = b"".join(b"\x00" + rgb[y * stride:(y + 1) * stride] for y in range(height))
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
-
-
-def render_pdf_pages(in_path: str, out_dir: Path, dpi: int = 200, max_pages: int = 200) -> int:
-    """Write page-0001.png ... for each page; returns the number written."""
-    import pypdfium2 as pdfium
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    doc = pdfium.PdfDocument(win_path(in_path))
-    written = 0
-    try:
-        for i in range(min(len(doc), max_pages)):
-            page = doc[i]
-            bitmap = page.render(scale=dpi / 72, rev_byteorder=True)
-            w, h = bitmap.width, bitmap.height
-            buf = bytes(bitmap.buffer)
-            stride = bitmap.stride
-            ch_count = bitmap.n_channels          # pypdfium2's own attribute name
-            rows = []
-            for y in range(h):
-                row = buf[y * stride:y * stride + w * ch_count]
-                if ch_count != 3:
-                    rgb = bytearray(w * 3)
-                    if ch_count == 4:
-                        rgb[0::3], rgb[1::3], rgb[2::3] = row[0::4], row[1::4], row[2::4]
-                    else:
-                        rgb[0::3] = rgb[1::3] = rgb[2::3] = row[0::ch_count]
-                    row = bytes(rgb)
-                rows.append(row)
-            (out_dir / f"page-{i + 1:04d}.png").write_bytes(png_bytes(w, h, b"".join(rows)))
-            bitmap.close()
-            page.close()
-            written += 1
-    finally:
-        doc.close()
-    return written

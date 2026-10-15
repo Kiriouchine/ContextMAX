@@ -1,4 +1,5 @@
-"""Optional Windows readers: Word for old .doc files, Excel for .xls formulas, Windows OCR.
+"""Optional Windows readers: Word for old .doc files, Excel for .xls formulas, and the runner for
+the PowerShell scripts, Windows' text recognition included (docs/ocr.py drives that one).
 
 Each runs as its own PowerShell process with a hard timeout. When a file hangs Word or
 Excel, the process is killed together with the one Word or Excel instance it started, and
@@ -15,7 +16,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 PS_DIR = Path(__file__).resolve().parent / "ps"
@@ -128,20 +128,3 @@ def xls_to_xlsx(src: str, out: str, timeout: int = 120) -> tuple[bool, str]:
     if ok and os.path.exists(out):
         return True, err
     return False, err or "Excel could not convert the file"
-
-
-def ocr_pdf(src: str, dpi: int = 200, timeout: int = 900) -> tuple[bool, str, int]:
-    """Render each page and read it with Windows OCR. Returns (ok, text or error, pages)."""
-    from contextmax.docs.readers import render_pdf_pages
-
-    with tempfile.TemporaryDirectory(prefix="cmx-ocr-") as tmp:
-        try:
-            n = render_pdf_pages(src, Path(tmp), dpi=dpi)
-        except Exception as exc:  # noqa: BLE001 - reported as this file's reason
-            return False, f"cannot render pages: {type(exc).__name__}: {exc}", 0
-        if n == 0:
-            return False, "no pages", 0
-        ok, out, err = run_script("ocr.ps1", ["-Pages", tmp], timeout)
-        if not ok:
-            return False, err or "text recognition failed", n
-        return True, out.replace("\r\n", "\n"), n

@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from contextmax import office, util
+from contextmax.docs import ocr as recognition
 from contextmax.docs import readers as ex
 from contextmax.docs import sheets
 from contextmax.project import Project
@@ -34,6 +35,7 @@ WORKBOOK_SUFFIXES = {".xls", ".xlsx", ".xlsm", ".csv"}
 READABLE_SUFFIXES = TEXT_EXT | DOC_SUFFIXES | WORKBOOK_SUFFIXES
 SHEET_LIKE_UNREAD = {".xlsb", ".ods", ".xlt", ".xltx", ".xltm", ".numbers"}
 PLAIN_VERSION = 2          # 2: documents also record their own title
+OCR_METHODS = {"ocr", "windows-ocr"}   # "windows-ocr": a document an earlier ContextMAX recognised
 WORD_FILE_VERSION = 3      # .rtf and .doc only. 3: \uN escapes and symbol words in RTF read; Word's marks cleaned
 
 
@@ -247,8 +249,8 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
     final = [merged[k] for k in sorted(merged) if (texts_out / f"{k}.txt").exists()]
 
     ocr_count = 0
-    if ocr and probe.get("ocr"):
-        ocr_count = _ocr_pass(final, roots, texts_out)
+    if ocr:
+        ocr_count = _ocr_pass(final, roots, texts_out, probe.get("ocr_languages") or [], retry_unreadable)
     util.save_jsonl(jsonl, final)
 
     if prune:
@@ -287,9 +289,10 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
         "skipped_count": len(skipped),
         "pending_count": len(pending),
         "duplicates_count": len(dups),
-        "ocr_count": sum(1 for r in final if r["method"] == "windows-ocr"),
+        "ocr_count": sum(1 for r in final if r["method"] in OCR_METHODS),
         "ocr_partial_count": sum(1 for r in final if r.get("ocr_partial")),
-        "scanned_unread_count": sum(1 for r in final if r.get("needs_ocr") and r["method"] != "windows-ocr"),
+        "scanned_unread_count": sum(1 for r in final if r.get("needs_ocr") and r["method"] not in OCR_METHODS),
+        "ocr_doubtful_count": sum(1 for r in final if r["method"] in OCR_METHODS and r.get("ocr_doubtful_pages")),
     }
     util.save_json(out / "text-coverage.json", coverage)
     util.save_json(out / "text-info.json", {
@@ -300,36 +303,65 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
         "docs_hash": fingerprint,
         "readers": dict(probe, problem=office.PROBE_PROBLEM) if office.PROBE_PROBLEM else probe, "ocr_this_run": ocr_count,
         "note": "PDF, .docx, text and spreadsheet text depends only on the file and the reader version; "
-                "text that Word or Windows OCR produced can differ between their versions."})
+                "text that Word or text recognition produced can differ between their versions."})
     util.say("docs", f"{len(final)} documents cached, {len(dups)} copies, {len(pending)} pending, "
                      f"{len(skipped)} unreadable; by method: " + ", ".join(f"{k} {v}" for k, v in sorted(methods.items())))
     return coverage
 
 
-def _ocr_pass(rows: list[dict], roots: dict, texts_out: Path) -> int:
-    """Scanned PDFs (almost no text per page) are read again with Windows OCR."""
+def _ocr_pass(rows: list[dict], roots: dict, texts_out: Path, windows_languages: list[str],
+              retry: bool = False) -> int:
+    """Scanned PDFs (almost no text per page) are read again by text recognition (docs/ocr.py), and so
+    are those an older version of it read. A scan recognition could not read is tried again when the
+    file changes, when this PC gains a reader or a newer recognition, or with --full (`retry`)."""
+    rapid = recognition.rapid_models()
+    attempt = f"{recognition.OCR_VERSION}: " + ", ".join(sorted(windows_languages) + rapid)
+
+    def wanted(r: dict) -> bool:
+        if not (r.get("needs_ocr") and r["ext"] == ".pdf"):
+            return False
+        if r["method"] in OCR_METHODS and r.get("ocr_version") == recognition.OCR_VERSION:
+            return False
+        return retry or r.get("ocr_tried") != attempt
+
+    todo = [r for r in rows if wanted(r)]
+    if not todo:
+        return 0
+    if not windows_languages and not rapid:
+        why = recognition.rapid_problem() or "no reader"
+        for r in todo:
+            if r["method"] not in OCR_METHODS:
+                r["ocr_problem"] = f"no text recognition on this PC: no Windows recognition language, and {why}"
+        return 0
     done = 0
-    for r in rows:
-        if not r.get("needs_ocr") or r["method"] == "windows-ocr" or r["ext"] != ".pdf":
-            continue
+    for r in todo:
         src = str(Path(roots.get(r["folder"], "")) / r["relative_path"])
         if not os.path.exists(ex.win_path(src)):
             continue
-        ok, text, pages_read = office.ocr_pdf(src)
-        if not ok or len(re.sub(r"\s", "", text)) < 20:
-            r["ocr_problem"] = text if not ok else "text recognition found no text"    # kept, never silent
+        try:
+            result = recognition.read_pdf(src, windows_languages)
+        except Exception as exc:  # noqa: BLE001 - one scan's failure is that scan's reason, never the build's
+            result = recognition.Outcome(False, error=f"{type(exc).__name__}: {exc}")
+        if not result.ok or len(re.sub(r"\s", "", result.text)) < 20:
+            r["ocr_tried"] = attempt                 # not again until something changes
+            if r["method"] not in OCR_METHODS:      # an older recognition stays until a newer one reads
+                r["ocr_problem"] = result.error if not result.ok else "text recognition found no text"
             continue
         path = texts_out / f"{r['key']}.txt"
-        ex.write_out(path, text)
-        r.pop("ocr_problem", None)
-        r["method"] = "windows-ocr"
-        r["chars"] = len(text)
-        r["sha256"] = util.hash_file(path)
-        r["ocr_pages"] = pages_read
-        if r.get("pages") and pages_read < r["pages"]:
+        ex.write_out(path, result.text)
+        for stale in ("ocr_problem", "ocr_partial", "ocr_tried"):
+            r.pop(stale, None)
+        r.update({"method": "ocr", "ocr_version": recognition.OCR_VERSION, "chars": len(result.text),
+                  "sha256": util.hash_file(path), "ocr_pages": result.pages,
+                  "ocr_readers": dict(sorted(result.readers.items())), "ocr_turned_pages": result.turned,
+                  "ocr_empty_pages": result.empty, "ocr_doubtful_pages": result.doubtful})
+        if result.pages < (r.get("pages") or result.page_count):
             r["ocr_partial"] = True           # said, never silent: only the first pages were recognised
         done += 1
-        util.say("docs", f"  text recognition: {r['key']} ({pages_read} of {r.get('pages') or '?'} pages)")
+        readers = ", ".join(f"{k} {v}" for k, v in sorted(result.readers.items()))
+        util.say("docs", f"  text recognition: {r['key']} ({result.pages} of {r.get('pages') or result.page_count} "
+                         f"pages; {readers}{f'; {result.turned} turned' if result.turned else ''}"
+                         f"{f'; {result.doubtful} doubtful' if result.doubtful else ''})")
     return done
 
 

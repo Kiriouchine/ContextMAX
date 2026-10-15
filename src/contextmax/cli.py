@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 from contextmax import VERSION, project
 
@@ -140,10 +141,10 @@ def cmd_sheet(a) -> int:
 
 
 def cmd_skill(a) -> int:
-    from contextmax import agentskill
+    from contextmax import agentskill, assistants
 
     proj = _project_ref(a.project)
-    for line in agentskill.install(proj, a.host):
+    for line in agentskill.install(proj, a.host) + assistants.prepare(proj):
         print(line)
     return 0
 
@@ -181,6 +182,66 @@ def cmd_panel(a) -> int:
     from contextmax import panel
 
     return panel.serve(a.project, port=a.port, open_browser=not a.no_browser)
+
+
+def _shell_places(a) -> dict:
+    """Where install and uninstall put things; the hidden options let the tests use other places."""
+    from contextmax import install
+
+    return {"start_menu": Path(a.start_menu) if a.start_menu else None,
+            "desktop": Path(a.desktop) if a.desktop else None,
+            "env_key": a.env_key or install.ENV_KEY, "uninstall_key": a.uninstall_key or install.UNINSTALL_KEY,
+            "link_key": a.link_key or install.LINK_KEY}
+
+
+def cmd_install(a) -> int:
+    from contextmax import install
+
+    for line in install.install(shortcuts=not a.no_shortcuts, path=not a.no_path, apps_entry=not a.no_apps_entry,
+                                links=not a.no_links, **_shell_places(a)):
+        print("  " + line)
+    return 0
+
+
+def cmd_uninstall(a) -> int:
+    from contextmax import install
+
+    for line in install.uninstall(**_shell_places(a)):
+        print("  " + line)
+    return 0
+
+
+def cmd_link(a) -> int:
+    from contextmax import opener
+
+    return opener.handle_link(a.url)
+
+
+def cmd_ocr_models(a) -> int:
+    from contextmax.docs import ocr
+
+    try:
+        for line in ocr.fetch_models(source=Path(a.source) if a.source else None):
+            print("  RapidOCR " + line)
+    except OSError as exc:
+        print(f"  RapidOCR: {exc}. Scans in Latin script are still read; run setup.cmd again with internet "
+              "for Cyrillic.", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_offline_installer(a) -> int:
+    from contextmax import bundle
+
+    source = Path(a.source)
+    try:
+        target = bundle.make(source, Path(a.out) if a.out else source / "dist")
+    except bundle.BundleError as exc:
+        print(f"no offline installer was made: {exc}", file=sys.stderr)
+        return 1
+    print(f"\nOffline installer: {target} ({target.stat().st_size / 1e6:.0f} MB)\n"
+          "Copy it to the PC without internet, unzip it there and double-click setup.cmd.")
+    return 0
 
 
 def run(argv=None) -> int:
@@ -262,7 +323,7 @@ def run(argv=None) -> int:
     p = sub.add_parser("skill", help="install the AI skill for this project")
     p.add_argument("action", choices=["install"])
     p.add_argument("project")
-    p.add_argument("--host", default="all", choices=["claude", "copilot", "all"])
+    p.add_argument("--host", default="all", choices=["claude", "copilot", "codex", "all"])
     p.set_defaults(fn=cmd_skill)
 
     p = sub.add_parser("checkup", help="what this PC can read")
@@ -290,6 +351,33 @@ def run(argv=None) -> int:
     p.add_argument("--port", type=int, default=0)
     p.add_argument("--no-browser", action="store_true")
     p.set_defaults(fn=cmd_panel)
+
+    for name, fn, text in (("install", cmd_install, "set ContextMAX up as a program for this user (setup.cmd runs it)"),
+                           ("uninstall", cmd_uninstall, "remove its shortcuts, PATH entry and Apps entry (uninstall.cmd runs it)")):
+        p = sub.add_parser(name, help=text)
+        if name == "install":
+            p.add_argument("--no-shortcuts", action="store_true", help="no Start menu and desktop shortcuts")
+            p.add_argument("--no-path", action="store_true", help="do not put the contextmax command on the PATH")
+            p.add_argument("--no-apps-entry", action="store_true", help="no entry in Apps & features")
+            p.add_argument("--no-links", action="store_true",
+                           help="no contextmax-open: links (Open document on pages opened from the folder)")
+        for hidden in ("--start-menu", "--desktop", "--env-key", "--uninstall-key", "--link-key"):
+            p.add_argument(hidden, help=argparse.SUPPRESS)
+        p.set_defaults(fn=fn)
+
+    p = sub.add_parser("link", help=argparse.SUPPRESS)        # what a contextmax-open: link runs
+    p.add_argument("url")
+    p.set_defaults(fn=cmd_link)
+
+    p = sub.add_parser("ocr-models", help="fetch RapidOCR's Cyrillic model, checked by SHA-256 (setup.cmd runs it)")
+    p.add_argument("--from", dest="source", help="copy it from this folder instead (an offline installer's wheels\\models)")
+    p.set_defaults(fn=cmd_ocr_models)
+
+    p = sub.add_parser("offline-installer", help="make a zip that installs ContextMAX on a PC without internet "
+                                                 "(make-offline-installer.cmd runs it)")
+    p.add_argument("--source", required=True, help="the ContextMAX folder with setup.cmd")
+    p.add_argument("--out", help="where the zip goes (default: <source>\\dist)")
+    p.set_defaults(fn=cmd_offline_installer)
 
     for stream in (sys.stdout, sys.stderr):
         try:

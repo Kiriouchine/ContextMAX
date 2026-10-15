@@ -33,9 +33,11 @@
     h += '<p class="quiet" style="font-size:12.5px">' + safe(n.folder) + " › " + safe(n.rel) + "</p>";
     if (n.copies > 1) h += '<div class="remark"><b>' + n.copies + " copies, one document.</b> Kept: this copy (" + safe(n.reason || "") + "). Folded in: <span class=\"fixed\">" + safe(n.copy_list.join(", ")) + "</span></div>";
     var acts = [];
-    if (n.file_uri) acts.push('<a class="btn" href="' + safe(n.file_uri) + '">Open document</a>');
-    if (n.explorer) acts.push('<a class="btn ghost" href="' + safe(n.explorer) + '">Show in folder</a>');
-    if (n.text) acts.push('<a class="btn ghost" href="../documents/' + safe(n.text) + '">Extracted text</a>');
+    if (n.path) {
+      acts.push('<button type="button" class="btn" data-file="' + safe(n.path) + '" data-how="open">Open document</button>');
+      acts.push('<button type="button" class="btn ghost" data-file="' + safe(n.path) + '" data-how="select">Show in folder</button>');
+    }
+    if (n.text) acts.push('<a class="btn ghost" target="_blank" rel="noopener" href="../documents/' + safe(n.text) + '">Extracted text</a>');
     if (acts.length) h += '<div class="hstack">' + acts.join("") + "</div>";
     if (n.code.length) {
       h += "<h3>Names code</h3><ul>" + n.code.map(function (c) {
@@ -266,5 +268,5 @@
     if (hit) focusDoc(hit.id); else side.innerHTML = '<p class="quiet">No document matches “' + safe(q) + "”.</p>";
   });
   var m = /doc=([^&]+)/.exec(location.hash);
-  if (m) { var key = decodeURIComponent(m[1]); var n = N.filter(function (x) { return x.key === key; })[0]; if (n) setTimeout(function () { focusDoc(n.id); }, 300); }
+  if (m) { var key = decodeURIComponent(m[1]); var n = N.filter(function (x) { return x.key === key; })[0]; if (n) setTimeout(function () { focusDoc(n.id); CMX.dropHash("doc"); }, 300); }
 })();

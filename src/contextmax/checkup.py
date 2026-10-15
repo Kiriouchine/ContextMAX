@@ -32,12 +32,34 @@ def checks() -> list[dict]:
         except ImportError:
             add("fail", f"{mod} missing", f"needed for {what}: run setup.cmd again")
     p = office.probe() if sys.platform == "win32" else {"word": False, "excel": False, "ocr": False, "ocr_languages": []}
-    add("ok" if p["word"] else "warn", "Microsoft Word" + ("" if p["word"] else " not found"),
-        "old .doc files can be read" if p["word"] else "old .doc files are listed as unreadable, with the reason")
-    add("ok" if p["excel"] else "warn", "Microsoft Excel" + ("" if p["excel"] else " not found"),
-        "formulas of old .xls files can be read" if p["excel"] else "old .xls files give values only, no formulas")
-    add("ok" if p["ocr"] else "warn", "Windows text recognition" + (f" ({', '.join(p['ocr_languages'])})" if p["ocr"] else " not available"),
-        "scanned PDFs can be read" if p["ocr"] else "scanned PDFs stay without text; add a language in Windows settings")
+    if office.PROBE_PROBLEM:
+        # not an answer about this PC: the check itself was held, so no "not found" and no advice to install
+        add("warn", "Word, Excel and Windows text recognition could not be checked",
+            office.PROBE_PROBLEM + "; allow ContextMAX's Python in the security software, then run the check again")
+    else:
+        add("ok" if p["word"] else "warn", "Microsoft Word" + ("" if p["word"] else " not found"),
+            "old .doc files can be read" if p["word"] else "old .doc files are listed as unreadable, with the reason")
+        add("ok" if p["excel"] else "warn", "Microsoft Excel" + ("" if p["excel"] else " not found"),
+            "formulas of old .xls files can be read" if p["excel"] else "old .xls files give values only, no formulas")
+    from contextmax.docs import ocr
+
+    langs = p.get("ocr_languages") or []
+    rapid_why = ocr.rapid_problem()
+    models = ocr.rapid_models()
+    if not office.PROBE_PROBLEM:
+        add("ok" if langs else "warn", "Windows text recognition" + (f" ({', '.join(langs)})" if langs else ": no language"),
+            "reads scanned PDFs in these languages" if langs else
+            "Windows can read scans in the languages added under Settings > Time & language" +
+            ("; RapidOCR reads them now" if models else ""))
+    if rapid_why:
+        add("warn" if langs else "fail", "RapidOCR text recognition not available",
+            rapid_why + ("" if langs else "; scanned PDFs stay without text"))
+    else:
+        cyrillic = "cyrillic" in models
+        add("ok" if cyrillic else "warn", f"RapidOCR {importlib.metadata.version('rapidocr')}"
+            + (" with Cyrillic" if cyrillic else ", no Cyrillic model"),
+            "reads scans Windows cannot: Latin script (47 languages), Chinese, Japanese"
+            + (", Cyrillic" if cyrillic else "; run setup.cmd with internet to add Russian and other Cyrillic"))
     code = shutil.which("code") or shutil.which("code.cmd")
     add("ok" if code else "warn", "VS Code" + ("" if code else " not on PATH"),
         "map nodes open the exact line in the editor" if code else "editor links need VS Code")

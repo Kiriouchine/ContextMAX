@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask · ContextMAX</title>
+<link rel="icon" href="/assets/contextmax.ico">
+<script>window.CMX_PANEL = { token: "__TOKEN__", slug: new URLSearchParams(location.search).get("slug") || "" };</script>
+<link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script>
+<style>
+.askbox { display:flex; flex-direction:column; gap:10px; }
+.askbox textarea { min-height:84px; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--text); font:inherit; resize:vertical; }
+.answer { background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:16px 18px; line-height:24px; white-space:pre-wrap; min-height:60px; }
+.answer a.cite { font-weight:600; text-decoration:none; }
+.sources { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
+.sources li { background:var(--surface); border:1px solid var(--rule); border-radius:10px; padding:10px 14px; }
+.sources li:target { outline:2px solid var(--focus); }
+.sources pre { white-space:pre-wrap; font-size:12.5px; line-height:18px; background:var(--sunken); border-radius:8px; padding:8px 10px; margin:8px 0 0; max-height:220px; overflow:auto; }
+select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule); background:var(--surface); color:var(--text); padding:4px 8px; max-width:100%; }
+</style></head>
+<body class="page">
+<header class="masthead"><span class="wordmark">Context<b>MAX</b><small id="pname"></small></span>
+<nav class="tabs"><a id="homelink" href="#">Home</a><a class="is-on" href="#">Ask</a></nav>
+<span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
+<main class="column" style="gap:22px;max-width:980px">
+<section><h1 class="headline" style="font-size:30px">Ask a model on this PC</h1>
+<p class="quiet" style="margin:6px 0 0;line-height:22px">ContextMAX finds what your question is about in this project's index (functions, passages of the documents, named values) and gives only that to a model that runs on this PC. Nothing leaves the PC. The answer cites its sources as [1], [2]; check them before you rely on it.</p></section>
+<section class="tile askbox">
+<div class="hstack" style="margin:0"><label class="quiet" for="model">Model</label><select id="model" class="model"></select><span class="quiet" id="servers"></span></div>
+<textarea id="q" placeholder="For example: what is the settle time, and do the documents agree?"></textarea>
+<div class="hstack" style="margin:0"><button type="button" class="btn" id="go">Ask</button><span class="quiet" id="state">Larger models answer better; the first question loads the model and takes longer.</span></div>
+</section>
+<section id="out" style="display:none;flex-direction:column;gap:14px"><h2 class="sec" style="margin:0">Answer</h2><div class="answer" id="answer" aria-live="polite"></div>
+<h2 class="sec" style="margin:8px 0 0">Sources ContextMAX found</h2><ol class="sources" id="sources"></ol></section>
+</main>
+<script>
+"use strict";
+(function () {
+  var $ = CMX.$, safe = CMX.safe, slug = CMX.panel().slug, models = [], sourceCount = 0;
+  $("#homelink").href = "/ws/" + encodeURIComponent(slug) + "/Home.html";
+  $("#pname").textContent = slug;
+  function render(text) {
+    // what a thinking model says to itself is not part of the answer
+    var shown = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "").replace(/^\s+/, "");
+    return safe(shown).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, function (all, list) {
+      return "[" + list.split(/\s*,\s*/).map(function (n) {
+        // only a number ContextMAX gave is a citation; another one is said to be none
+        return +n >= 1 && +n <= sourceCount ? '<a class="cite" href="#src-' + n + '">' + n + "</a>"
+          : '<span title="no such source: the model made this number up" style="text-decoration:line-through">' + n + "</span>";
+      }).join(", ") + "]";
+    });
+  }
+  function source(s) {
+    var acts = [];
+    if (s.editor) acts.push('<a class="btn ghost" href="' + safe(s.editor) + '">Open in editor</a>');
+    if (s.path) acts.push('<button type="button" class="btn ghost" data-file="' + safe(s.path) + '" data-how="open">Open document</button>');
+    if (s.text_link) acts.push('<a class="btn ghost" target="_blank" rel="noopener" href="' + safe(s.text_link) + '">Extracted text</a>');
+    return '<li id="src-' + s.n + '"><div class="hstack" style="margin:0;justify-content:space-between"><span><b>[' + s.n + "]</b> " +
+      '<span class="badge">' + safe(s.kind) + "</span> " + safe(s.cite) + "</span><span class=\"hstack\" style=\"margin:0\">" + acts.join("") + "</span></div>" +
+      "<pre>" + safe(s.text) + "</pre></li>";
+  }
+  function ask() {
+    var q = $("#q").value.trim(), m = models[$("#model").value];
+    if (!q) { $("#q").focus(); return; }
+    if (!m) { $("#state").textContent = "No model to ask: start Ollama (or llama.cpp's server, or LM Studio) and reload this page."; return; }
+    CMX.store.set("ask:model", m.base + " " + m.model);
+    $("#go").disabled = true; $("#state").textContent = "Finding sources, then asking " + m.model + " …";
+    $("#out").style.display = "flex"; $("#answer").textContent = ""; $("#sources").innerHTML = ""; sourceCount = 0;
+    var text = "", since = 0, shownSources = false;
+    CMX.ask("ask", { question: q, kind: m.kind, base: m.base, model: m.model }).then(function (j) {
+      (function poll() {
+        CMX.ask("ask-poll", { job: j.job, since: since }).then(function (r) {
+          text += r.text; since = r.next;
+          if (!shownSources && r.sources.length) { sourceCount = r.sources.length; $("#sources").innerHTML = r.sources.map(source).join(""); shownSources = true; }
+          $("#answer").innerHTML = render(text) || '<span class="quiet">…</span>';
+          if (r.done) {
+            $("#go").disabled = false;
+            $("#state").textContent = r.error ? "" : (r.sources.length ? "Done. Check the sources before you rely on the answer." : "The index holds nothing on this question.");
+            if (r.error) $("#answer").innerHTML = '<span style="color:var(--conflict)">' + safe(r.error) + "</span>";
+            return;
+          }
+          setTimeout(poll, 400);
+        }, function (e) { $("#go").disabled = false; $("#state").textContent = e.message; });
+      })();
+    }, function (e) { $("#go").disabled = false; $("#state").textContent = e.message; });
+  }
+  $("#go").addEventListener("click", ask);
+  $("#q").addEventListener("keydown", function (ev) { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) ask(); });
+  CMX.ask("assistants").then(function (r) {
+    var last = CMX.store.get("ask:model"), opts = [];
+    r.servers.forEach(function (s) {
+      opts.push('<optgroup label="' + safe(s.name) + '">' + s.models.map(function (name) {
+        var i = models.push({ kind: s.kind, base: s.base, model: name }) - 1;
+        return '<option value="' + i + '"' + (last === s.base + " " + name ? " selected" : "") + ">" + safe(name) + "</option>";
+      }).join("") + "</optgroup>");
+    });
+    $("#model").innerHTML = opts.join("");
+    $("#servers").textContent = r.servers.length ? r.servers.map(function (s) { return s.name + " (" + s.models.length + ")"; }).join(", ") :
+      (r.ollama_installed ? "Ollama is installed but not running: start it from the Start menu, then reload this page." :
+       "No model server runs on this PC: install Ollama (ollama.com) or start llama.cpp's server or LM Studio.");
+  }, function (e) { $("#servers").textContent = e.message; });
+})();
+</script>
+</body></html>

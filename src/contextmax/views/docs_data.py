@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import os
 from collections import Counter, defaultdict
-from pathlib import Path
-from urllib.parse import quote
 
 from contextmax import util
 
@@ -138,8 +136,7 @@ def _doc_node(nid, d, column, tier, x, y, per_code, structure, roots, portable) 
         "heads": (s.get("headings") or [])[:14],
         "reqs": [[r["text"][:200], r.get("ids") or []] for r in (s.get("requirements") or [])[:5]],
         "params": params,
-        "file_uri": Path(abs_path).as_uri() if abs_path else None,
-        "explorer": ("contextmax-open:select?path=" + quote(abs_path, safe="")) if abs_path else None,
+        "path": abs_path,          # the window, or a contextmax-open: link, opens it (opener.py)
         "text": None if portable else d.get("cached_text"),
     }
 

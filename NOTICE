@@ -11,5 +11,13 @@ Third-party software included:
   Dual licensed under the Apache License 2.0 and the MIT License; used here under the
   Apache License 2.0. Both license texts are in third_party/vis-network/.
 
-Dependencies installed alongside, under their own permissive licenses:
-  openpyxl (MIT), xlrd (BSD), pypdfium2 (Apache-2.0 or BSD-3-Clause; PDFium BSD-3-Clause).
+Dependencies installed alongside, under their own licenses:
+  openpyxl (MIT), xlrd (BSD), pypdfium2 (Apache-2.0 or BSD-3-Clause; PDFium BSD-3-Clause),
+  RapidOCR (Apache-2.0; its models Apache-2.0) and ONNX Runtime (MIT), with what they need in turn:
+  among them OpenCV (Apache-2.0, its wheel including FFmpeg under the LGPL 2.1), Shapely (BSD-3-Clause,
+  its wheel including GEOS under the LGPL 2.1), NumPy (BSD-3-Clause), Pillow (MIT-CMU), and certifi
+  and tqdm (MPL-2.0).
+
+The offline installer (make-offline-installer.cmd) carries these packages as unchanged wheels, each
+with its own license files; its wheels\THIRD-PARTY.txt lists every package with its license and
+where the source of the LGPL parts is.

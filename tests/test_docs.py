@@ -62,13 +62,16 @@ def test_an_old_xls_workbook_is_read_through_xlrd(monkeypatch):
 
 
 def test_pdf_pages_render_for_text_recognition(built, tmp_path):
-    from contextmax.docs.readers import render_pdf_pages
+    from contextmax.docs import ocr
 
     row = next(r for r in util.load_jsonl(built.documents_dir / "text-index.jsonl") if r["key"] == "Test_report_3")
     root = next(f.path for f in built.folders if f.name == row["folder"])
-    assert render_pdf_pages(f"{root}/{row['relative_path']}", tmp_path, dpi=50) == 1
-    png = next(tmp_path.glob("*.png")).read_bytes()
-    assert png.startswith(b"\x89PNG") and len(png) > 100
+    ink, count = ocr.render(f"{root}/{row['relative_path']}", tmp_path)
+    assert count == 1 and list(ink) == [1] and 0 < ink[1] < 0.5          # a page with text on it
+    png = (tmp_path / "page-0001.png").read_bytes()
+    assert png.startswith(b"\x89PNG") and png[25] == 0                  # grey, 8 bits
+    width = int.from_bytes(png[16:20], "big")
+    assert 2400 < width < 2600                                           # an A4 page at 300 dpi
 
 
 def test_words_own_marks_become_plain_text():

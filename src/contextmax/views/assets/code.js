@@ -82,7 +82,8 @@
       '<dl class="kv"><dt>Files</dt><dd>' + CMX.num(s.files_count) + "</dd><dt>Functions</dt><dd>" + CMX.num(s.functions_count) + " (" + CMX.num(s.product_functions_count) + " product, " + CMX.num(s.test_functions_count) + " test)</dd>" +
       "<dt>Calls</dt><dd>" + CMX.num(s.call_edges_count) + "</dd><dt>Modules</dt><dd>" + CMX.num(s.modules_count) + "</dd><dt>Entry points</dt><dd>" + CMX.num(s.entry_points_count) + "</dd></dl>" +
       '<div class="remark">Not followed: ' + plural(s.indirect_calls_count, "call") + " through pointers or objects, " + plural(s.ambiguous_calls_count, "call") + " to a name defined more than once, and calls to " + plural(s.unresolved_call_names_count, "name") + " defined outside these folders.</div>" +
-      '<p class="quiet" style="margin-top:14px">Click a module or a function to see it here.</p>';
+      '<p class="quiet" style="margin-top:14px">Click a module or a function to see it here. A bubble with an arrow going into a box ' +
+      "opens: double-click it to see the functions inside (or, for a function of another module, that module).</p>";
   }
   side.addEventListener("click", function (ev) {
     var a = ev.target.closest("[data-fn]"); if (a) { ev.preventDefault(); goFn(+a.getAttribute("data-fn")); return; }
@@ -124,12 +125,40 @@
       return net;
     }
     function hex(c, a) { var n = parseInt(c.slice(1), 16); return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a + ")"; }
+    /* a bubble that opens (double-click: a module's functions, or the module a function belongs to) carries
+       an arrow going into a box in its middle; a function that is only itself carries none */
+    function enterMark(ctx, x, y, s) {
+      function shape() {
+        ctx.beginPath();
+        ctx.moveTo(x - s * 0.1, y - s * 0.72); ctx.lineTo(x + s * 0.72, y - s * 0.72);
+        ctx.lineTo(x + s * 0.72, y + s * 0.72); ctx.lineTo(x - s * 0.1, y + s * 0.72);
+        ctx.moveTo(x - s * 0.95, y); ctx.lineTo(x + s * 0.32, y);
+        ctx.moveTo(x - s * 0.04, y - s * 0.36); ctx.lineTo(x + s * 0.32, y); ctx.lineTo(x - s * 0.04, y + s * 0.36);
+      }
+      var w = Math.max(1.3, s * 0.17);
+      ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(0,0,0,0.38)"; ctx.lineWidth = w + 2.2; shape(); ctx.stroke();
+      ctx.strokeStyle = "#ffffff"; ctx.lineWidth = w; shape(); ctx.stroke();
+      ctx.restore();
+    }
+    function markOpenable(ids) {
+      net.on("afterDrawing", function (ctx) {
+        var pos = net.getPositions(ids);
+        ids.forEach(function (id) {
+          var node = net.body.nodes[id];
+          if (!node || !pos[id]) return;
+          var r = (node.shape && node.shape.radius) || node.options.size || 0;
+          if (r >= 5) enterMark(ctx, pos[id].x, pos[id].y, Math.max(3.5, r * 0.5));
+        });
+      });
+    }
     function overview() {
       state.module = null;
       var n = M.map(function (m) {
         var c = CMX.color(m.id);
         return { id: "m" + m.id, label: m.name + "\n" + m.nf, value: Math.max(1, m.nf), shape: "dot", scaling: { min: 18, max: 70, label: { enabled: true, min: 13, max: 22 } },
-                 color: { background: hex(c, 0.88), border: c, highlight: { background: c, border: CMX.css("--focus") }, hover: { background: c, border: c } }, borderWidth: 2, title: m.name + ": " + m.nf + " functions" };
+                 color: { background: hex(c, 0.88), border: c, highlight: { background: c, border: CMX.css("--focus") }, hover: { background: c, border: c } }, borderWidth: 2,
+                 title: m.name + ": " + m.nf + " functions · double-click to open" };
       });
       var maxw = Math.max.apply(null, [1].concat(D.mod_edges.map(function (e) { return e[2]; })));
       var e = D.mod_edges.map(function (x, i) {
@@ -137,8 +166,11 @@
                  color: { color: hex(CMX.color(x[0]), 0.45), highlight: CMX.css("--focus"), hover: CMX.color(x[0]) } };
       });
       mount(n, e);
+      /* only a module with a function to show opens (its tests or stubs may be switched off) */
+      function opens(mi) { return perModule[mi].some(function (i) { return visible(F[i]); }); }
+      markOpenable(M.filter(function (m) { return opens(m.id); }).map(function (m) { return "m" + m.id; }));
       net.on("click", function (p) { if (p.nodes.length) describeModule(+p.nodes[0].slice(1)); });
-      net.on("doubleClick", function (p) { if (p.nodes.length) openModule(+p.nodes[0].slice(1)); });
+      net.on("doubleClick", function (p) { if (p.nodes.length) { var mi = +p.nodes[0].slice(1); if (opens(mi)) openModule(mi); else describeModule(mi); } });
       setCrumbs([{ label: D.target.label + " · all modules" }]);
       describeOverview();
     }
@@ -161,13 +193,14 @@
                           highlight: { background: c, border: CMX.css("--focus") }, hover: { background: c, border: c } },
                  borderWidth: test || stub ? 2 : 1, shapeProperties: { borderDashes: stub ? [3, 2] : false },
                  font: { size: own ? 13 : 11, color: own ? CMX.css("--text") : CMX.css("--text-2") },
-                 title: f.q + " · " + M[f.m].name + " · " + f.c + " callers" };
+                 title: f.q + " · " + M[f.m].name + " · " + f.c + " callers" + (own ? "" : " · double-click to open " + M[f.m].name) };
       });
       var e = [];
       D.calls.forEach(function (c, k) {
         if (set[c[0]] && set[c[1]] && (F[c[0]].m === mi || F[c[1]].m === mi)) e.push({ id: "c" + k, from: c[0], to: c[1], color: { color: hex(CMX.color(F[c[0]].m), 0.4), highlight: CMX.css("--focus") } });
       });
       mount(n, e);
+      markOpenable(ext);
       net.on("click", function (p) { if (p.nodes.length) describeFn(p.nodes[0]); });
       net.on("doubleClick", function (p) { if (p.nodes.length && F[p.nodes[0]].m !== mi) openModule(F[p.nodes[0]].m); });
       setCrumbs([{ label: D.target.label, go: overview }, { label: M[mi].name }]);
@@ -491,5 +524,5 @@
     else side.innerHTML = '<p class="quiet">Nothing called “' + safe(q) + '” in this code base.</p>';
   });
   var m = /fn=([^&]+)/.exec(location.hash);
-  if (m) { var name = decodeURIComponent(m[1]); var f = F.filter(function (x) { return x.n === name || x.q === name; })[0]; if (f) goFn(f.id); }
+  if (m) { var name = decodeURIComponent(m[1]); var f = F.filter(function (x) { return x.n === name || x.q === name; })[0]; if (f) goFn(f.id); CMX.dropHash("fn"); }
 })();

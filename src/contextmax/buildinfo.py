@@ -104,6 +104,9 @@ def build(proj) -> dict:
     partial_count = int(coverage.get("ocr_partial_count") or 0)
     if partial_count:
         problems.append(f"{partial_count} scan(s) recognised only in part")
+    doubtful_count = int(coverage.get("ocr_doubtful_count") or 0)
+    if doubtful_count:
+        problems.append(f"{doubtful_count} scan(s) with pages whose recognised text does not read as words")
     if not problems:
         confidence, reason = "High", "every folder read"
     elif missing_folders or not complete["code_ok"] or not complete["with_doc_map"]:

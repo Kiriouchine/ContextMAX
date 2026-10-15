@@ -89,9 +89,12 @@ def build(proj, portable: bool = False) -> None:
         '<section><h2 class="sec">Your folders</h2><div class="tablebox"><table class="listing"><thead><tr><th>Name</th><th>Folder</th>'
         f'<th>Holds</th><th style="text-align:right">Files</th><th>State</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>'
         '<section class="grid4" style="grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr))">'
-        '<article class="tile"><h2 class="sec" style="margin:0">Ask your AI</h2><p class="quiet">In Claude Code or Copilot, with the ContextMAX skill installed, '
-        "ask in plain words. Answers cite the file and line, the document, or the sheet and cell, and say what was not checked.</p>"
-        '<ul class="ask" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">'
+        '<article class="tile"><h2 class="sec" style="margin:0">Ask your AI</h2><p class="quiet">With the ContextMAX skill, an assistant '
+        "answers in plain words and cites the file and line, the document, or the sheet and cell, and says what was not checked. "
+        + ("" if portable else "It starts in the project's working folder, with the skill installed for it.") + "</p>"
+        + ('<div class="hstack" id="ask-actions" style="margin:0" data-portable="1"></div>' if portable else
+           f'<div class="hstack" id="ask-actions" style="margin:0" data-root="{escape(str(proj.workspace))}"></div>')
+        + '<ul class="ask" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">'
         "<li>Where is this function defined, and who calls it?</li><li>What breaks if I change it?</li>"
         "<li>Where does this value come from, and do the documents agree?</li><li>Which documents describe this module?</li></ul></article>"
         f'<article class="tile"><h2 class="sec" style="margin:0">Code bases</h2><ul style="margin:0;padding-left:18px;line-height:26px">{code_links or "<li class=quiet>none mapped</li>"}</ul>'

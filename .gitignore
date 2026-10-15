@@ -22,3 +22,12 @@ wheels/
 
 # Test scratch output
 tests/_out/
+
+# Secrets and local settings never belong in the repository
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+.claude/settings.local.json

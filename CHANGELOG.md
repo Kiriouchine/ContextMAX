@@ -12,7 +12,7 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
   recorded), Python (resolution through imports and `self`), MATLAB (indexing told apart from calls)
   and VHDL (entity hierarchy, design top, orphans).
 - Document text cache: PDF, Word, RTF, text, Excel and CSV, old Office files through Word and Excel,
-  scanned PDFs through Windows text recognition; copies folded by name and size; files in the cloud
+  scanned PDFs through text recognition; copies folded by name and size; files in the cloud
   kept pending; incremental, with pruning after a safe write.
 - Document map: stages with a recorded reason, revisions folded into one document, links to code by
   distinctive names only, "about a part of the code" kept apart from a link, headings, "shall"
@@ -27,6 +27,43 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
   say, and an outcome: Match, Only in documents, Only in code, Mismatch) and one status line.
 - `buildinfo.json` with the input and output fingerprints kept apart, and an honest completeness verdict.
 - `share` writes a portable copy for colleagues; `selfcheck` writes a verdict to send for help.
+- `setup.cmd` installs everything itself, per user and without administrator rights: a private copy
+  of the official Python (from nuget.org, checked against a pinned SHA-256; a Python already on the PC
+  when there is no internet), the private environment with ContextMAX and its readers, Start menu and
+  desktop shortcuts, the `contextmax` command on the PATH (in a folder of its own, so the user's own
+  `python` stays first), an entry in Apps & features and `uninstall.cmd`, which keeps the projects.
+  `ContextMAX.cmd` runs `setup.cmd` the first time. The window's folder picker is the modern Windows
+  dialog, called directly (no tkinter), and folder names in any script work.
+- **Ask your AI** on the Home page starts VS Code with Claude's chat, VS Code (Copilot), Claude Code or
+  Codex in the project's working folder, with the skill installed for it (Codex too, where it is
+  installed); the working folder gets `CLAUDE.md`, `AGENTS.md`, Claude Code's read access to the project's
+  folders and a VS Code workspace. **A model on this PC** answers from sources ContextMAX finds in the index
+  itself, through Ollama, llama.cpp's server or LM Studio, and only ever asks 127.0.0.1.
+- The documents page's **Open document** and **Show in folder** work: the window opens the file, and a page
+  opened from the folder uses a `contextmax-open:` link that setup.cmd registers (`--no-links` leaves it
+  out). Only documents inside a ContextMAX project are opened, checked as text before anything is touched,
+  so a link cannot make Windows contact another computer; a link opens only formats that carry no code.
+  **Extracted text** opens in a new tab.
+- The window answers only requests addressed to it on this PC (a web page that points its own name at
+  127.0.0.1 is refused) and its pages cannot be framed by another site.
+- A page whose data held `<!--` (an HTML comment in a Markdown document or a docstring) showed nothing;
+  it shows now.
+- In the code map's bubbles, a bubble that opens on a double-click carries an arrow going into a box.
+- Links to a document from the code and parameters pages, and to a function from the documents page,
+  select it again (the page kept only its view in the address).
+- `make-offline-installer.cmd` makes a zip that installs ContextMAX on a PC without internet: the same
+  Python, every package and ContextMAX itself as wheels pinned by SHA-256, RapidOCR's Cyrillic model and
+  a list of the packages' licences; installed once with the network shut off before the zip is written.
+- `setup.cmd` also works for user names outside the system's code page (Cyrillic, Chinese), and an update
+  while ContextMAX is open moves the old environment aside instead of clearing it under the open window.
+- Scanned PDFs are read page by page at 300 dpi, by Windows' text recognition and by RapidOCR, which
+  setup.cmd installs: the language, the reader and the way up are chosen per page by how much of the
+  text reads as words (Chinese, Japanese, Arabic and Hebrew included); a slanted scan is straightened,
+  tables keep their rows and two columns are read in order. On 13 made-up test scans (English, Dutch,
+  German, Russian, Chinese, a table, a slanted table, small print, a sparse page, two columns, a mixed
+  document, and English and Russian pages on their side) the text matched 99.3% of characters on this
+  PC, against 64.9% before. Doubtful pages are counted; a scan that could not be read is not read again
+  on every build; documents an earlier version recognised are read again.
 - ContextMAX's own names throughout: working folders `catalogue`, `code`, `documents`, `pages` and
   `notes`; build options `--catalogue`, `--documents` and `--full`; most counts named `<thing>_count`;
   `links/between-docs.jsonl`, `hdl-tree.json`, and the value database's tables `sources`, `places` and

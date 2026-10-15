@@ -248,9 +248,13 @@ def _register(slug: str, workspace: Path) -> None:
     util.save_json(projects_file(), dict(sorted(reg.items())), indent=2)
 
 
+# Folders setup.cmd uses inside the ContextMAX folder: a project never gets one of these names.
+PROGRAM_FOLDERS = frozenset({"python", "bin"})
+
+
 def create(name: str, folders: list[dict], workspace: str | None = None) -> Project:
     slug = util.slugify(name)
-    ws = Path(workspace) if workspace else default_home() / slug
+    ws = Path(workspace) if workspace else default_home() / (f"{slug}-project" if slug in PROGRAM_FOLDERS else slug)
     ws.mkdir(parents=True, exist_ok=True)
     data = {
         "schema": SCHEMA,

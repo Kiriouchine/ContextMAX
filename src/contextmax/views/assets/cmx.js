@@ -1,5 +1,6 @@
-/* ContextMAX shared page script: theme, view switching, pan and zoom, small helpers.
-   No network, no framework. Every page works offline from the working folder. */
+/* ContextMAX shared page script: theme, view switching, pan and zoom, opening files, small helpers.
+   No framework, and no network beyond this PC: a page the ContextMAX window serves talks to that window
+   only. Every page works offline from the working folder. */
 "use strict";
 var CMX = (function () {
   var store = {
@@ -20,10 +21,10 @@ var CMX = (function () {
   /* ---- theme: follows Windows unless the viewer picks one ---- */
   var themeListeners = [];
   function theme() { return document.documentElement.getAttribute("data-theme") || "light"; }
-  function applyTheme(t) {
+  function applyTheme(t, quiet) {
     document.documentElement.setAttribute("data-theme", t);
     var b = $("#theme"); if (b) { b.textContent = t === "dark" ? "Light" : "Dark"; b.setAttribute("aria-label", "Switch to " + (t === "dark" ? "light" : "dark") + " mode"); }
-    themeListeners.forEach(function (f) { f(t); });
+    if (!quiet) themeListeners.forEach(function (f) { f(t); });
   }
   function initialTheme() {
     var asked = /[?&]theme=(light|dark)/.exec(location.search);
@@ -35,7 +36,7 @@ var CMX = (function () {
   /* set before the first paint, so nothing is drawn in the wrong colours */
   document.documentElement.setAttribute("data-theme", initialTheme());
   function initTheme() {
-    applyTheme(theme());
+    applyTheme(theme(), true);       /* the colours were set before the first paint: nothing to redraw, no selection lost */
     var b = $("#theme");
     if (b) b.addEventListener("click", function () { var t = theme() === "dark" ? "light" : "dark"; store.set("theme", t); applyTheme(t); });
   }
@@ -52,7 +53,9 @@ var CMX = (function () {
       current = v;
       $$("button", bar).forEach(function (b) { var on = b.getAttribute("data-view") === v.id; b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
       store.set("view:" + page, v.id);
-      if (history.replaceState) history.replaceState(null, "", "#view=" + v.id + (location.hash.indexOf("&") > 0 ? location.hash.slice(location.hash.indexOf("&")) : ""));
+      /* only view= changes: a link's doc= or fn= stays, for the page to select it */
+      var rest = location.hash.replace(/^#/, "").split("&").filter(function (p) { return p && !/^view=/.test(p); }).join("&");
+      if (history.replaceState) history.replaceState(null, "", "#view=" + v.id + (rest ? "&" + rest : ""));
       v.enter();
     }
     bar.addEventListener("click", function (ev) { var b = ev.target.closest("button[data-view]"); if (b) pick(b.getAttribute("data-view")); });
@@ -138,10 +141,83 @@ var CMX = (function () {
     return "vscode://file/" + encodeURI(p) + (line ? ":" + line : "");
   }
 
+  /* a link's doc= or fn= has done its work once the page selected it: the address then shows the view only */
+  function dropHash(name) {
+    if (!history.replaceState) return;
+    var h = location.hash.replace(/^#/, "").split("&").filter(function (p) { return p && p.indexOf(name + "=") !== 0; }).join("&");
+    history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
+  }
+
   function num(n) { return n === null || n === undefined ? "" : Number(n).toLocaleString("en-US"); }
+
+  /* ---- the ContextMAX window: set when it serves this page (window.CMX_PANEL holds its token) ---- */
+  function panel() { return window.CMX_PANEL || null; }
+  function ask(action, body) {
+    var P = panel();
+    if (!P) return Promise.reject(new Error("open this page from the ContextMAX window"));
+    return fetch("/api/" + action, { method: "POST", headers: { "Content-Type": "application/json", "X-CMX-Token": P.token },
+                                     body: JSON.stringify(Object.assign({ slug: P.slug }, body || {})) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); });
+  }
+  function note(button, text, bad) {
+    var host = button && button.parentNode; if (!host) return;
+    var n = host.querySelector(".cmx-note");
+    if (!n) { n = document.createElement("span"); n.className = "quiet cmx-note"; host.appendChild(n); }
+    n.textContent = text; n.style.color = bad ? "var(--conflict)" : "";
+  }
+  /* "Open document" and "Show in folder": the window opens the file; a page opened from disk follows a
+     contextmax-open: link, which setup.cmd registers for this user. Either way only files in a project's
+     folders, and only documents, are opened. */
+  function openFile(path, how, button) {
+    if (panel()) {
+      ask("files", { path: path, how: how }).then(function (j) { note(button, j.message); }, function (e) { note(button, e.message, true); });
+    } else {
+      location.href = "contextmax-open:" + how + "?path=" + encodeURIComponent(path);
+    }
+  }
+  /* ---- Ask your AI (Home): the assistants this PC has, started from the window ---- */
+  function initAsk() {
+    var box = $("#ask-actions"); if (!box) return;
+    var P = panel();
+    if (box.getAttribute("data-portable")) {
+      box.innerHTML = '<span class="quiet">This is a shared copy. With ContextMAX installed, the PC that built the project starts an assistant from here.</span>';
+      return;
+    }
+    if (!P) {
+      var root = box.getAttribute("data-root");
+      box.innerHTML = (root ? '<a class="btn ghost" href="vscode://file/' + encodeURI(root.replace(/\\/g, "/")) + '">Open in VS Code</a>' : "") +
+        '<span class="quiet">Open this project from the ContextMAX window to start Claude, Codex or a model on this PC from here.</span>';
+      return;
+    }
+    box.innerHTML = '<span class="quiet">Looking for assistants on this PC …</span>';
+    ask("assistants").then(function (r) {
+      var on = r.tools.filter(function (t) { return t.ok; }), off = r.tools.filter(function (t) { return !t.ok; });
+      var html = on.map(function (t, i) {
+        return '<button type="button" class="btn' + (i ? " ghost" : "") + '" data-assistant="' + safe(t.id) + '" title="' + safe(t.title) + '">' + safe(t.label) + "</button>";
+      });
+      html.push('<a class="btn ghost" target="_blank" rel="noopener" href="/ask?slug=' + encodeURIComponent(P.slug) + '" title="' +
+        safe(r.servers.length ? "Ollama, llama.cpp or LM Studio on this PC: nothing leaves the PC" : "no model server runs on this PC yet") + '">A model on this PC</a>');
+      box.innerHTML = html.join("") + (off.length ? '<span class="quiet" style="flex-basis:100%">Not on this PC: ' +
+        off.map(function (t) { return safe(t.label) + " (" + safe(t.why) + ")"; }).join(", ") + "</span>" : "");
+    }, function (e) { box.innerHTML = '<span class="quiet">' + safe(e.message) + "</span>"; });
+    box.addEventListener("click", function (ev) {
+      var b = ev.target.closest("[data-assistant]"); if (!b) return;
+      b.disabled = true; note(b, "Starting …");
+      ask("assistant", { tool: b.getAttribute("data-assistant") }).then(function (j) { note(b, j.message); b.disabled = false; },
+        function (e) { note(b, e.message, true); b.disabled = false; });
+    });
+  }
+  document.addEventListener("DOMContentLoaded", initAsk);
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-file]");
+    if (!b) return;
+    ev.preventDefault();
+    openFile(b.getAttribute("data-file"), b.getAttribute("data-how") || "open", b);
+  });
 
   document.addEventListener("DOMContentLoaded", initTheme);
   return { safe: safe, $: $, $$: $$, pageData: pageData, css: css, store: store, theme: theme, onTheme: onTheme,
            initViews: initViews, panZoom: panZoom, zoomButtons: zoomButtons, el: el, freshSvg: freshSvg,
-           wire: wire, arc: arc, color: color, editorLink: editorLink, num: num };
+           wire: wire, arc: arc, color: color, editorLink: editorLink, num: num, dropHash: dropHash, panel: panel, ask: ask, note: note,
+           openFile: openFile };
 })();

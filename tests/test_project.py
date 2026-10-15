@@ -142,3 +142,12 @@ def test_the_self_check_writes_a_report(built):
 
     share.selfcheck(built)
     assert list(built.path("logs").glob("self-check-*.json"))
+
+
+def test_a_project_never_takes_a_program_folder(tmp_path, monkeypatch):
+    from contextmax import project
+
+    monkeypatch.setenv("CONTEXTMAX_HOME", str(tmp_path))
+    assert project.create("Python", []).workspace == tmp_path / "python-project"
+    assert project.create("Bin", []).workspace == tmp_path / "bin-project"
+    assert project.create("Python tools", []).workspace == tmp_path / "python-tools"
