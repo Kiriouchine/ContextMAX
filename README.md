@@ -17,8 +17,9 @@ alone: no AI in the build, the same folders always give the same index. It never
   when it is installed. Copies and revisions of one document fold into one, with every copy listed.
   Each document gets a lifecycle stage, its headings, its "shall" statements and its values.
 - **Links**: a document that names code; a document that cites another's title or quotes its number;
-  documents that state the same named value, and whether they agree; documents about the same part of
-  the code.
+  documents that state the same named value, and whether they agree; when most documents agree on a value, a
+  document that states another, in red, linked to the document they follow; documents about the same part of
+  the code. Every link found is kept: no document is limited to its strongest few.
 - **Values**: every number with a unit and every spreadsheet cell, found by its name, with the sheet and
   cell it came from and the formula behind it.
 - **Your AI**: a skill for Claude Code, GitHub Copilot and Codex that answers in three parts (what the
@@ -50,6 +51,14 @@ it runs `setup.cmd` for you.
 In the window: name a project, add its folders with the folder picker, say what each holds, and press
 **Read documents and build**. To try everything on a small made-up project first, run `contextmax demo`.
 
+Adding a folder, removing one or changing what it holds starts a build at once: links run across folders,
+so one changed folder can change links anywhere in the project. **Show the build live** (off unless you
+switch it on) draws the Complete Atlas while the build runs, from the build's own results: the documents
+as they are read, the code as it is mapped, each document moving to its stage, the links as they are
+found, the validation gate, and at the end the same drawing as the Complete Atlas page. The text log
+stays as it is. It costs the build no measurable time: on 10,060 code files and 10,000 documents
+the build took 288.5 s with it and 288.7 s without.
+
 ### A PC without internet
 
 On a PC with internet, double-click **`make-offline-installer.cmd`**. It makes
@@ -70,6 +79,7 @@ works offline, from the folder. A switch at the top right gives light or dark.
 
 | Page | Views (buttons above the map) |
 |---|---|
+| **Complete Atlas** | Everything in one drawing: every module of every code base on a wheel with the calls between them, every document in its lifecycle stage, and every link: documents to the code they name, and documents to documents (cited, quoted, shared values, values that differ, same part of the code). Click a module, a document or any line for what it connects; double-click a module for its functions, the modules it calls and is called from, and the documents that name each function. Each kind of line can be switched on and off. |
 | **Code** (one per code base) | **Bubbles**: modules, then a module's functions, laid out by physics. **Drafting table**: modules as blocks holding their functions as circles, in a fixed layout. **Metro lines**: each module a coloured line, its functions the stations in call order, calls into another module as changes between lines. **Zoom levels**: code bases, then modules, then one function with its callers and callees. **Hierarchy**: VHDL entities and which one places which. |
 | **Documents** | **Document map**: stages left to right, rows by how closely a document ties to the code. **Drafting table**: the same documents as pages. **Network**: linked documents and the code modules they name, laid out by physics. Each link kind can be switched on and off. |
 | **Parameters** | Find a value by its name, see every document that states it, and whether they agree. Trace a cell's formula back to its constants. |
@@ -131,7 +141,8 @@ buildinfo.json      what was mapped, how complete it is, and fingerprints to pro
 catalogue\          every file, its category, priority and document numbers (all-files.csv)
 code\<base>\        function-list.jsonl, call-pairs.json, name-lookup.json, module-list.json, code-guide.md
 documents\          text\ and sheets\ (what was read), doc-list.jsonl (documents), doc-outlines.jsonl,
-                    params.sqlite (every value), links\ (document and code links), document-guide.md
+                    params.sqlite (every value), value-conflicts.jsonl (values documents give differently),
+                    links\ (document and code links), document-guide.md
 pages\              the pages
 notes\              project-notes.md and connections.json: knowledge people write down
 CLAUDE.md, AGENTS.md, .claude\, <project>.code-workspace
@@ -148,8 +159,8 @@ CLAUDE.md, AGENTS.md, .claude\, <project>.code-workspace
   words. A document about a part of the code that names none of it is marked as such, never linked.
 - **A value is a name, not a number.** Values are looked up by what they measure; the number decides
   whether two documents agree.
-- **A gate before the pages.** A strict check recomputes and cross-checks the document map; if it
-  fails, no page is written.
+- **A gate before the pages.** A strict check recomputes and cross-checks the document map, the values
+  that differ included; if it fails, no page is written.
 - **Finding aids, not the record.** Stages, links and values come from text. Open the original before
   relying on a requirement or a number.
 

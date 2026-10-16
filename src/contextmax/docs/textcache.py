@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -197,6 +198,15 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
         if max_files and len(plan) >= max_files:
             break
     util.say("docs", f"to read now: {len(plan)}; pending in the cloud: {len(pending)}; unreadable: {len(skipped)}")
+    live = util.live_on()
+    if live:
+        # every document: the ones already read first, then the ones read now in reading order, then the rest
+        now = [p["key"] for p in plan]
+        now_set = set(now)
+        later = ({s["key"] for s in skipped} | {keys[(x["folder"], x["relative_path"])] for x in pending}) - now_set
+        done = [k for k in (keys[(r["Folder"], r["RelativePath"])] for r in cands) if k not in later and k not in now_set]
+        util.live("docs", keys=done + now + sorted(later), read=len(done))
+        told = time.monotonic()
 
     results = {}
     for n, p in enumerate(plan, 1):
@@ -236,6 +246,9 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
             invalid.add(key)
         if n % 25 == 0 or n == len(plan):
             util.say("docs", f"  [{n}/{len(plan)}] {key}")
+        if live and (n == len(plan) or time.monotonic() - told > 0.25):
+            util.live("read", n=len(done) + n)
+            told = time.monotonic()
     if copies:
         util.save_json(copies_dir / "copies.json", dict(sorted(copies.items())))
 

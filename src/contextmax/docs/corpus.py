@@ -10,7 +10,9 @@ Stages, in order (each one reads only what the earlier ones wrote):
   values          every named value in one list with its origin and exact cell (params.jsonl), and
                   the same as an indexed SQLite database (params.sqlite)
   document_links  document to document: a quoted document number, a cited title or file name,
-                  named values stated in both, and a shared part of the code
+                  named values stated in both (and, for a value many documents state, a link to the
+                  document that anchors it), a value that differs from what most documents state,
+                  and a shared part of the code. value-conflicts.jsonl lists every such difference
   docs_of_code    the same links read backwards: which documents describe a module or a function
   validate        a strict gate over everything above; a failure stops the build
 
@@ -105,10 +107,8 @@ PROSE_LABEL = re.compile(r"""
 """, re.VERBOSE)
 
 STRUCT_CAP = 1000
-MAX_VALUE_OWNERS = 12       # a value name stated by more documents than this is generic
+MAX_VALUE_OWNERS = 12       # a value name stated by more documents links each of them to one anchor, not in pairs
 SHARED_VALUE_MIN = 2        # documents sharing this many named values are linked; one is enough if specific
-SHARED_VALUE_CAP = 8        # strongest value links kept per document
-CITE_CAP = 40
 
 
 # Catalogue fields a document keeps as they are; and those each copy of a document lists.
@@ -651,58 +651,145 @@ def _citations(core: list[dict], texts: dict) -> list[dict]:
                     hits[key] += 1
                     if how.get(key) != "file name":
                         how[key] = kind
-        for key, n in sorted(hits.items(), key=lambda kv: (-kv[1], kv[0]))[:CITE_CAP]:
+        for key, n in sorted(hits.items(), key=lambda kv: (-kv[1], kv[0])):
             edges.append({"from": d["key"], "to": key, "kind": "cites", "count": n,
                           "source": f"{how[key]} written in the text"})
     return edges
 
 
-def _shared_values(proj: Project) -> list[dict]:
-    """Documents that state the same named values. Names stated almost everywhere are generic and
-    ignored. The line records how many of the shared values agree, so a conflict is visible."""
-    by_label = defaultdict(dict)       # label -> node -> set of normalized values
-    shown = {}
-    for r in util.load_jsonl(proj.documents_dir / "params.jsonl"):
+# == named values stated in several documents ==
+
+def _place(r: dict) -> str:
+    """Where a value is written inside its document: the sheet and cell of a workbook."""
+    return f"{r['sheet']}!{r['cell']}" if r.get("sheet") and r.get("cell") else ""
+
+
+def value_owners(rows: list[dict]) -> dict:
+    """Every named value by its name: the documents that state it, the values each states (normalized), and
+    how and where each was first written. Names that say nothing and constants inside formulas are left out."""
+    by_label: dict[str, dict[str, set]] = defaultdict(dict)
+    shown, written = {}, {}
+    for r in rows:
         lab = r.get("label_norm") or ""
         if P.says_nothing(lab) or r["origin"] == "formula_constant":
             continue
-        by_label[lab].setdefault(r["doc_ref"], set()).add((r["value_norm"], r["unit_norm"]))
+        v = (r["value_norm"], r["unit_norm"])
+        by_label[lab].setdefault(r["doc_ref"], set()).add(v)
         shown.setdefault(lab, r.get("label") or lab)
-    pairs = defaultdict(list)
+        written.setdefault((lab, r["doc_ref"], v), (f"{r['value_shown']} {r['unit']}".strip(), _place(r)))
+    return {"by_label": by_label, "shown": shown, "written": written}
+
+
+def _stating(owners: dict[str, set]) -> dict[tuple, list[str]]:
+    """Each value of one name, with the documents that state it, in key order."""
+    out: dict[tuple, list[str]] = defaultdict(list)
+    for doc in sorted(owners):
+        for v in owners[doc]:
+            out[v].append(doc)
+    return out
+
+
+def _majority(owners: dict[str, set]) -> tuple[tuple, str] | None:
+    """The value more than half of the documents state (at least two of them), and its anchor: the first
+    document, by key, that states it. None when no value has such a majority: then no value is the odd one out."""
+    for v, docs in _stating(owners).items():
+        if len(docs) >= 2 and 2 * len(docs) > len(owners):
+            return v, docs[0]
+    return None
+
+
+def _odd_ones(values: dict) -> dict[tuple[str, str], list[list[str]]]:
+    """(document, anchor) -> one row per name for which most documents agree on a value and this document
+    states another: [name, value here, value in most documents, where here, where in the anchor]."""
+    by_label, shown, written = values["by_label"], values["shown"], values["written"]
+    odd = defaultdict(list)
     for lab in sorted(by_label):
-        nodes = by_label[lab]
-        if not 2 <= len(nodes) <= MAX_VALUE_OWNERS:
+        owners = by_label[lab]
+        most = _majority(owners)
+        if not most:
             continue
-        keys = sorted(nodes)
-        for i, a in enumerate(keys):
-            for b in keys[i + 1:]:
-                agree = bool(nodes[a] & nodes[b])
-                pairs[(a, b)].append((lab, agree))
-    cands = []
-    for (a, b), labs in pairs.items():
-        # one shared value is enough when its name is specific (two words, or eight letters)
-        specific = any(" " in lab.strip() or len(lab) >= 8 for lab, _ in labs)
-        if len(labs) >= SHARED_VALUE_MIN or specific:
-            cands.append((a, b, labs))
-    cands.sort(key=lambda c: (-len(c[2]), c[0], c[1]))
-    taken = Counter()
-    edges = []
-    for a, b, labs in cands:
-        if taken[a] >= SHARED_VALUE_CAP and taken[b] >= SHARED_VALUE_CAP:
+        best, anchor = most
+        for doc in sorted(owners):
+            if best not in owners[doc]:
+                mine = min(owners[doc])
+                here, there = written[(lab, doc, mine)], written[(lab, anchor, best)]
+                odd[(doc, anchor)].append([shown[lab], here[0], there[0], here[1], there[1]])
+    return odd
+
+
+def _value_links(values: dict) -> list[dict]:
+    """Documents linked through the named values they state; every link says how many values agree.
+      shares   two documents state values of the same names, for names stated by two to MAX_VALUE_OWNERS
+               documents (with one shared name enough when the name is specific)
+      anchor   for a name stated by more documents than that, each document links to the first document
+               that states the same value: documents that agree are joined however many there are
+      differs  for any name on whose value most documents agree, a document that states another value
+               links to the first document stating the value most give, with both values and their cells"""
+    by_label, shown = values["by_label"], values["shown"]
+    pairs, stars = defaultdict(list), defaultdict(list)
+    for lab in sorted(by_label):
+        owners = by_label[lab]
+        if len(owners) < 2:
             continue
-        taken[a] += 1
-        taken[b] += 1
+        if len(owners) <= MAX_VALUE_OWNERS:
+            keys = sorted(owners)
+            for i, a in enumerate(keys):
+                for b in keys[i + 1:]:
+                    pairs[(a, b)].append((lab, bool(owners[a] & owners[b])))
+        else:
+            for docs in _stating(owners).values():
+                for doc in docs[1:]:
+                    stars[(doc, docs[0])].append((lab, True))
+
+    def joined(kind: str, a: str, b: str, labs: list, source: str) -> dict:
         differ = [shown[lab] for lab, ok in labs if not ok]
-        edges.append({"from": a, "to": b, "kind": "shares", "shared_count": len(labs),
-                      "agree_count": sum(1 for _, ok in labs if ok), "differ_count": len(differ),
-                      "shared": [shown[lab] for lab, _ in labs[:8]], "differ": differ[:8],
-                      "source": "named values stated in both"})
+        return {"from": a, "to": b, "kind": kind, "shared_count": len(labs), "agree_count": len(labs) - len(differ),
+                "differ_count": len(differ), "shared": [shown[lab] for lab, _ in labs[:8]], "differ": differ[:8],
+                "source": source}
+
+    edges = []
+    for (a, b), labs in sorted(pairs.items()):
+        # one shared value is enough when its name is specific (two words, or eight letters)
+        if len(labs) >= SHARED_VALUE_MIN or any(" " in lab.strip() or len(lab) >= 8 for lab, _ in labs):
+            edges.append(joined("shares", a, b, labs, "named values stated in both"))
+    for (a, b), labs in sorted(stars.items()):
+        edges.append(joined("anchor", a, b, labs, "the same value of a name many documents state, linked to the "
+                                                  "first document that states it"))
+    for (a, b), rows in sorted(_odd_ones(values).items()):
+        edges.append({"from": a, "to": b, "kind": "differs", "differ_count": len(rows), "values": rows,
+                      "source": "another value than most documents state for the same name"})
     return edges
 
 
-def document_links(proj: Project, core: list[dict], rules: Rules) -> list[dict]:
+def value_conflicts(values: dict) -> list[dict]:
+    """Every name that documents state with more than one value: each value with the documents that state it
+    and where. When most documents agree, the value they give, its anchor document, and the documents that
+    differ; otherwise those three are empty. Sorted by name."""
+    by_label, shown, written = values["by_label"], values["shown"], values["written"]
+    out = []
+    for lab in sorted(by_label):
+        owners = by_label[lab]
+        stating = _stating(owners)
+        if len(owners) < 2 or len(stating) < 2:
+            continue
+        most = _majority(owners)
+        best = most[0] if most else None
+        order = sorted(stating, key=lambda v: (v != best, -len(stating[v]), stating[v][0], v))
+        out.append({"label": shown[lab], "label_norm": lab, "documents_count": len(owners),
+                    "anchor": most[1] if most else None, "value": written[(lab, most[1], best)][0] if most else None,
+                    "differing": [d for d in sorted(owners) if best not in owners[d]] if most else [],
+                    "values": [{"value": written[(lab, stating[v][0], v)][0], "value_norm": v[0], "unit": v[1],
+                                "documents_count": len(stating[v]),
+                                "documents": [{"key": d, "place": written[(lab, d, v)][1]} for d in stating[v]]}
+                               for v in order]})
+    return out
+
+
+def document_links(proj: Project, core: list[dict], rules: Rules, values: dict | None = None) -> list[dict]:
     texts = {d["key"]: _text(proj, d.get("cached_text")) for d in core}
-    edges = _lineage(core, rules) + _references(proj, core, rules, texts) + _citations(core, texts) + _shared_values(proj)
+    if values is None:
+        values = value_owners(util.load_jsonl(proj.documents_dir / "params.jsonl"))
+    edges = _lineage(core, rules) + _references(proj, core, rules, texts) + _citations(core, texts) + _value_links(values)
     seen, out = set(), []
     for e in edges:
         sig = tuple(e.get(field) for field in _EDGE_IDENTITY)
@@ -759,25 +846,38 @@ def build(proj: Project) -> dict:
     core, sources, stats = fold_documents(proj, rules)
     util.say("corpus", f"{stats['nodes']} documents from {stats['rows']} cached files "
                        f"({stats['folded']} copies and revisions folded in, {stats['excluded']} logs and licences left out)")
+    live = util.live_on()
+    if live:
+        from contextmax.views import atlas_data
+        atlas_data.live_documents(proj, core)
     dc_edges, sym_stats = code_links(proj, core, rules)
     util.say("corpus", f"{sum(1 for d in core if d['linked_code'])} documents name code "
                        f"({len(dc_edges)} links, {sym_stats['exact_names']} distinctive code names known)")
+    if live:
+        atlas_data.live_code_links(proj, core, dc_edges)
     st = structure_and_parameters(proj, core, sources, rules)
     util.say("corpus", f"{st['totals'].get('headings', 0)} headings, {st['totals'].get('requirements', 0)} shall "
                        f"statements, {st['value_rows']} values in the value list")
-    dd_edges = document_links(proj, core, rules)
+    util.live("values", rows=st["value_rows"], headings=st["totals"].get("headings", 0),
+              requirements=st["totals"].get("requirements", 0))
+    values = value_owners(util.load_jsonl(dm / "params.jsonl"))
+    dd_edges = document_links(proj, core, rules, values)
+    conflicts = value_conflicts(values)
     kinds = Counter(e["kind"] for e in dd_edges)
     util.say("corpus", "document links: " + (", ".join(f"{k} {v}" for k, v in sorted(kinds.items())) or "none"))
+    if live:
+        atlas_data.live_document_links(core, dd_edges)
     util.save_jsonl(dm / "doc-list.jsonl", [json.loads(json.dumps(d, sort_keys=True)) for d in core])
     util.save_jsonl(dm / "doc-sources.jsonl", [json.loads(json.dumps(s, sort_keys=True)) for s in sources])
     util.save_jsonl(dm / "links" / "doc-to-code.jsonl", [json.loads(json.dumps(e, sort_keys=True)) for e in dc_edges])
     util.save_jsonl(dm / "links" / "between-docs.jsonl", [json.loads(json.dumps(e, sort_keys=True)) for e in dd_edges])
+    util.save_jsonl(dm / "value-conflicts.jsonl", [json.loads(json.dumps(c, sort_keys=True)) for c in conflicts])
     util.save_json(dm / "links" / "code-to-doc.json", docs_of_code(proj, core, dc_edges), indent=None, sort_keys=True)
     _write_guide(proj, core, dc_edges, dd_edges, rules)
     summary = {"docs_count": len(core), "sources_count": len(sources), "code_linked_count": sum(1 for d in core if d["linked_code"]),
                "doc_code_edges_count": len(dc_edges), "doc_doc_edges_count": len(dd_edges),
                "doc_doc_kinds": dict(sorted(kinds.items())), "outline_totals": st["totals"],
-               "param_rows": st["value_rows"], "param_origins": st["origins"],
+               "param_rows": st["value_rows"], "param_origins": st["origins"], "value_conflicts_count": len(conflicts),
                "stages": rules.stages}
     util.save_json(dm / "overview.json", summary)
     return summary
@@ -796,7 +896,8 @@ def _write_guide(proj: Project, core, dc_edges, dd_edges, rules: Rules) -> None:
          f"- Documents: {len(core)} · naming code: {sum(1 for d in core if d['linked_code'])}",
          "- Files: `doc-list.jsonl` (one row per document), `doc-sources.jsonl` (every copy and which document it "
          "folds into), `doc-outlines.jsonl` (headings, shall statements, values), `params.sqlite` (every named "
-         "value with its cell), `links/doc-to-code.jsonl`, `links/between-docs.jsonl`, `links/code-to-doc.json`.", ""]
+         "value with its cell), `links/doc-to-code.jsonl`, `links/between-docs.jsonl`, `links/code-to-doc.json`, `value-conflicts.jsonl` "
+         "(every named value that some documents give differently, with each value's documents and cells).", ""]
     for stage in rules.stages:
         docs = [d for d in core if d["stage"] == stage]
         if not docs:
@@ -850,6 +951,7 @@ def validate(proj: Project) -> tuple[list[str], dict]:
     value_rows = rows_of(dm / "params.jsonl")
     dc = rows_of(dm / "links" / "doc-to-code.jsonl")
     dd = rows_of(dm / "links" / "between-docs.jsonl")
+    conflicts = rows_of(dm / "value-conflicts.jsonl")
 
     def key_set(rows, name, field="key"):
         ks = [r.get(field) for r in rows]
@@ -886,6 +988,19 @@ def validate(proj: Project) -> tuple[list[str], dict]:
         if sig in seen:
             errors.append(f"duplicate document link {sig}")
         seen.add(sig)
+    # values that differ: the list and the red links are worked out again from the value list, and must agree
+    values = value_owners(value_rows)
+    if conflicts != [json.loads(json.dumps(c, sort_keys=True)) for c in value_conflicts(values)]:
+        errors.append("value-conflicts.jsonl does not match the value list")
+    for c in conflicts:
+        named = {*c.get("differing", []), *(d["key"] for v in c.get("values", []) for d in v["documents"])}
+        if c.get("anchor"):
+            named.add(c["anchor"])
+        if named - map_keys:
+            errors.append(f"value conflict {c.get('label_norm')!r} names unknown documents")
+    odd = {(a, b): len(rows) for (a, b), rows in _odd_ones(values).items()}
+    if {(e["from"], e["to"]): e.get("differ_count") for e in dd if e.get("kind") == "differs"} != odd:
+        errors.append("the links for values that differ do not match the value list")
     src_map = {s["file_key"]: s["node_ref"] for s in sources}
     for sk, nk in src_map.items():
         if sk not in cached_keys:
@@ -958,5 +1073,5 @@ def validate(proj: Project) -> tuple[list[str], dict]:
             if unknown:
                 errors.append(f"docs_of_code[{target}]: {len(unknown)} names that the code map does not have")
     counts = {"cached documents": len(cached_keys), "map documents": len(map_keys), "source files": len(sources),
-              "values": len(value_rows), "code links": len(dc), "document links": len(dd)}
+              "values": len(value_rows), "code links": len(dc), "document links": len(dd), "values that differ": len(conflicts)}
     return errors, counts

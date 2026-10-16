@@ -8,9 +8,11 @@
     cites: { label: "cites", title: "writes another document's title or file name" },
     quotes: { label: "document number", title: "quotes another document's number" },
     shares: { label: "shared values", title: "states the same named values (red when they differ)" },
+    anchor: { label: "same value", title: "for a name many documents state: linked to the first document that states the same value" },
+    differs: { label: "values differ", title: "most documents agree on a value; this one states another" },
     samepart: { label: "same part", title: "about the same part of the code, next stage" }
   };
-  var kindsOn = { cites: true, quotes: true, shares: true, samepart: false, onlyCoded: false };
+  var kindsOn = { cites: true, quotes: true, shares: true, anchor: false, differs: true, samepart: false, onlyCoded: false };
   var BIG_NODES = 1500, BIG_LINKS = 15000;     // above either, a map is drawn the cheaper way (every line still drawn)
   var linksOf = N.map(function () { return []; });
   E.forEach(function (e, i) { linksOf[e.a].push(i); linksOf[e.b].push(i); });
@@ -18,9 +20,18 @@
   var codeTarget = D.code_targets.length ? D.code_targets[0].name : null;
 
   function edgeColor(e) {
-    if (e.k === "shares") return e.differ_count ? CMX.css("--conflict") : CMX.css("--ok");
+    if (e.k === "shares" || e.k === "anchor") return e.differ_count ? CMX.css("--conflict") : CMX.css("--ok");
+    if (e.k === "differs") return CMX.css("--conflict");
     if (e.k === "samepart") return CMX.css("--text-3");
     return CMX.css("--doc");
+  }
+  function dashOf(e) { return e.k === "quotes" ? [5, 4] : e.k === "samepart" ? [10, 6] : e.k === "anchor" ? [2, 4] : false; }
+  function widthOf(e) { return e.k === "shares" || e.k === "anchor" ? 1 + Math.min(4, e.shared_count / 3) : e.k === "differs" ? 1.4 + Math.min(3, e.differ_count / 2) : 1.4; }
+  function arrowOf(e, size) { return e.k === "cites" || e.k === "quotes" || e.k === "differs" ? { to: { enabled: true, scaleFactor: size } } : undefined; }
+  function linkTitle(e) {
+    if (e.k === "shares" || e.k === "anchor") return e.shared_count + " shared values" + (e.differ_count ? ", " + e.differ_count + " differ" : "");
+    if (e.k === "differs" && e.values) return e.values.map(function (v) { return v[0] + ": " + v[1] + " here, " + v[2] + " in most documents"; }).join("\n");
+    return KIND[e.k].title;
   }
   function strengthClass(c) { return c === "strong" ? "strong" : c === "one" ? "one" : ""; }
 
@@ -51,7 +62,11 @@
     if (ls.length) {
       h += "<h3>Linked documents</h3><ul>" + ls.slice(0, 30).map(function (e) {
         var other = e.a === id ? e.b : e.a, dir = e.k === "cites" || e.k === "quotes" ? (e.a === id ? "cites" : "cited by") : "";
-        var what = e.k === "shares" ? (e.shared_count + " values" + (e.differ_count ? ", <b style=\"color:var(--conflict)\">" + e.differ_count + " differ</b>" : ", all agree")) : e.k === "quotes" ? (dir + " · " + safe(e.doc_number || "")) : dir;
+        var what = e.k === "shares" || e.k === "anchor" ? (e.shared_count + " values" + (e.differ_count ? ", <b style=\"color:var(--conflict)\">" + e.differ_count + " differ</b>" : ", all agree")) :
+          e.k === "differs" ? '<b style="color:var(--conflict)">' + (e.a === id ? e.differ_count + " differ from most" : "most say otherwise: " + e.differ_count) + "</b>" :
+          e.k === "quotes" ? (dir + " · " + safe(e.doc_number || "")) : dir;
+        if (e.k === "differs" && e.values) return '<li style="display:block"><a href="#" data-doc="' + other + '">' + safe(N[other].t) + "</a> <span class=\"quiet\">" + what + "</span>" +
+          e.values.map(function (v) { return '<br><span class="fixed" style="font-size:12.5px">' + safe(v[0]) + ": " + (e.a === id ? '<b style="color:var(--conflict)">' + safe(v[1]) + "</b> here, " + safe(v[2]) + " in most" : safe(v[2]) + " here, " + '<b style="color:var(--conflict)">' + safe(v[1]) + "</b> there") + "</span>"; }).join("") + "</li>";
         return '<li><a href="#" data-doc="' + other + '">' + safe(N[other].t) + "</a><span>" + what + "</span></li>";
       }).join("") + "</ul>";
     }
@@ -92,7 +107,8 @@
   function focusDoc(id) { showDoc(id); if (current.focus) current.focus(id); }
   function linkToggles() {
     controls.innerHTML = Object.keys(KIND).map(function (k) {
-      var sw = k === "shares" ? "border-top:2.5px solid var(--ok)" : k === "samepart" ? "border-top:2px dashed var(--text-3)" : k === "quotes" ? "border-top:2px dashed var(--doc)" : "border-top:2.5px solid var(--doc)";
+      var sw = k === "shares" ? "border-top:2.5px solid var(--ok)" : k === "anchor" ? "border-top:2.5px dotted var(--ok)" : k === "differs" ? "border-top:2.5px solid var(--conflict)" :
+        k === "samepart" ? "border-top:2px dashed var(--text-3)" : k === "quotes" ? "border-top:2px dashed var(--doc)" : "border-top:2.5px solid var(--doc)";
       return '<button type="button" class="switch' + (kindsOn[k] ? " is-on" : "") + '" data-kind="' + k + '" aria-pressed="' + kindsOn[k] + '" title="' + safe(KIND[k].title) + '"><i style="display:inline-block;width:18px;' + sw + '"></i>' + safe(KIND[k].label) + "</button>";
     }).join("") + '<button type="button" class="switch' + (kindsOn.onlyCoded ? " is-on" : "") + '" data-kind="onlyCoded" aria-pressed="' + kindsOn.onlyCoded + '">Only documents that name code</button>';
     CMX.$$("button", controls).forEach(function (b) { b.onclick = function () { var k = b.getAttribute("data-kind"); kindsOn[k] = !kindsOn[k]; current.enter(); }; });
@@ -131,9 +147,8 @@
       E.forEach(function (e, i) {
         if (!visibleEdge(e)) return;
         links.push({ id: "e" + i, from: e.a, to: e.b, color: { color: edgeColor(e), opacity: e.k === "samepart" ? 0.35 : 0.65, highlight: CMX.css("--focus") },
-                     dashes: e.k === "quotes" ? [5, 4] : e.k === "samepart" ? [10, 6] : false, width: e.k === "shares" ? 1 + Math.min(4, e.shared_count / 3) : 1.4,
-                     smooth: { type: "curvedCW", roundness: 0.18 }, arrows: e.k === "cites" || e.k === "quotes" ? { to: { enabled: true, scaleFactor: 0.45 } } : undefined,
-                     title: e.k === "shares" ? e.shared_count + " shared values" + (e.differ_count ? ", " + e.differ_count + " differ" : "") : KIND[e.k].title });
+                     dashes: dashOf(e), width: widthOf(e),
+                     smooth: { type: "curvedCW", roundness: 0.18 }, arrows: arrowOf(e, 0.45), title: linkTitle(e) });
       });
       var large = items.length > BIG_NODES || links.length > BIG_LINKS;
       nodes = new vis.DataSet(items);
@@ -173,7 +188,7 @@
       E.forEach(function (e) {
         if (!visibleEdge(e)) return;
         var a = center(N[e.a]), b = center(N[e.b]);
-        var p = CMX.el("path", { d: CMX.arc(a[0], a[1], b[0], b[1], 0.12), class: "link-" + e.k + (e.k === "shares" && e.differ_count ? " differ" : ""), "data-a": e.a, "data-b": e.b }, gLinks);
+        var p = CMX.el("path", { d: CMX.arc(a[0], a[1], b[0], b[1], 0.12), class: "link-" + e.k + ((e.k === "shares" || e.k === "anchor") && e.differ_count ? " differ" : ""), "data-a": e.a, "data-b": e.b }, gLinks);
         CMX.el("title", {}, p, KIND[e.k].label + ": " + N[e.a].t + " → " + N[e.b].t);
       });
       var gPages = CMX.el("g", {}, svg);
@@ -239,8 +254,8 @@
       var links = [];
       E.forEach(function (e, i) {
         if (!visibleEdge(e) || !drawn[e.a] || !drawn[e.b]) return;
-        links.push({ id: "e" + i, from: e.a, to: e.b, color: { color: edgeColor(e), opacity: 0.6 }, dashes: e.k === "quotes" ? [5, 4] : e.k === "samepart" ? [10, 6] : false,
-                     width: e.k === "shares" ? 1 + Math.min(4, e.shared_count / 3) : 1.4, arrows: e.k === "cites" || e.k === "quotes" ? { to: { enabled: true, scaleFactor: 0.4 } } : undefined });
+        links.push({ id: "e" + i, from: e.a, to: e.b, color: { color: edgeColor(e), opacity: 0.6 }, dashes: dashOf(e),
+                     width: widthOf(e), arrows: arrowOf(e, 0.4) });
       });
       N.forEach(function (n) {
         if (!drawn[n.id]) return;

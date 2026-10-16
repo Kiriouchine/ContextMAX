@@ -55,6 +55,21 @@ def build(proj, portable: bool = False) -> None:
               "Every number with a unit, and every spreadsheet cell, found by its name.",
               "pages/params.html" if dmap.get("docs_count") else "", "Open the parameters"),
     ]
+    mods_count = sum(v.get("modules_count") or 0 for v in codes.values())
+    differ = dmap.get("value_conflicts_count") or 0
+    atlas = ""
+    if dmap.get("docs_count") or codes:
+        atlas = ('<section><article class="tile" style="flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 28px">'
+                 '<div style="flex:1;min-width:min(420px,100%)"><div class="kicker"><i style="background:var(--code)"></i>'
+                 '<i style="background:var(--doc);margin-left:-4px"></i>Complete Atlas</div>'
+                 f'<p style="margin:6px 0 0">The code, the documents and every link between them in one drawing: {mods_count:,} '
+                 f"module{'s' if mods_count != 1 else ''} with their calls, {dmap.get('docs_count') or 0:,} documents by stage, "
+                 f"{dmap.get('doc_code_edges_count') or 0:,} links from documents to code and {dmap.get('doc_doc_edges_count') or 0:,} "
+                 "between documents"
+                 + (f', <b style="color:var(--conflict)">{differ:,} value{"s" if differ != 1 else ""} that differ{"s" if differ == 1 else ""}</b>'
+                    if differ else "")
+                 + ". Click any module, document or line.</p></div>"
+                 '<a class="cta" href="pages/atlas.html">Open the Complete Atlas</a></article></section>')
     rows = []
     for f in folders.get("folders", []):
         status = ('<span class="status ok">Read</span>' if f.get("found") else '<span class="status bad">Not found</span>')
@@ -73,6 +88,7 @@ def build(proj, portable: bool = False) -> None:
         '<body class="page"><header class="masthead"><span class="wordmark">Context<b>MAX</b>'
         f"<small>{escape(proj.name)}</small></span>"
         '<nav class="tabs"><a class="is-on" href="Home.html">Home</a>'
+        + ('<a href="pages/atlas.html">Complete Atlas</a>' if atlas else "")
         + "".join(f'<a href="pages/code-{escape(k)}.html">{"Code" if len(codes) == 1 else "Code: " + escape(v.get("label", k))}</a>' for k, v in codes.items())
         + '<a href="pages/documents.html">Documents</a><a href="pages/params.html">Parameters</a><a href="pages/connections.html">Connections</a></nav>'
         '<span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>'
@@ -85,7 +101,7 @@ def build(proj, portable: bool = False) -> None:
         f'{file_total:,} files · built by scripts only, no AI in the build</p></div>'
         f'<p class="quiet" style="margin:0;max-width:420px">To update: <span class="fixed">contextmax build {escape(proj.slug)}</span>, '
         "or the Refresh button in the ContextMAX window.</p></section>"
-        f'<section class="grid4">{"".join(cards)}</section>'
+        f'<section class="grid4">{"".join(cards)}</section>{atlas}'
         '<section><h2 class="sec">Your folders</h2><div class="tablebox"><table class="listing"><thead><tr><th>Name</th><th>Folder</th>'
         f'<th>Holds</th><th style="text-align:right">Files</th><th>State</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div></section>'
         '<section class="grid4" style="grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr))">'

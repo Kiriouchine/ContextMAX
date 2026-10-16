@@ -60,6 +60,9 @@ def cmd_folders(a) -> int:
         print("removed" if project.remove_folder(proj, a.remove) else f"no folder called {a.remove}")
     for f in proj.folders:
         print(f"  {f.name:<24} {f.holds:<10} {f.path}")
+    if (a.add or a.remove) and proj.folders:
+        # links run across folders: a new or removed folder changes them anywhere in the project
+        print(f"build again so every link takes the change into account: contextmax build {proj.slug} --documents")
     return 0
 
 

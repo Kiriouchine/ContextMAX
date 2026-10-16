@@ -55,6 +55,7 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
     out.mkdir(parents=True)
     rels = [rel for files in found.values() for _, rel in files] + [rel for _, rel in cpp_files]
     depth = int(target.get("module_depth") or module_depth(rels)) if rels else 1
+    util.live("codefiles", target=target["name"], files=len(rels) + len(vhdl_files))
     defs, file_info, extras = [], {}, {"prototypes": {}, "macro_map": {}, "module_includes": {}}
     for lang, reader in READERS:
         if not found[lang]:
@@ -64,6 +65,7 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
         file_info.update(fi)
         for k in extras:
             extras[k].update(ex.get(k, {}))
+        util.live("coderead", target=target["name"], files=len(found[lang]), language=lang)
     if cpp_files:
         # C++ may call the C functions of the same code base, and C may call C++ functions with C linkage.
         c_defs = [d for d in defs if d["lang"] == "C"]
@@ -75,11 +77,13 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
         extras["macro_map"].update(ex["macro_map"])
         extras["module_includes"] = _module_includes(file_info)
         extras["cpp"] = ex["cpp"]
+        util.live("coderead", target=target["name"], files=len(cpp_files), language="C++")
     extras["module_depth"] = depth
     summary = write_map(out, target, defs, file_info, extras)
     if vhdl_files:
         summary["vhdl"] = vhdl_lang.map_vhdl(str(root), vhdl_files, out, target)
         util.save_json(out / "overview.json", summary)
+        util.live("coderead", target=target["name"], files=len(vhdl_files), language="VHDL")
     return summary
 
 

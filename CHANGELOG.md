@@ -31,6 +31,35 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
   its first word and length. On a made-up project of 10,060 code files and 10,000 documents the build
   went from 21 to under 5 minutes (linking documents to code 570 s to 28 s, citations 372 s to 10 s),
   and every file of the index stayed byte for byte the same.
+- The Complete Atlas: a page with everything in one drawing. Every module of every code base on a wheel,
+  sized by its functions, with the calls between modules; every document in its lifecycle stage, next to
+  the code it names most; and every link: documents to code, and documents to documents (cited, quoted,
+  shared values, values that differ, same part of the code). Modules, documents and every line can be
+  clicked; a double-click opens a module's functions with the modules it calls and is called from and
+  the documents that name each function. Positions come from the data alone, so the same index draws the
+  same picture. On 200 modules, 9,620 documents and 164,884 links it opens in about a second.
+- The build can be watched live in the ContextMAX window (off unless switched on; the text log stays).
+  The build reports what it has found as it goes, and the window draws it into the Complete Atlas:
+  documents as they are read, the code as it is mapped, each document moving to its stage and then
+  beside the code it names, the links as they are found, the validation gate at work, and at the end
+  exactly the drawing of the Complete Atlas page. On 10,060 code files and 10,000 documents the
+  build took 288.5 s with it and 288.7 s without, and the index is the same either way.
+- Adding, removing or changing a folder in the window builds again at once (documents read, everything
+  relinked), so a link across folders is never missed; a change during a build is built right after it.
+  `contextmax folders` says to build again.
+- Values stated in several documents are linked completely. Two documents that state values of the same
+  names are linked however many such links a document already has (before: its eight strongest); for a name
+  stated by more than twelve documents, each of them links to the first document that states the same
+  value (before: no link at all); and when most documents agree on a value, each document that states
+  another gets a red link to the first document stating the value most give, with both values and their
+  cells (with no majority, as for a unit cost every bill of materials states differently, none is marked
+  as the odd one out). Every name stated with more than one value is listed in
+  `documents\value-conflicts.jsonl`, the gate recomputes the list and the red
+  links from the value list, and the Home page counts them. Cited titles are no longer limited to forty
+  per document. On the made-up project of 10,000 documents, links between documents went from 164,884
+  to 225,370 (shared values 39,622 to 61,964, and 37,052 same-value and 1,092 red links), 14,257 names
+  are stated with more than one value, and the build takes a few seconds longer.
+- Fixed: the window ended a build's log with "doneCount." instead of "Done.".
 - The documents page's Network view opens on a large project: it laid out 9,620 documents and their
   links in about 18 s, where it had not finished after 5 minutes. Every link is still drawn as its
   own line; a large network is laid out once and then stands still, hides its lines only while it is

@@ -16,7 +16,8 @@ SHEET_LANE = " · sheets"
 TIERS = [("Names code", "names functions or constants of the code"),
          ("About a part of the code", "a subsystem's subject, but no code names"),
          ("Stand-alone", "process, project, general")]
-LINK_KINDS = ["cites", "quotes", "shares", "samepart"]
+LINK_KINDS = ["cites", "quotes", "shares", "anchor", "differs", "samepart"]
+VALUES_SHOWN = 8                # values listed on a "differs" link; value-conflicts.jsonl holds every one
 
 
 def build(proj, portable: bool = False) -> dict:
@@ -91,6 +92,8 @@ def build(proj, portable: bool = False) -> dict:
             for f in ("module", "doc_number", "count", "shared_count", "agree_count", "differ_count", "shared", "differ"):
                 if e.get(f) not in (None, [], ""):
                     item[f] = e[f]
+            if e.get("values"):
+                item["values"] = e["values"][:VALUES_SHOWN]
             edges.append(item)
     headers = [{"label": c.replace(SHEET_LANE, ""), "sheet": c.endswith(SHEET_LANE), "x": colx[c],
                 "w": subcols[c] * SUB_W} for c in columns]

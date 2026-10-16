@@ -27,6 +27,7 @@ ASSETS = Path(__file__).resolve().parent / "views" / "assets"
 JOBS: dict[str, dict] = {}
 ASKS: dict[str, dict] = {}             # questions to a model on this PC, answered in pieces
 MAX_REQUEST_BYTES = 1_000_000          # the window's own requests are a few hundred bytes
+EVENTS_PER_POLL = 12                   # live build events per answer: a few megabytes at most
 PICK_TITLE = "Choose a folder for ContextMAX to read"
 
 
@@ -90,12 +91,24 @@ def _run_ask(job: str, slug: str, question: str, kind: str, base: str, model: st
         j["done"] = True
 
 
-def _run_build(job: str, slug: str, depth: str) -> None:
+def _run_build(job: str, slug: str, depth: str, live: bool = False) -> None:
+    """The build in its own process. With `live`, the build also reports what it has found so far
+    (util.live), and those lines go to the live drawing, not to the text log."""
     cmd = [sys.executable, "-m", "contextmax", "build", slug] + ([f"--{depth}"] if depth in ("catalogue", "documents", "full") else [])
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    env.pop("CONTEXTMAX_LIVE", None)
+    if live:
+        env["CONTEXTMAX_LIVE"] = "1"
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    mark = util.LIVE_MARK.encode("utf-8")
     for raw in proc.stdout:
+        if raw.startswith(mark):
+            try:
+                JOBS[job]["events"].append(json.loads(raw[len(mark):]))
+                continue
+            except ValueError:
+                pass
         JOBS[job]["lines"].append(raw.decode("utf-8", "replace").rstrip())
     JOBS[job]["code"] = proc.wait()
     JOBS[job]["done"] = True
@@ -238,15 +251,21 @@ class Handler(BaseHTTPRequestHandler):
             p.data["download_cloud_files"] = bool(b.get("download_cloud_files"))
             p.save()
         elif action == "build":
+            for old in JOBS.values():
+                if old["done"]:
+                    old["events"] = []      # a finished build's drawing was delivered; a big one holds megabytes
             job = secrets.token_hex(6)
-            JOBS[job] = {"lines": [], "done": False, "code": None}
-            threading.Thread(target=_run_build, args=(job, p.slug, b.get("depth") or "quick"), daemon=True).start()
+            JOBS[job] = {"lines": [], "events": [], "done": False, "code": None}
+            threading.Thread(target=_run_build, args=(job, p.slug, b.get("depth") or "quick", bool(b.get("live"))),
+                             daemon=True).start()
             return {"job": job}
         elif action == "job":
-            j = JOBS.get(b.get("job"), {"lines": [], "done": True, "code": None})
-            since = int(b.get("since") or 0)
-            done, lines = j["done"], list(j["lines"])
-            return {"lines": lines[since:], "next": len(lines), "done": done, "code": j["code"]}
+            j = JOBS.get(b.get("job"), {"lines": [], "events": [], "done": True, "code": None})
+            since, seen = int(b.get("since") or 0), int(b.get("events_since") or 0)
+            done, lines, events = j["done"], list(j["lines"]), j["events"][seen:seen + EVENTS_PER_POLL]
+            more = seen + len(events) < len(j["events"])   # a big build's events come over a few polls
+            return {"lines": lines[since:], "next": len(lines), "events": events, "events_next": seen + len(events),
+                    "more": more, "done": done and not more, "code": j["code"]}
         elif action == "assistant":
             from contextmax import assistants
 

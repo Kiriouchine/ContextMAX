@@ -1,4 +1,5 @@
-"""Write the pages into <workspace>/pages/: one per code base, the documents, the parameters, the connections.
+"""Write the pages into <workspace>/pages/: one per code base, the documents, the Complete Atlas, the parameters,
+the connections.
 
 Each page is a single HTML file with its data inline and three shared files beside it
 (cmx.css, cmx.js, vis-network.min.js). Nothing is fetched from the network, so the pages
@@ -12,14 +13,17 @@ from html import escape
 from pathlib import Path
 
 from contextmax import util
-from contextmax.views import code_data, docs_data, params_data
+from contextmax.views import atlas_data, code_data, docs_data, params_data
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-SHARED = ["cmx.css", "cmx.js", "code.js", "documents.js", "params.js", "connections.js", "vis-network.min.js"]
+SHARED = ["cmx.css", "cmx.js", "code.js", "documents.js", "atlas.js", "params.js", "connections.js", "vis-network.min.js"]
 
 
 def _nav(proj, active: str, targets: list[dict]) -> str:
     links = ['<a href="../Home.html">Home</a>']
+    if (proj.documents_dir / "doc-list.jsonl").exists() or targets:
+        on = ' class="is-on"' if active == "atlas" else ""
+        links.append(f'<a{on} href="atlas.html">Complete Atlas</a>')
     for t in targets:
         on = ' class="is-on"' if active == f"code-{t['name']}" else ""
         label = "Code" if len(targets) == 1 else f"Code: {escape(t['label'])}"
@@ -39,7 +43,7 @@ def _app_page(proj, title: str, active: str, targets, data: dict, script: str, f
         f"<title>{escape(title)} · {escape(proj.name)}</title>"
         '<link rel="stylesheet" href="cmx.css"><script src="cmx.js"></script>'
         + ('<script src="vis-network.min.js"></script>' if vis else "")
-        + '</head><body class="app">'
+        + f'</head><body class="app" data-page="{escape(active)}">'
         + _nav(proj, active, targets)
         + '<div class="toolbar"><div class="views" id="views" role="group" aria-label="Views"></div>'
           '<div id="controls" class="hstack" style="margin:0"></div><div id="crumbs" class="crumbs"></div>'
@@ -91,6 +95,11 @@ def build_all(proj, portable: bool = False) -> dict:
         values_data["project"] = proj.slug
         util.save_text(out / "params.html", _params_page(proj, targets, values_data))
         written.append("params.html")
+    if written:
+        data = atlas_data.build(proj, portable)
+        util.save_text(out / "atlas.html", _app_page(proj, "Complete Atlas", "atlas", targets, data, "atlas.js",
+                                                 "module, document or function", vis=False))
+        written.append("atlas.html")
     sdata = {"targets": targets, "links": _connections(proj), "project": proj.name,
              "file": str(proj.path("notes", "connections.json")) if not portable else "notes/connections.json"}
     util.save_text(out / "connections.html", _connections_page(proj, targets, sdata))

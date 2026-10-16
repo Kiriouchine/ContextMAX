@@ -63,7 +63,7 @@ def build(proj) -> dict:
     doc_files = {}
     for name in ("doc-list.jsonl", "doc-sources.jsonl", "doc-outlines.jsonl", "params.jsonl", "params.sqlite",
                  "params-info.json", "text-index.jsonl", "text-coverage.json", "overview.json", "document-guide.md",
-                 "links/doc-to-code.jsonl", "links/between-docs.jsonl", "links/code-to-doc.json"):
+                 "links/doc-to-code.jsonl", "links/between-docs.jsonl", "links/code-to-doc.json", "value-conflicts.jsonl"):
         p = proj.documents_dir / name
         if p.exists():
             doc_files[name] = util.hash_file(p)
@@ -136,7 +136,7 @@ def build(proj) -> dict:
                                 "coverage": coverage},
         "corpus": {**{k: dm_summary.get(k) for k in ("docs_count", "sources_count", "code_linked_count", "doc_code_edges_count",
                                                           "doc_doc_edges_count", "doc_doc_kinds", "outline_totals",
-                                                          "param_rows", "param_origins")},
+                                                          "param_rows", "param_origins", "value_conflicts_count")},
                          "bytes_sha256": doc_files},
         "catalogue": {"file_total": folders.get("file_total"), "bytes_sha256": catalogue},
         "pages_sha256": pages,

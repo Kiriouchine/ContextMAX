@@ -26,8 +26,10 @@ class GateFailed(SystemExit):
 def build(proj: Project, depth: str = "quick", ocr: bool = True) -> dict:
     t0 = time.time()
     report = {"depth": depth}
+    util.live("start", project=proj.name, depth=depth)
     if depth in ("catalogue", "documents", "full") or not (proj.catalogue_dir / "all-files.csv").exists():
         report["catalogue"] = catalogue.build(proj)
+        util.live("catalogue", files=report["catalogue"]["files"])
         if depth == "catalogue":
             if (proj.documents_dir / "doc-list.jsonl").exists():
                 gate(proj, report)            # the pages are written again from the document map on disk
@@ -37,18 +39,24 @@ def build(proj: Project, depth: str = "quick", ocr: bool = True) -> dict:
         report["text_cache"] = textcache.build(proj, scope="all", resume=True, prune=True,
                                                retry_unreadable=(depth == "full"), ocr=ocr)
     report["code"] = code_run.build(proj)
+    if util.live_on():
+        from contextmax.views import atlas_data
+        atlas_data.live_code(proj)
     report["corpus"] = corpus.build(proj)
     gate(proj, report)
     _finish(proj, report)
     util.say("done", f"{proj.name} built in {time.time() - t0:.1f} s")
+    util.live("done", seconds=round(time.time() - t0, 1))
     return report
 
 
 def gate(proj: Project, report: dict | None = None) -> None:
     """The document map's strict checks; a failure stops before any page is written."""
+    util.live("gate", state="checking")
     errors, counts = corpus.validate(proj)
     if report is not None:
         report["validation"] = {"errors": errors[:50], "errors_count": len(errors), "counts": counts}
+    util.live("gate", state="failed" if errors else "passed", errors=len(errors), counts=counts)
     if errors:
         util.say("gate", "DOCUMENT MAP VALIDATION FAILED")
         for e in errors[:30]:
@@ -62,6 +70,7 @@ def _finish(proj: Project, report: dict) -> None:
     from contextmax import buildinfo, home
     from contextmax.views import render
 
+    util.live("pages")
     if (proj.documents_dir / "doc-list.jsonl").exists() or (proj.code_dir / "codebases.json").exists():
         render.build_all(proj)
     report["manifest"] = buildinfo.build(proj)

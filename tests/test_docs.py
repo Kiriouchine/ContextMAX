@@ -143,3 +143,79 @@ def test_the_gate_catches_a_changed_text(built, tmp_path):
         assert any("Project_notes" in e for e in errors)
     finally:
         p.write_bytes(before)
+
+
+# == values stated in several documents ==
+
+def _row(doc: str, label: str, value: str, unit: str = "mm", cell: str | None = None) -> dict:
+    return {"doc_ref": doc, "label": label, "label_norm": label, "origin": "cell_entry" if cell else "prose_value",
+            "value_norm": value, "value_shown": value, "unit": unit, "unit_norm": unit,
+            "sheet": "Budget" if cell else None, "cell": cell}
+
+
+def test_a_value_many_documents_state_joins_them_and_marks_every_odd_one_out_in_red():
+    """Fourteen documents state one name: more than MAX_VALUE_OWNERS, so no pairs. Each document links to the
+    first document stating the same value, and the two that differ from the twelve get a red link with both values."""
+    docs = [f"d{i:02d}" for i in range(1, 15)]
+    rows = [_row(d, "battery clearance", "214" if d in ("d07", "d12") else "267.5", cell="C9" if d == "d12" else None)
+            for d in docs]
+    assert len(docs) > corpus.MAX_VALUE_OWNERS
+    values = corpus.value_owners(rows)
+    edges = corpus._value_links(values)
+    assert not [e for e in edges if e["kind"] == "shares"]
+    anchors = {e["from"]: e["to"] for e in edges if e["kind"] == "anchor"}
+    assert anchors == {**{d: "d01" for d in docs if d not in ("d01", "d07", "d12")}, "d12": "d07"}
+    assert all(e["differ_count"] == 0 for e in edges if e["kind"] == "anchor")
+    differs = {e["from"]: e for e in edges if e["kind"] == "differs"}
+    assert set(differs) == {"d07", "d12"} and differs["d12"]["to"] == "d01"
+    assert differs["d12"]["values"] == [["battery clearance", "214 mm", "267.5 mm", "Budget!C9", ""]]
+    [conflict] = corpus.value_conflicts(values)
+    assert conflict["anchor"] == "d01" and conflict["differing"] == ["d07", "d12"] and conflict["value"] == "267.5 mm"
+    assert [(v["value"], v["documents_count"]) for v in conflict["values"]] == [("267.5 mm", 12), ("214 mm", 2)]
+
+
+def test_with_no_majority_no_value_is_the_odd_one_out():
+    """A unit cost that every bill of materials states differently: listed, joined by value, never marked red."""
+    rows = [_row(f"bom{i:02d}", "unit cost", str(i % 5), "") for i in range(15)]
+    values = corpus.value_owners(rows)
+    edges = corpus._value_links(values)
+    assert not [e for e in edges if e["kind"] == "differs"]
+    anchors = {(e["from"], e["to"]) for e in edges if e["kind"] == "anchor"}
+    assert ("bom05", "bom00") in anchors and ("bom06", "bom01") in anchors and len(anchors) == 10
+    [conflict] = corpus.value_conflicts(values)
+    assert conflict["anchor"] is None and conflict["differing"] == [] and len(conflict["values"]) == 5
+
+
+def test_shared_values_link_every_pair_with_no_cap_per_document():
+    """A document that shares a specific value with twenty others links to all twenty (once eight at most)."""
+    rows = []
+    for i in range(20):
+        rows += [_row("hub", f"pump {i} pressure", "2", "bar"), _row(f"p{i:02d}", f"pump {i} pressure", "2", "bar")]
+    edges = corpus._value_links(corpus.value_owners(rows))
+    assert len([e for e in edges if e["kind"] == "shares" and "hub" in (e["from"], e["to"])]) == 20
+    assert not [e for e in edges if e["kind"] != "shares"]
+
+
+def test_two_documents_that_disagree_share_a_red_link_and_neither_is_the_odd_one_out():
+    rows = [_row("b_doc", "settle time", "15", "ms"), _row("a_doc", "settle time", "12", "ms")]
+    values = corpus.value_owners(rows)
+    [edge] = corpus._value_links(values)
+    assert (edge["kind"], edge["from"], edge["to"], edge["differ_count"]) == ("shares", "a_doc", "b_doc", 1)
+    [conflict] = corpus.value_conflicts(values)
+    assert conflict["anchor"] is None and conflict["differing"] == [] and conflict["documents_count"] == 2
+
+
+def test_values_that_differ_are_listed_and_the_gate_checks_the_list(built):
+    path = built.documents_dir / "value-conflicts.jsonl"
+    conflicts = {c["label_norm"]: c for c in util.load_jsonl(path)}
+    assert "settle time" in conflicts
+    differs = [e for e in util.load_jsonl(built.documents_dir / "links" / "between-docs.jsonl") if e["kind"] == "differs"]
+    assert any(v[0] == "settle time" for e in differs for v in e["values"])
+    assert "value-conflicts.jsonl" in util.load_json(built.workspace / "buildinfo.json")["corpus"]["bytes_sha256"]
+    before = path.read_bytes()
+    try:
+        path.write_bytes(before.replace(b'"settle time"', b'"settle tim"', 1))
+        errors, _ = corpus.validate(built)
+        assert "value-conflicts.jsonl does not match the value list" in errors
+    finally:
+        path.write_bytes(before)

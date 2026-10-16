@@ -116,8 +116,8 @@ line on later answers unless asked.
 - `documents\\`: `text-index.jsonl` and `text\\<key>.txt` (each document's text, to quote),
   `sheets\\<key>.jsonl` (every cell), `doc-list.jsonl` (documents, with stage and copies folded in),
   `doc-outlines.jsonl` (headings, shall statements, values), `params.sqlite` (every value, indexed),
-  `links\\doc-to-code.jsonl`, `links\\between-docs.jsonl` (cites, quotes, shares, samepart),
-  `links\\code-to-doc.json`, `document-guide.md`, `text-coverage.json` and `not-read.csv` (check these before
+  `links\\doc-to-code.jsonl`, `links\\between-docs.jsonl` (cites, quotes, shares, anchor, differs, samepart),
+  `links\\code-to-doc.json`, `value-conflicts.jsonl` (every named value documents give differently), `document-guide.md`, `text-coverage.json` and `not-read.csv` (check these before
   saying something is not there).
 - `pages\\`: the pages a person opens; `Home.html` at the top.
 
@@ -151,8 +151,10 @@ only through a pointer looks unused. For VHDL, "calls" is placement: see `hdl-gu
 - Documents that name a function or module: `cmx find {slug} docs-for <name>`.
 - Links between documents: `cmx find {slug} links "<document>"`. `cites` = writes the other's title
   or file name; `quotes` = quotes its document number; `shares` = states the same named values
-  (`differ_count` > 0 means they disagree); `samepart` = same part of the code, next stage (navigation,
-  not traceability).
+  (`differ_count` > 0 means they disagree); `anchor` = states the same value as the first document that
+  states it, for a name many documents state; `differs` = most documents agree on a value and this one
+  states another (`values` lists name, value here, value in most, and the cells); `samepart` = same part
+  of the code, next stage (navigation, not traceability).
 
 ## Task 5: understand the architecture
 Read `$WORK\\code\\<code base>\\code-guide.md`: modules with the calls between them, every
@@ -166,6 +168,9 @@ not downloaded)? Open the original at the path task 1 gives.
 ## Task 7: values, and where a number comes from
 - By name, the main lookup: `cmx params {slug} --name "<name>"`.
 - Do the documents agree? `cmx params {slug} --name "<name>" --compare`.
+- Every value the documents give differently: `$WORK\\documents\\value-conflicts.jsonl`, one row per
+  name, each value with its documents and cells; when most documents agree, `differing` lists the ones
+  that do not (with no majority it is empty: the values are only different, none is the odd one out).
 - By number, only when there is no name, and expect noise: `cmx params {slug} --value 12 --unit ms --named`.
 - A workbook live: `cmx sheet {slug} --key <key> --trace "Sheet!B7"` walks a formula back to the
   cells and constants it uses; `--lint` finds rows whose label and value come from different rows.

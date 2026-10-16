@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ContextMAX</title>
 <link rel="icon" href="/assets/contextmax.ico">
-<link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script>
+<link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script><script src="/assets/atlas.js"></script>
 <style>
 .fold { display:flex; flex-wrap:wrap; align-items:center; gap:12px 18px; padding:14px 18px; background:var(--surface); border:1px solid var(--rule); border-radius:12px; }
 .fold .who { flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:3px; }
@@ -20,6 +20,10 @@
 .checks i { flex:none; width:10px; height:10px; margin-top:5px; border-radius:50%; background:var(--ok); }
 .checks i.lvl-warn { background:var(--caution); border-radius:0; clip-path:polygon(50% 0,100% 100%,0 100%); }
 .checks i.lvl-fail { background:var(--conflict); }
+.livebox { display:flex; flex-direction:column; gap:12px; }
+.livecanvas { position:relative; height:min(68vh,720px); min-height:380px; border-radius:10px; overflow:hidden; background:var(--paper); border:1px solid var(--rule); }
+.livesteps li.is-now { color:var(--text); font-weight:600; } .livesteps li.is-now b { border-color:var(--text); border-width:2px; }
+.livesteps li.is-bad b { background:var(--conflict); border-color:var(--conflict); color:var(--paper); }
 </style></head>
 <body class="page">
 <header class="masthead"><span class="wordmark">Context<b>MAX</b></span>
@@ -43,13 +47,21 @@
 <label class="hstack"><input type="checkbox" id="cloud" style="width:18px;height:18px">Download files that are still in the cloud before reading them</label>
 <section class="tile" style="margin-top:10px"><h2 class="sec" style="margin:0">Build</h2>
 <div class="hstack"><button type="button" class="btn" data-depth="documents">Read documents and build</button><button type="button" class="btn ghost" data-depth="quick">Quick refresh</button><button type="button" class="btn ghost" data-depth="full">Rebuild everything</button></div>
+<label class="hstack" style="margin:0" title="Off: the text log only. On: the Complete Atlas is drawn from the build's own results while it runs."><input type="checkbox" id="live" style="width:18px;height:18px">Show the build live: draw the Complete Atlas as it is built</label>
 <p class="quiet" id="built" style="margin:0"></p>
 <div class="log fixed" id="log" style="display:none"></div>
 <div class="hstack" id="after" style="display:none"><a class="btn" id="home" target="_blank" href="#">Open the project</a><button type="button" class="btn ghost" id="skill">Install the AI skill</button><span class="quiet" id="skillmsg"></span></div>
 </section>
 </section>
 <aside class="tile" style="flex:1 1 320px;min-width:0"><h2 class="sec" style="margin:0">This PC</h2><ul class="checks" id="checks" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px"><li class="quiet">Checking…</li></ul></aside>
-</div></div>
+</div>
+<section class="tile livebox" id="livebox" style="display:none" aria-label="Live build">
+<div class="hstack" style="margin:0;justify-content:space-between"><h2 class="sec" style="margin:0">Live build · Complete Atlas</h2>
+<ol class="stepper livesteps" id="livesteps"><li data-step="catalogue"><b>1</b>Catalogue</li><li data-step="read"><b>2</b>Read documents</li><li data-step="code"><b>3</b>Code map</li><li data-step="place"><b>4</b>Document map</li><li data-step="links"><b>5</b>Links</li><li data-step="gate"><b>6</b>Validation gate</li><li data-step="pages"><b>7</b>Pages</li></ol></div>
+<div class="livecanvas" id="livecanvas"></div>
+<div class="hstack" style="margin:0;justify-content:space-between"><span class="quiet" id="livestatus" aria-live="polite"></span><a class="btn" id="liveopen" target="_blank" href="#" style="display:none">Open the Complete Atlas</a></div>
+</section>
+</div>
 </main>
 <script>
 (function () {
@@ -83,29 +95,99 @@
   function load() { return api("state").then(repaint); }
   $("#proj").onchange = function () { slug = this.value; location.hash = slug; load(); };
   $("#create").onclick = function () { api("create", { name: $("#newname").value }).then(function (st) { slug = st.project.slug; location.hash = slug; repaint(st); }); };
-  $("#pick").onclick = function () { api("pick").then(function (r) { if (r.path) return api("add", { path: r.path, holds: "both" }).then(repaint); }); };
-  $("#addtyped").onclick = function () { var p = $("#typed").value.trim(); if (p) api("add", { path: p, holds: "both" }).then(function (st) { $("#typed").value = ""; repaint(st); }); };
+  /* a folder added, removed or changed changes the links anywhere in the project: build again, at once */
+  function changed(st) { repaint(st); if (st.project && st.project.folders.length) build("documents", "A folder changed, so ContextMAX reads the documents and builds again: no link is missed.\n"); }
+  $("#pick").onclick = function () { api("pick").then(function (r) { if (r.path) return api("add", { path: r.path, holds: "both" }).then(changed); }); };
+  $("#addtyped").onclick = function () { var p = $("#typed").value.trim(); if (p) api("add", { path: p, holds: "both" }).then(function (st) { $("#typed").value = ""; changed(st); }); };
   $("#cloud").onchange = function () { api("option", { download_cloud_files: this.checked }).then(repaint); };
   $("#folders").addEventListener("click", function (ev) {
-    var b = ev.target.closest("[data-holds]"); if (b) { api("holds", { name: b.getAttribute("data-name"), holds: b.getAttribute("data-holds") }).then(repaint); return; }
-    b = ev.target.closest("[data-remove]"); if (b && confirm("Stop reading " + b.getAttribute("data-remove") + "? Its files are not touched.")) api("remove", { name: b.getAttribute("data-remove") }).then(repaint);
+    var b = ev.target.closest("[data-holds]"); if (b) { if (b.getAttribute("aria-pressed") !== "true") api("holds", { name: b.getAttribute("data-name"), holds: b.getAttribute("data-holds") }).then(changed); return; }
+    b = ev.target.closest("[data-remove]"); if (b && confirm("Stop reading " + b.getAttribute("data-remove") + "? Its files are not touched.")) api("remove", { name: b.getAttribute("data-remove") }).then(changed);
   });
-  CMX.$$("[data-depth]").forEach(function (b) {
-    b.onclick = function () {
-      var log = $("#log"); log.style.display = "block"; log.textContent = ""; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = true; });
-      api("build", { depth: b.getAttribute("data-depth") }).then(function (r) {
-        var next = 0;
-        (function poll() {
-          api("job", { job: r.job, since: next }).then(function (j) {
-            next = j.next; if (j.lines.length) { log.textContent += j.lines.join("\n") + "\n"; log.scrollTop = log.scrollHeight; }
-            if (!j.done) return setTimeout(poll, 600);
-            log.textContent += j.code === 0 ? "\doneCount." : "\nThe build stopped with a problem (see above).";
-            CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); load();
-          });
-        })();
-      });
+
+  /* the live build: off unless asked for; the text log is always there */
+  var live = $("#live"), atlas = null, running = false, again = null;
+  live.checked = CMX.store.get("panel:live") === "1";
+  live.onchange = function () { CMX.store.set("panel:live", live.checked ? "1" : "0"); };
+  var STEPS = ["catalogue", "read", "code", "place", "links", "gate", "pages"], EVENT_STEP = {
+    catalogue: "catalogue", docs: "read", read: "read", codefiles: "code", coderead: "code", code: "code", stages: "place",
+    dcode: "place", placed: "place", values: "place", links: "links", gate: "gate", pages: "pages" };
+  function step(name, bad) {
+    var at = STEPS.indexOf(name);
+    CMX.$$("#livesteps li").forEach(function (li, i) {
+      li.classList.toggle("is-on", at < 0 ? name === "done" : i < at); li.classList.toggle("is-now", i === at); li.classList.toggle("is-bad", !!bad && i === at);
+    });
+  }
+  function Feed(slugNow) {
+    /* the build's events, drawn in order; each move and each batch of lines gets a moment to be seen */
+    var queue = [], ended = false, say = $("#livestatus"), n = { links: 0, dcode: 0, docs: 0, codeTotal: 0, codeRead: 0 };
+    var box = $("#livebox"); box.style.display = "flex"; $("#liveopen").style.display = "none";
+    if (!atlas) atlas = CMXAtlas.current = CMXAtlas.create($("#livecanvas"));
+    atlas.live.begin(); step("catalogue"); say.textContent = "Starting the build…";
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    function num(x) { return CMX.num(x); }
+    function apply(ev) {
+      var A = atlas.live;
+      if (EVENT_STEP[ev.e]) step(EVENT_STEP[ev.e], ev.e === "gate" && ev.state === "failed");
+      switch (ev.e) {
+        case "catalogue": say.textContent = "Catalogue: " + num(ev.files) + " files listed."; break;
+        case "docs": n.docs = ev.keys.length; A.docList(ev.keys, ev.read); say.textContent = "Reading documents: " + num(ev.read) + " of " + num(n.docs) + " already read before."; break;
+        case "read": A.read(ev.n); say.textContent = "Reading documents: " + num(Math.min(ev.n, n.docs)) + " of " + num(n.docs) + "."; break;
+        case "codefiles": n.codeTotal += ev.files; A.codeFiles(ev.files); say.textContent = "Mapping the code: " + num(n.codeTotal) + " files."; break;
+        case "coderead": n.codeRead += ev.files; A.codeRead(ev.files); say.textContent = "Mapping the code: " + num(Math.min(n.codeRead, n.codeTotal)) + " of " + num(n.codeTotal) + " files read (" + ev.language + ")."; break;
+        case "code": A.code(ev); say.textContent = "Code map: " + num(ev.modules.length) + " modules and " + num(ev.calls.length) + " lines of calls between them."; break;
+        case "stages": A.stages(ev); say.textContent = "Document map: " + num(ev.docs.k.length) + " documents by lifecycle stage."; break;
+        case "dcode": n.dcode += ev.rows.length; A.dcode(ev.rows); say.textContent = "Documents that name code: " + num(n.dcode) + " links."; break;
+        case "placed": A.placed(); say.textContent = "Each document moves beside the code it names most."; break;
+        case "values": say.textContent = "Values: " + num(ev.rows) + " named values with their source, " + num(ev.requirements) + " shall statements."; break;
+        case "links": n.links += ev.a.length; A.links(ev); say.textContent = "Links between documents: " + num(n.links) + "."; break;
+        case "gate": A.gate(ev.state); say.textContent = ev.state === "checking" ? "Validation gate: every document, link and value is checked before any page is written…" :
+          ev.state === "passed" ? "Validation gate passed." : "Validation gate: " + num(ev.errors) + " problems; no page was written (see the log)."; break;
+        case "pages": say.textContent = "Writing the pages."; break;
+        case "done":
+          A.done(); step("done"); say.textContent = "Built in " + ev.seconds + " s. This drawing is the Complete Atlas of the finished index.";
+          var open = $("#liveopen"); open.href = "/ws/" + encodeURIComponent(slugNow) + "/pages/atlas.html"; open.style.display = ""; break;
+      }
+    }
+    var HEAVY = { code: 1, stages: 1, placed: 1, dcode: 1, links: 1 };
+    (function pump() {
+      while (queue.length && !atlas.live.busy()) {
+        var ev = queue.shift(); apply(ev);
+        if (HEAVY[ev.e]) break;
+      }
+      if (queue.length || !ended) setTimeout(pump, 110);
+    })();
+    return {
+      push: function (events) { queue.push.apply(queue, events); },
+      end: function (code) {
+        ended = true;
+        if (code !== 0) { atlas.live.gate("stopped"); say.textContent = "The build stopped with a problem (see the log)."; }
+      }
     };
-  });
+  }
+  function build(depth, note) {
+    if (running) { again = depth; return; }
+    running = true;
+    var log = $("#log"), feed = live.checked ? Feed(slug) : null;
+    log.style.display = "block"; log.textContent = note || ""; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = true; });
+    api("build", { depth: depth, live: !!feed }).then(function (r) {
+      var next = 0, seen = 0;
+      (function poll() {
+        api("job", { job: r.job, since: next, events_since: seen }).then(function (j) {
+          next = j.next; seen = j.events_next;
+          if (j.lines.length) { log.textContent += j.lines.join("\n") + "\n"; log.scrollTop = log.scrollHeight; }
+          if (feed && j.events.length) feed.push(j.events);
+          if (!j.done) return setTimeout(poll, j.more ? 120 : 600);
+          log.textContent += j.code === 0 ? "\nDone." : "\nThe build stopped with a problem (see above).";
+          log.scrollTop = log.scrollHeight;
+          if (feed) feed.end(j.code);
+          running = false; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); load();
+          if (again) { var d = again; again = null; build(d, "Building again: a folder changed while the last build ran.\n"); }
+        });
+      })();
+    }, function () { running = false; if (feed) feed.end(1); CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); });
+  }
+  CMX.$$("[data-depth]").forEach(function (b) { b.onclick = function () { build(b.getAttribute("data-depth")); }; });
   $("#skill").onclick = function () { api("skill").then(function (r) { $("#skillmsg").textContent = "Installed: " + r.lines.join(" · "); }); };
   api("checkup").then(function (r) {
     $("#checks").innerHTML = r.checks.map(function (c) { return '<li><i class="' + (c.level === "ok" ? "" : "lvl-" + c.level) + '"></i><span><b>' + safe(c.what) + '</b><br><span class="quiet">' + safe(c.detail) + "</span></span></li>"; }).join("");

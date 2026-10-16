@@ -182,3 +182,18 @@ def html_json(obj) -> str:
 
 def say(stage: str, message: str) -> None:
     print(f"[{stage}] {message}", flush=True)
+
+
+# The live build: when the ContextMAX window asks for it (CONTEXTMAX_LIVE=1), the build also prints what it
+# has found so far, one event per line behind a record separator, for the window to draw. The text lines
+# stay as they are, and nothing is written to the working folder, so the index is the same either way.
+LIVE_MARK = "\x1e"
+
+
+def live_on() -> bool:
+    return os.environ.get("CONTEXTMAX_LIVE") == "1"
+
+
+def live(event: str, **data) -> None:
+    if live_on():
+        print(LIVE_MARK + json.dumps({"e": event, **data}, ensure_ascii=False, separators=(",", ":")), flush=True)
