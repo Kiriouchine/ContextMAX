@@ -449,6 +449,14 @@ class Handler(BaseHTTPRequestHandler):
             return {"projects": [_card(s, w) for s, w in project.list_projects().items()]}
         if action == "checkup":
             return {"checks": checkup.checks()}
+        if action == "demo":
+            # the made-up project of the README's animation: written once, opened every time after
+            from contextmax import demo
+
+            if demo.SLUG not in project.list_projects():
+                demo.create_project(project.default_home() / "demo-source", None)
+                tell("the made-up demo project was written; it builds now", demo.SLUG)
+            return _state(demo.SLUG)
         if action == "create":
             name = (b.get("name") or "").strip()
             if not name:

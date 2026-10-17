@@ -427,3 +427,12 @@ def test_a_recognised_scan_is_kept_when_only_the_pdf_reader_changes(built, tmp_p
         index.write_bytes(keep_index)
         text.write_bytes(keep_text)
         shutil.rmtree(tmp_path, ignore_errors=True)
+
+
+def test_the_demo_button_opens_the_made_up_project_and_never_writes_it_twice(built):
+    from contextmax import panel
+
+    before = (built.workspace / "project.json").stat().st_mtime_ns
+    st = panel.Handler._act(None, "demo", {})
+    assert st["project"]["slug"] == "demo-project" == built.slug
+    assert (built.workspace / "project.json").stat().st_mtime_ns == before

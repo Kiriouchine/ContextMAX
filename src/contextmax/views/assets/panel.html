@@ -110,6 +110,9 @@
 <input id="newname" class="input" placeholder="For example: Motor controller" autocomplete="off">
 <div><button type="button" class="btn huge" id="create">Create the project</button></div>
 <hr style="border:0;border-top:1px solid var(--rule);width:100%;margin:6px 0">
+<div><button type="button" class="btn ghost" id="trydemo">Try it on a made-up project</button>
+<p class="quiet small" style="margin:6px 0 0">A small motor controller: firmware in C, FPGA logic in VHDL, MATLAB models, a Python tool, and nine documents that do not all agree. It builds in seconds.</p></div>
+<hr style="border:0;border-top:1px solid var(--rule);width:100%;margin:6px 0">
 <label class="check"><input type="checkbox" data-live><span><b>Show the build live</b><br><span class="quiet small">ContextMAX draws the Complete Atlas while it builds: modules, documents and links appear as they are found. Off: the text log only. You can also switch it on during a build.</span></span></label>
 </aside>
 </div>
@@ -216,6 +219,14 @@
     api("create", { name: name }).then(function (st) { $("#newname").value = ""; location.hash = encodeURIComponent(st.project.slug); });
   }
   $("#create").onclick = create;
+  $("#trydemo").onclick = function () {
+    // the demo opens with the live drawing on, and builds: what the README's animation shows
+    api("demo").then(function (st) {
+      $$("input[data-live]").forEach(function (x) { if (!x.checked) x.click(); });
+      demoBuild = !st.project.built;
+      location.hash = encodeURIComponent(st.project.slug);
+    });
+  };
   $("#newname").addEventListener("keydown", function (ev) { if (ev.key === "Enter") create(); });
 
   /* ---- the live drawing: one setting, shown on both screens ---- */
@@ -230,9 +241,14 @@
   });
 
   /* ---- one project ---- */
+  var demoBuild = false;
   function openProject() {
     $("#start").hidden = true; $("#main").hidden = false;
-    load().then(function () { if (P) { loadSkill(); showAtlas(); if (!cur) loadFreshness(); } });
+    load().then(function () {
+      if (!P) return;
+      loadSkill(); showAtlas(); if (!cur) loadFreshness();
+      if (demoBuild) { demoBuild = false; build("documents", "The made-up project is built: watch the Complete Atlas below."); }
+    });
   }
   function load() { return api("state").then(repaint); }
   function repaint(st) {

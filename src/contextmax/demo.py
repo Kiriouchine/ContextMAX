@@ -474,6 +474,9 @@ VOCABULARY = {"doc_number_patterns": [r"DOC-\d{4}"],
               "requirement_id_patterns": [r"\bREQ-\d{3}\b"]}
 
 
+SLUG = "demo-project"
+
+
 def create_project(source: str | Path, workspace: str | None = None):
     """Write the demo into `source` and register it as the project 'Demo project'."""
     from contextmax import project, util

@@ -256,7 +256,7 @@ def read(kind: str, base: str, model: str, proj_name: str, question: str, w: dic
               "rely on, each with the number of its line (lines start with their number). Say relevant: false when the "
               "passage says nothing about the question. In follow, name what this passage points to for the answer (a "
               "table, a figure, a requirement, a section, another document, a function), if anything. A range is "
-              "written 1~4. Answer in JSON only.")
+              "written 1~4. Never convert or reinterpret a number or a unit: copy them as written. Answer in JSON only.")
     if pictures_:
         system += (" A picture of the page is attached: read figures, tables and formulas from it, copy what you read "
                    "as printed, and give line 0 for what you read only in the picture.")
@@ -464,7 +464,8 @@ def answer_messages(proj, question: str, findings: list[dict]) -> list[dict]:
     system = (f"You answer a question about the project \"{proj.name}\". The passages below were read from the "
               "project's documents and code, and every quote was checked against the file. Answer only from those "
               "quotes; cite each statement with its number, like [2]; a number you state must be in the quote you cite "
-              "for it. When passages disagree, say so and quote both. A range is written 1~4. Do not add anything the "
+              "for it. When passages disagree, say so and quote both. A range is written 1~4. Never convert or "
+              "reinterpret a number or a unit: copy them as the quotes write them. Do not add anything the "
               "quotes do not say. Answer in the language of the question, briefly. End with one last line: "
               "\"Confidence: High\", \"Confidence: Medium\" or \"Confidence: Low\" and the reason in a few words (High: "
               "the quotes state the answer directly and agree; Medium: in part, indirectly, or one source only; Low: "

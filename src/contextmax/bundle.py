@@ -58,6 +58,31 @@ Microsoft; until then scanned PDFs are read by Windows' own text recognition, wh
 """
 
 
+SETUP_README = """ContextMAX {version}
+
+Double-click setup.cmd. It downloads the official Python {python} (15 MB, checked against its SHA-256) and
+the packages ContextMAX needs (about 150 MB) from the internet, and installs ContextMAX for this Windows
+user, with a Start menu and desktop shortcut, the contextmax command and an entry in Settings > Apps. No
+administrator rights are needed. Windows may ask whether to run setup.cmd: choose Run (More info, then
+Run anyway).
+
+For a PC without internet, use ContextMAX-{version}-offline.zip instead.
+"""
+
+
+def zip_folder(folder: Path, target: Path, extra: dict[str, str] | None = None) -> Path:
+    """The folder as a zip whose top folder is the folder's own name, written whole or not at all."""
+    partial = target.with_name(target.name + ".partial")
+    with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(folder.rglob("*")):
+            if f.is_file():
+                z.write(f, f.relative_to(folder.parent).as_posix())
+        for name, text in (extra or {}).items():
+            z.writestr(f"{folder.name}/{name}", text)
+    os.replace(partial, target)
+    return target
+
+
 class BundleError(Exception):
     pass
 
@@ -217,6 +242,12 @@ def make(source: Path, out: Path) -> Path:
         bundle = Path(tmp) / name
         util.say("offline", f"copying the program from {source}")
         _copy_program(source, bundle)
+        # the installer that downloads what it needs: the program only, for the release page
+        program = Path(tmp) / f"ContextMAX-{version}"
+        shutil.copytree(bundle, program)
+        setup_zip = zip_folder(program, out / f"ContextMAX-{version}-setup.zip", {
+            "INSTALL.txt": SETUP_README.format(version=version, python=values["PYVER"])})
+        util.say("offline", f"online installer: {setup_zip} ({setup_zip.stat().st_size / 1e6:.1f} MB)")
         wheels = bundle / "wheels"
         wheels.mkdir()
         nupkg = wheels / f"python.{values['PYVER']}.nupkg"

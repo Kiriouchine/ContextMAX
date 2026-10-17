@@ -1,5 +1,17 @@
 # ContextMAX
 
+**Your AI cites the line.** ContextMAX maps your code, your documents and every value in them, finds where
+they disagree, and guides Claude, Copilot or a model on your own PC to read the source, quote it and say
+how sure it is. Free, open source, deterministic, and nothing leaves your PC.
+
+[![Download ContextMAX for Windows](https://img.shields.io/badge/Download-ContextMAX%20for%20Windows-1b2230?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Kiriouchine/ContextMAX/releases/latest)
+
+![ContextMAX in 30 seconds: choose the folders, the Complete Atlas draws itself, every value with its line, a model on your PC reads the source and says how sure it is](docs/media/contextmax-demo.gif)
+
+**Try it in two minutes:** download, unzip, double-click `setup.cmd`, open ContextMAX from the Start menu
+and press **Try it on a made-up project**. It builds the small motor controller from the animation, with
+firmware in C, FPGA logic in VHDL, MATLAB models, a Python tool and nine documents that do not all agree.
+
 **Choose your project's folders. Get a map of the code, a map of the documents, every named value with
 its source, and the links between all of them. Then let your AI answer with citations.**
 
@@ -35,6 +47,12 @@ alone: no AI in the build, the same folders always give the same index. It never
   llama.cpp, LM Studio): nothing leaves the PC.
 
 ## Install
+
+Download from the [latest release](https://github.com/Kiriouchine/ContextMAX/releases/latest):
+**`ContextMAX-<version>-setup.zip`** (small; setup fetches Python and the packages from the internet) or
+**`ContextMAX-<version>-offline.zip`** (everything inside, for a PC without internet). Unzip it and
+double-click **`setup.cmd`**; if Windows asks whether to run it, choose **More info**, then **Run anyway**.
+A copy of this repository works the same way.
 
 Double-click **`setup.cmd`**. Nothing has to be installed first, and no administrator rights are needed.
 It does everything a normal Windows program's installer does, for your user account only:

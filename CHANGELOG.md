@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.0 (2026-10-17)
 
 A new ContextMAX, rebuilt around four layers that each answer one question: the catalogue (where is
 each file), the document map (what was intended), the code map (what the code does) and the value
@@ -131,6 +131,15 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
   code file it comes from, read by ContextMAX itself. The Ask page shows the model's own confidence beside
   ContextMAX's check (are the numbers in the sources they cite, are the cited sources real) and counts the
   lower of the two; when the model is surer than its sources allow, it says so.
+- **Try it on a made-up project**: a button on the start screen writes the small motor controller of the
+  README's animation (C firmware, VHDL logic, MATLAB models, a Python tool, nine documents that do not
+  all agree), opens it with the live drawing on and builds it; pressed again, it opens the same project.
+- The release has two downloads: `ContextMAX-<version>-setup.zip`, the program, whose setup.cmd fetches
+  Python and the packages, and `ContextMAX-<version>-offline.zip`, everything for a PC without internet.
+  `make-offline-installer.cmd` makes both.
+- The Ask page's number check reads the answer's claims only, not the model's explanation of its
+  confidence after the "Confidence:" line; a Medium confidence is shown in amber, Low in red. The model is
+  told never to convert or reinterpret a number or a unit, only to copy them as written.
 - **A range is written 1~4.** A dash between two numbers reads as a minus, to a model as much as to a
   person, so every range is written with a tilde: in the value list, on the pages, in what a model is
   given and in the skill (`4–20` from an earlier version still reads as 4~20). A range written with its
