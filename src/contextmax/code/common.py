@@ -290,6 +290,47 @@ def _guide(target: dict, ov: dict, modules: dict, defs: list[dict], calls_betwee
     return "\n".join(out)
 
 
+def module_dirs(base: Path) -> dict[str, str]:
+    """The folder each module's files share, relative to the code base ("" for the code base's own folder):
+    what "Open its folder" opens. From the code map's file list, and the VHDL entities' files."""
+    files: dict[str, list[str]] = defaultdict(list)
+    for rel, info in (util.load_json(base / "file-list.json", default={}) or {}).items():
+        files[info.get("module") or ""].append(rel)
+    for e in util.load_jsonl(base / "hdl-entities.jsonl"):
+        if e.get("module") and e.get("file"):
+            files[e["module"]].append(e["file"])
+    out = {}
+    for module, rels in files.items():
+        dirs = [r.rsplit("/", 1)[0] if "/" in r else "" for r in rels]
+        common = dirs[0].split("/") if dirs[0] else []
+        for d in dirs[1:]:
+            parts = d.split("/") if d else []
+            k = 0
+            while k < min(len(common), len(parts)) and common[k] == parts[k]:
+                k += 1
+            common = common[:k]
+        out[module] = "/".join(common)
+    return out
+
+
+def list_sources_by(root: Path, groups: dict[str, set[str]], skip_dirs: set[str]) -> dict[str, list[tuple[str, str]]]:
+    """list_sources for several sets of extensions, in one walk through the folders: the same lists."""
+    found: dict[str, list] = {name: [] for name in groups}
+    for folder, subfolders, names in os.walk(root):
+        if ".contextmax-skip" in names:
+            subfolders[:] = []
+            continue
+        subfolders[:] = sorted(d for d in subfolders if d not in skip_dirs)
+        for n in names:
+            ext = os.path.splitext(n)[1].lower()
+            hits = [g for g, extensions in groups.items() if ext in extensions]
+            if hits:
+                pair = (os.path.join(folder, n), util.rel_key(os.path.join(folder, n), root))
+                for g in hits:
+                    found[g].append(pair)
+    return {g: sorted(pairs, key=lambda pair: pair[1]) for g, pairs in found.items()}
+
+
 def list_sources(root: Path, extensions: set[str], skip_dirs: set[str]) -> list[tuple[str, str]]:
     """(full, rel) for every file with one of these extensions, in the order of rel."""
     found = []

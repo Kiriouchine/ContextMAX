@@ -30,7 +30,7 @@ from pathlib import Path
 OCR_VERSION = 2             # 2: language and rotation chosen per page, RapidOCR, rows and columns, 300 dpi
 DPI = 300
 MAX_SIDE = 8000             # pixels; Windows reads at most 10000 on a side, and a drawing at 300 dpi is larger
-MAX_PAGES = 200
+CHUNK_PAGES = 4             # pages recognised together: a long scan is shared out over the workers this way
 WORDLIKE_ENOUGH = 0.8       # share of the text that reads as words, from which a page is kept without a second try
 BLANK_INK = 0.002           # share of dark pixels below which a page with no text found is not tried again
 INKED = 0.01                # a page this dark that gives fewer than SCANT_TEXT characters has not been read
@@ -209,6 +209,7 @@ class Outcome:
     empty: int = 0               # pages with no text
     doubtful: int = 0            # pages whose best text still does not read as words
     problems: list = field(default_factory=list)     # what went wrong on the way, for the record
+    page_lines: list | None = None                   # the line each page starts on, in `text`
 
 
 def _png_grey(width: int, height: int, stride: int, buf: bytes) -> bytes:
@@ -224,7 +225,7 @@ _DARK = bytes(range(160))
 
 def render(pdf_path: str, out_dir: Path, pages: list[int] | None = None, rotation: int = 0) -> tuple[dict, int]:
     """page-0001.png ... in grey; returns ({page number: share of dark pixels}, pages in the file).
-    `pages` are 0-based page indexes; by default the first MAX_PAGES."""
+    `pages` are 0-based page indexes; by default every page."""
     import pypdfium2 as pdfium
     import pypdfium2.raw as pdfium_c
 
@@ -235,7 +236,7 @@ def render(pdf_path: str, out_dir: Path, pages: list[int] | None = None, rotatio
     ink = {}
     try:
         count = len(doc)
-        for i in pages if pages is not None else range(min(count, MAX_PAGES)):
+        for i in pages if pages is not None else range(count):
             page = doc[i]
             try:
                 w, h = page.get_size()
@@ -382,6 +383,12 @@ def _rapid_engine(model: str):
 
         params = {"Global.log_level": "error", "Global.max_side_len": 3600, "Global.text_score": 0.3,
                   "Det.box_thresh": 0.4}
+        from contextmax import parallel
+
+        if parallel.in_worker():
+            # several scans at once, each in its own worker: each worker its share of the processors. The
+            # text is the same with any number of threads (measured on the pages of real scans)
+            params["EngineConfig.onnxruntime.intra_op_num_threads"] = parallel.threads_per_worker()
         if model != "default":
             params.update({"Rec.model_path": str(models_dir() / RAPID_MODELS[model][0]),
                            "Rec.lang_type": getattr(LangRec, model.upper()), "Rec.ocr_version": OCRVersion.PPOCRV5,
@@ -470,13 +477,70 @@ def _not_read(page: PageText, ink: float) -> bool:
     return page.share < WORDLIKE_ENOUGH or (ink >= INKED and page.chars < SCANT_TEXT)
 
 
+def page_png(pdf_path: str, index: int, dpi: int = 150, max_side: int = 1800) -> bytes:
+    """One page (counted from 0) as a grey PNG, for a model that reads pictures: enough to read print, small
+    enough to send."""
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as pdfium_c
+
+    from contextmax.docs.readers import win_path
+
+    doc = pdfium.PdfDocument(win_path(pdf_path))
+    try:
+        page = doc[index]
+        try:
+            w, h = page.get_size()
+            bitmap = page.render(scale=min(dpi / 72, max_side / max(w, h, 1)), grayscale=True,
+                                 force_bitmap_format=pdfium_c.FPDFBitmap_Gray)
+            try:
+                return _png_grey(bitmap.width, bitmap.height, bitmap.stride, bytes(bitmap.buffer))
+            finally:
+                bitmap.close()
+        finally:
+            page.close()
+    finally:
+        doc.close()
+
+
+def page_count(pdf_path: str) -> int:
+    import pypdfium2 as pdfium
+
+    from contextmax.docs.readers import win_path
+
+    doc = pdfium.PdfDocument(win_path(pdf_path))
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
+def chunks(count: int) -> list[tuple[int, int]]:
+    """The pages of a scan as (first, last) pieces of CHUNK_PAGES, counted from 0; the same pieces however
+    many workers read them, so the result never depends on how many there are."""
+    return [(a, min(a + CHUNK_PAGES, count)) for a in range(0, count, CHUNK_PAGES)]
+
+
 def read_pdf(pdf_path: str, windows_languages: list[str] | None = None) -> Outcome:
-    """Recognise the text of a scanned PDF. `windows_languages`: what Windows can read on this PC (the
-    probe's list); empty when Windows has no recognition. Never raises: what goes wrong is the outcome's."""
+    """Recognise the text of a scanned PDF, every page of it, a few pages at a time (read_pages), here.
+    `windows_languages`: what Windows can read on this PC (the probe's list); empty when Windows has no
+    recognition. Never raises: what goes wrong is the outcome's."""
+    if not windows_languages and not rapid_models():
+        return Outcome(False, error="no text recognition on this PC (no Windows recognition language, no RapidOCR)")
+    try:
+        count = page_count(pdf_path)
+    except Exception as exc:  # noqa: BLE001 - reported as this file's reason
+        return Outcome(False, error=f"cannot render pages: {type(exc).__name__}: {exc}")
+    return merge([read_pages(pdf_path, a, b, windows_languages) for a, b in chunks(count)])
+
+
+def read_pages(pdf_path: str, first: int, last: int, windows_languages: list[str] | None = None) -> dict:
+    """The pages first..last-1 (counted from 0) of a scanned PDF, recognised. A page's text depends on that
+    page alone, so a scan read in pieces, by several workers or one, reads as it would in one go. Returns
+    the piece merge() puts together with the others. Never raises."""
     windows_languages = list(windows_languages or [])
     rapid = rapid_models()
     if not windows_languages and not rapid:
-        return Outcome(False, error="no text recognition on this PC (no Windows recognition language, no RapidOCR)")
+        return {"fatal": "no text recognition on this PC (no Windows recognition language, no RapidOCR)"}
     # every reader, in the order they are asked: Windows in the user's language, Windows' other
     # languages, then RapidOCR's models. None as the language is the user's own.
     readers = ([("windows", None)] + [("windows", lang) for lang in windows_languages] if windows_languages else [])
@@ -484,11 +548,11 @@ def read_pdf(pdf_path: str, windows_languages: list[str] | None = None) -> Outco
     with tempfile.TemporaryDirectory(prefix="cmx-ocr-", ignore_cleanup_errors=True) as tmp:
         pages_dir = Path(tmp) / "pages"
         try:
-            ink, count = render(pdf_path, pages_dir)
+            ink, count = render(pdf_path, pages_dir, list(range(first, last)))
         except Exception as exc:  # noqa: BLE001 - reported as this file's reason
-            return Outcome(False, error=f"cannot render pages: {type(exc).__name__}: {exc}")
+            return {"fatal": f"cannot render pages: {type(exc).__name__}: {exc}"}
         if not ink:
-            return Outcome(False, error="no pages", page_count=count)
+            return {"best": {}, "ink": {}, "problems": [], "count": count}
         best = {n: PageText() for n in ink}
         lying = {n: {} for n in ink}            # page -> {rotation: flat line length the first reader saw}
         timeout = 120 + 10 * len(ink)
@@ -578,8 +642,28 @@ def read_pdf(pdf_path: str, windows_languages: list[str] | None = None) -> Outco
                 if folder:
                     run(reader, folder, rotation)
 
-    outcome = Outcome(True, "\n\n".join(best[n].text for n in sorted(best)) + "\n", pages=len(best),
-                      page_count=count, problems=problems[:10])
+    return {"best": best, "ink": ink, "problems": problems, "count": count}
+
+
+def merge(parts: list[dict]) -> Outcome:
+    """The pieces of one scan, in page order, as one outcome."""
+    for part in parts:
+        if part.get("fatal"):
+            return Outcome(False, error=part["fatal"])
+    count = parts[0]["count"] if parts else 0
+    best, ink, problems = {}, {}, []
+    for part in parts:
+        best.update(part["best"])
+        ink.update(part["ink"])
+        problems += part["problems"]
+    if not ink:
+        return Outcome(False, error="no pages", page_count=count)
+    texts = [best[n].text for n in sorted(best)]
+    outcome = Outcome(True, "\n\n".join(texts) + "\n", pages=len(best), page_count=count, problems=problems[:10])
+    if sorted(best) == list(range(1, len(best) + 1)):      # every page from the first: where each one starts
+        from contextmax.docs.readers import page_starts
+
+        outcome.page_lines = page_starts(texts, 2)
     for n, p in best.items():
         if p.text.strip():
             outcome.readers[p.reader] = outcome.readers.get(p.reader, 0) + 1

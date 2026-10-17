@@ -16,6 +16,7 @@ an AI writes under its answers comes from here.
 from __future__ import annotations
 
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from contextmax import VERSION, util
@@ -45,7 +46,9 @@ def build(proj) -> dict:
         if not (d / "overview.json").exists():
             continue
         files = list_sources(Path(t["root"]), CODE_SUFFIXES, set(SKIP_DIR_NAMES))
-        src = util.canonical_hash([[rel, util.hash_file(full)] for full, rel in files])
+        with ThreadPoolExecutor(max_workers=8) as threads:      # reading files waits on the disk: threads
+            hashes = list(threads.map(util.hash_file, [full for full, _ in files]))
+        src = util.canonical_hash([[rel, h] for (_, rel), h in zip(files, hashes, strict=True)])
         content = _hash_dir(d)
         s = util.load_json(d / "overview.json", default={})
         code_bases[t["name"]] = {"label": t["label"], "languages": s.get("languages", {}), "files_count": s.get("files_count"),
@@ -63,7 +66,8 @@ def build(proj) -> dict:
     doc_files = {}
     for name in ("doc-list.jsonl", "doc-sources.jsonl", "doc-outlines.jsonl", "params.jsonl", "params.sqlite",
                  "params-info.json", "text-index.jsonl", "text-coverage.json", "overview.json", "document-guide.md",
-                 "links/doc-to-code.jsonl", "links/between-docs.jsonl", "links/code-to-doc.json", "value-conflicts.jsonl"):
+                 "links/doc-to-code.jsonl", "links/between-docs.jsonl", "links/code-to-doc.json", "value-conflicts.jsonl",
+                 "links/value-to-code.jsonl"):
         p = proj.documents_dir / name
         if p.exists():
             doc_files[name] = util.hash_file(p)
@@ -136,7 +140,9 @@ def build(proj) -> dict:
                                 "coverage": coverage},
         "corpus": {**{k: dm_summary.get(k) for k in ("docs_count", "sources_count", "code_linked_count", "doc_code_edges_count",
                                                           "doc_doc_edges_count", "doc_doc_kinds", "outline_totals",
-                                                          "param_rows", "param_origins", "value_conflicts_count")},
+                                                          "param_rows", "param_origins", "value_conflicts_count",
+                                                          "named_values_count", "value_names_count",
+                                                          "names_from_sentences_count", "value_code")},
                          "bytes_sha256": doc_files},
         "catalogue": {"file_total": folders.get("file_total"), "bytes_sha256": catalogue},
         "pages_sha256": pages,

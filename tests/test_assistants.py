@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from contextmax import agentskill, ask, assistants
+from contextmax import agentskill, ask, assistants, reading
 
 
 def test_what_others_wrote_in_the_working_folder_stays(built, tmp_path):
@@ -78,21 +78,35 @@ def test_starting_an_assistant_installs_its_skill_and_runs_what_it_should(built,
     monkeypatch.setattr(assistants.subprocess, "Popen", lambda cmd, **k: runs.append((cmd, k.get("cwd"))))
     monkeypatch.setattr(assistants.os, "startfile", lambda target: opened.append(target), raising=False)
     monkeypatch.setattr(assistants.time, "sleep", lambda s: None)
-    wsfile = str(built.workspace / f"{built.slug}.code-workspace")
+    code, wsfile = str(tmp_path / "VS Code" / "Code.exe"), str(built.workspace / f"{built.slug}.code-workspace")
     assistants.start(built, "vscode")
-    assert runs[-1] == ([str(tmp_path / "VS Code" / "Code.exe"), wsfile], None) and skills == ["copilot"]
-    assistants.start(built, "vscode-claude")
-    for t in threading.enumerate():
-        if t is not threading.current_thread() and t.daemon and t.name.startswith("Thread"):
-            t.join(timeout=2)
-    assert opened == [f"vscode://anthropic.claude-code/open?prompt=Using%20the%20contextmax-{built.slug}%20skill%3A%20"]
+    assert runs[-1] == ([code, wsfile], None) and skills == ["copilot"]
+
+    # Claude in VS Code: the project's window is waited for and brought forward, then the chat opens in it
+    seen = iter([[], [], [7], [7]])
+    monkeypatch.setattr(assistants, "_vscode_windows", lambda part: next(seen, [7]) if part == f"{built.slug} (Workspace)" else [])
+    monkeypatch.setattr(assistants, "_in_front", lambda hwnd: hwnd == 7)
+    runs.clear()
+    message = assistants.start(built, "vscode-claude")
+    assert runs == [([code, wsfile], None), ([code, wsfile], None)]          # started, then brought forward
+    assert opened == [f"vscode://anthropic.claude-code/open?prompt=%2Fcontextmax-{built.slug}%20"]
+    assert f"/contextmax-{built.slug} typed in" in message
+    # no window within the wait: said, and no link sent to whichever window happens to be in front
+    clock = iter(range(0, 1000, 10))
+    monkeypatch.setattr(assistants, "_vscode_windows", lambda part: [])
+    monkeypatch.setattr(assistants.time, "monotonic", lambda: next(clock))
+    message = assistants.start(built, "vscode-claude")
+    assert "did not appear" in message and len(opened) == 1
+
     assistants.start(built, "codex")
     assert runs[-1] == (["cmd.exe", "/k", "codex"], str(built.workspace)) and skills[-1] == "codex"
     with pytest.raises(ValueError):
         assistants.start(built, "notepad")
-    monkeypatch.setattr(assistants, "_which", lambda name: f"C:\\Tools\\{name}.exe")
-    assistants.start(built, "claude")
-    assert runs[-1] == (["cmd.exe", "/k", "C:\\Tools\\claude.exe"], str(built.workspace))
+    monkeypatch.setattr(assistants, "_which", lambda name: rf"C:\Tools\{name}.exe")
+    message = assistants.start(built, "claude")
+    # Claude Code in a terminal starts with the skill's name as its first message: the skill loads at once
+    assert runs[-1] == (["cmd.exe", "/k", r"C:\Tools\claude.exe", f"/contextmax-{built.slug}"], str(built.workspace))
+    assert "loads the project's skill" in message
 
 
 def test_codex_gets_the_skill_only_where_codex_is(built, monkeypatch, tmp_path):
@@ -103,15 +117,16 @@ def test_codex_gets_the_skill_only_where_codex_is(built, monkeypatch, tmp_path):
     assert [line.split(":")[0] for line in agentskill.install(built, "all")] == ["claude", "codex"]
 
 
-def test_the_sources_come_from_the_index_each_once(built):
-    found = ask.sources(built, "What is the settle time, and do the documents agree?")
-    values = [s for s in found if s["kind"] == "value"]
-    assert values and all("settle" in s["text"] for s in values)
-    assert len({(s["kind"], s["cite"], s["text"]) for s in found}) == len(found)
-    assert [s["n"] for s in found] == list(range(1, len(found) + 1))
-    code = ask.sources(built, "How does read_sensor remove the offset?")
-    assert code[0]["kind"] == "code" and code[0]["label"] == "read_sensor" and "sensor.c" in code[0]["cite"]
-    assert ask.sources(built, "the and of") == []
+def test_the_ways_in_come_from_the_index_each_place_once(built):
+    ins = reading.ways_in(built, "What is the settle time, and do the documents agree?")
+    assert ins[0]["kind"] == "document" and "settle time" in ins[0]["why"]
+    docs = {e["key"] for e in ins if e["kind"] == "document"}
+    assert {"Detailed_design_v2.1", "Test_plan", "System_requirements_v1.2"} <= docs   # every one that states it
+    assert "System_requirements_v1.1" not in docs                                      # a copy is read once
+    assert len({reading._place(e) for e in ins}) == len(ins) <= reading.MAX_SOURCES
+    code = reading.ways_in(built, "How does read_sensor remove the offset?")
+    assert any(e["kind"] == "code" and e["file"].endswith("sensor.c") for e in code)
+    assert reading.ways_in(built, "the and of") == []
 
 
 class _FakeModel(BaseHTTPRequestHandler):
@@ -138,6 +153,14 @@ class _FakeModel(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         _FakeModel.asked.append((self.path, body))
+        if self.path == "/api/chat" and body.get("format"):
+            # one passage read: the line with "settle time" quoted, and one quote the file does not hold
+            text = body["messages"][-1]["content"]
+            hit = next((ln for ln in text.split("\n") if "settle time" in ln.lower() and ln.split(":")[0].isdigit()), None)
+            reading_ = {"relevant": bool(hit), "says": "it states the settle time" if hit else "", "follow": [],
+                        "quotes": [{"line": int(hit.split(":")[0]), "text": hit.split(":", 1)[1].strip()},
+                                   {"line": 1, "text": "the settle time is 99 hours"}] if hit else []}
+            return self._out(json.dumps({"message": {"role": "assistant", "content": json.dumps(reading_)}}).encode())
         if self.path == "/api/chat":
             lines = [{"message": {"content": "Twelve "}}, {"message": {"content": "ms [1]."}, "done": True}]
             return self._out(b"".join(json.dumps(x).encode() + b"\n" for x in lines), "application/x-ndjson")
@@ -156,12 +179,11 @@ def fake_model():
 
 
 def test_a_model_on_this_pc_answers_in_pieces_in_both_dialects(built, fake_model):
-    msgs = ask.messages(built, "settle time?", ask.sources(built, "settle time?"))
+    msgs = [{"role": "system", "content": "answer"}, {"role": "user", "content": "settle time? [1] ..."}]
     assert "".join(ask.stream("ollama", fake_model, "big", msgs)) == "Twelve ms [1]."
     assert "".join(ask.stream("openai", fake_model, "big", msgs)) == "Twelve ms [1]."
     sent = _FakeModel.asked[0][1]
     assert sent["options"]["num_ctx"] == 8192 and sent["messages"][0]["role"] == "system"
-    assert "[1] (" in sent["messages"][1]["content"]
     assert ask._ollama_order(fake_model, ["small", "big"], 2) == ["big", "small"]
 
 
@@ -219,7 +241,28 @@ def test_the_window_asks_and_hands_back_answer_and_sources(built, fake_model, mo
                 break
             time.sleep(0.05)
         assert r["text"] == "Twelve ms [1]." and not r["error"]
-        doc = next(s for s in r["sources"] if s["kind"] == "document")
-        assert Path(doc["path"]).is_absolute() and doc["text_link"].startswith(f"/ws/{built.slug}/documents/text/")
+        reads = [s for s in r["steps"] if s["step"] == "read"]
+        done = [s for s in r["steps"] if s["step"] == "read done"]
+        assert reads and len(reads) == len(done) <= reading.MAX_SOURCES + reading.MAX_FOLLOW
+        hit = next(s for s in done if s["relevant"])
+        assert hit["held"] == 1 and hit["missing"] == 1           # the invented quote is not in the file: left out
+        assert r["confidence"]["level"] == "Medium"               # the documents give the settle time two values
+        doc = r["sources"][0]["window"]
+        assert Path(doc["path"]).is_absolute() and doc["line_link"].startswith(f"/lines?slug={built.slug}&key=")
+        quote = r["sources"][0]["quotes"][0]
+        assert quote["checked"] and "settle time" in quote["text"].lower() and "99 hours" not in json.dumps(r["sources"])
+        assert " · " in doc["cite"] and "line" in doc["cite"]              # one citation format
+        sent = [b for path, b in _FakeModel.asked if path == "/api/chat"]
+        assert sent[0]["format"] and sent[0]["options"]["temperature"] == 0 and sent[-1]["stream"] is True
+        assert "checked against the file" in sent[-1]["messages"][0]["content"]
+        # the line viewer: the cited line, with the lines around it
+        key = doc["line_link"].split("key=")[1].split("&")[0]
+        lines = api("lines", key=key, n=2, before=1, after=1)
+        assert lines["first"] == 1 and len(lines["lines"]) == 3 and lines["total"] >= 3
+        assert "__TOKEN__" not in urllib.request.urlopen(f"{base}/lines?slug={built.slug}&key={key}&n=2", timeout=5).read().decode()
+        with pytest.raises(urllib.error.HTTPError):
+            api("lines", key="not-a-document", n=1)
+        with pytest.raises(urllib.error.HTTPError):                 # only a model ContextMAX suggests is downloaded
+            api("ollama-pull", model="evil & calc")
     finally:
         srv.shutdown()

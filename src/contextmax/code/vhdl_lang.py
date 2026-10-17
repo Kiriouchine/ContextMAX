@@ -251,6 +251,7 @@ def map_vhdl(root: str, files: list[tuple[str, str]], out: Path, target: dict) -
     """Read the VHDL of one code base, write its hdl-* files and guide, return the overview."""
     reading = _Reading()
     for full, rel in files:
+        util.tick(rel)
         reading.read(full, rel)
     entities = reading.entities
     placed, missing = _link(entities, reading.instances)

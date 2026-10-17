@@ -14,6 +14,7 @@ import os
 from collections import Counter
 
 from contextmax import util
+from contextmax.code.common import module_dirs
 
 CONFIDENCE = {"one": 0, "some": 1, "strong": 2}
 SHOWN = 4                       # names listed with a link; the documents page and the files hold all of them
@@ -29,7 +30,7 @@ def stage_names(proj, core: list[dict]) -> list[str]:
 HDL_ROLES = {"rtl": "product", "testbench": "test"}
 
 
-def code_part(proj, functions: bool = True) -> dict:
+def code_part(proj, functions: bool = True, portable: bool = False) -> dict:
     """Code bases, their modules (with module-to-module calls) and their functions. VHDL counts as code
     too: its modules join the others, an entity placing another is a call, and entities are the functions."""
     targets, modules, calls = [], [], []
@@ -41,8 +42,9 @@ def code_part(proj, functions: bool = True) -> dict:
         if not (base / "module-list.json").exists():
             continue
         ti = len(targets)
-        targets.append({"name": t["name"], "label": t["label"]})
+        targets.append({"name": t["name"], "label": t["label"], "root": "" if portable else t["root"]})
         table = util.load_json(base / "module-list.json", default={}) or {}
+        dirs = module_dirs(base)
         hdl = util.load_json(base / "hdl-modules.json", default={}) or {}
         entities = util.load_jsonl(base / "hdl-entities.jsonl") if hdl else []
         hdl_files = {name: len({e["file"] for e in entities if e.get("module") == name}) for name in hdl}
@@ -51,7 +53,7 @@ def code_part(proj, functions: bool = True) -> dict:
             langs = list(m.get("languages") or []) + (["VHDL"] if h else [])
             mod_index[(t["name"], name)] = len(modules)
             modules.append([ti, name, m.get("functions_count", 0) + h.get("entities_count", 0),
-                            m.get("files_count", 0) + hdl_files.get(name, 0), ", ".join(langs)])
+                            m.get("files_count", 0) + hdl_files.get(name, 0), ", ".join(langs), dirs.get(name, "")])
         for name in sorted(set(table) | set(hdl)):
             into = Counter((table.get(name) or {}).get("calls_into") or {})
             into.update((hdl.get(name) or {}).get("needs") or {})          # placing another module's entities
@@ -162,6 +164,27 @@ def code_link_rows(edges: list[dict], doc_at: dict[str, int], mods: dict[tuple[s
     return rows
 
 
+VALUE_OUTCOMES = ("match", "mismatch", "unit unknown", "units differ")
+
+
+def value_code_rows(rows: list[dict], doc_at: dict[str, int], mods: dict[tuple[str, str], int]) -> list[list]:
+    """A document's value found in the code: [document, module, outcome, value name, the document's value,
+    code name, the code's value, note], one per document and code value."""
+    out = []
+    for r in rows:
+        c = r["code"]
+        mi = mods.get((c["target"], c.get("module")))
+        if mi is None:
+            continue
+        code_value = f"{c['value']} {c.get('unit') or ''}".strip()
+        for d in r["documents"]:
+            at = doc_at.get(d["doc_ref"])
+            if at is not None:
+                out.append([at, mi, VALUE_OUTCOMES.index(r["outcome"]), r.get("label") or "", r["doc_shown"], c["name"],
+                            code_value, r["note"]])
+    return out
+
+
 def link_detail(e: dict):
     """What a line between two documents says, kept short: the drawer shows it when the line is clicked."""
     k = e["kind"]
@@ -220,7 +243,7 @@ LINKS_PER_EVENT = 5000
 
 
 def live_code(proj) -> None:
-    code = code_part(proj, functions=False)
+    code = code_part(proj, functions=False, portable=True)      # the drawing needs no paths, like the documents
     util.live("code", targets=code["targets"], modules=code["modules"], calls=code["calls"])
 
 
@@ -248,7 +271,7 @@ def live_document_links(core: list[dict], edges: list[dict]) -> None:
 def build(proj, portable: bool = False) -> dict:
     dm = proj.documents_dir
     core = util.load_jsonl(dm / "doc-list.jsonl")
-    code = code_part(proj)
+    code = code_part(proj, portable=portable)
     mods = module_index(code)
     dpart = docs_part(proj, core, portable)
     doc_at = {k: i for i, k in enumerate(dpart["docs"]["k"])}
@@ -256,9 +279,10 @@ def build(proj, portable: bool = False) -> dict:
     links = doc_link_rows(util.load_jsonl(dm / "links" / "between-docs.jsonl"), doc_at, kinds)
     dcode = code_link_rows(util.load_jsonl(dm / "links" / "doc-to-code.jsonl"), doc_at, mods, entity_modules(code))
     fdocs = function_doc_rows(proj, code, doc_at)
+    vcode = value_code_rows(util.load_jsonl(dm / "links" / "value-to-code.jsonl"), doc_at, mods)
     per_kind = Counter(links["k"])
     counts = {"modules": len(code["modules"]), "functions": len(code["functions"]["m"]), "module_calls": len(code["calls"]),
-              "function_calls": len(code["fcalls"]), "documents": len(core), "code_links": len(dcode),
+              "function_calls": len(code["fcalls"]), "documents": len(core), "code_links": len(dcode), "value_links": len(vcode),
               "links": {k: per_kind[i] for i, k in enumerate(kinds) if per_kind[i]}}
-    return {"project": proj.name, **code, **dpart, "dcode": dcode, "fdocs": fdocs, "kinds": kinds, "links": links,
+    return {"project": proj.name, **code, **dpart, "dcode": dcode, "vcode": vcode, "fdocs": fdocs, "kinds": kinds, "links": links,
             "counts": counts}

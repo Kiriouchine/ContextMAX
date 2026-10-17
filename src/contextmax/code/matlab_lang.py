@@ -118,6 +118,7 @@ def analyze(root: str, files: list[tuple[str, str]], depth: int):
     primary: dict[str, list[str]] = defaultdict(list)     # function-file name -> keys
     pending: list[tuple[int, list[str], dict[str, str]]] = []
     for full, rel in files:
+        util.tick(rel)
         text = util.load_text(full)
         raw = text.split("\n")
         code = strip_matlab(text)

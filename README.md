@@ -20,11 +20,18 @@ alone: no AI in the build, the same folders always give the same index. It never
   documents that state the same named value, and whether they agree; when most documents agree on a value, a
   document that states another, in red, linked to the document they follow; documents about the same part of
   the code. Every link found is kept: no document is limited to its strongest few.
-- **Values**: every number with a unit and every spreadsheet cell, found by its name, with the sheet and
-  cell it came from and the formula behind it.
+- **Values**: every number with a unit and every spreadsheet cell, found by its name, cited to the line
+  (and page, and section) or the sheet and cell it came from, with the formula behind it. A name comes
+  from a label ("settle time: 12 ms"), a workbook's label, or the value's own sentence ("a settle time of
+  12 ms").
+- **Values in the code**: the named numbers of the code (`#define`, `const`, `constexpr`, Python and MATLAB
+  assignments, VHDL constants and generics) with their units, and each one a document states compared in
+  one unit: match, mismatch, or unit unknown when the code does not say its unit.
 - **Your AI**: a skill for Claude Code, GitHub Copilot and Codex that answers in three parts (what the
   code does, what the documents intend, and whether they agree), cites every claim, and says what it did
-  not check. Start one from the project's Home page, or ask a model that runs on this PC (Ollama,
+  not check. The index is the way in, the documents and the code are the truth: the AI opens the source
+  the index points to, answers from it, links it, and ends with its confidence (High, Medium or Low, and
+  why) or says plainly that nothing was found. Start one from the project's Home page, or ask a model that runs on this PC (Ollama,
   llama.cpp, LM Studio): nothing leaves the PC.
 
 ## Install
@@ -48,16 +55,29 @@ It does everything a normal Windows program's installer does, for your user acco
 Run `setup.cmd` again at any time to update. `ContextMAX.cmd` in this folder works too: the first time,
 it runs `setup.cmd` for you.
 
-In the window: name a project, add its folders with the folder picker, say what each holds, and press
-**Read documents and build**. To try everything on a small made-up project first, run `contextmax demo`.
+The window opens on your projects: press **Open** on one, or name a new one under **Start a new
+project**. Then add its folders with the folder picker and say what each holds; the build starts by
+itself. To try everything on a small made-up project first, run `contextmax demo`. When it is built,
+**Open the project** (at the top) opens its maps, and **Connect your AI** installs the skill that lets
+Claude Code, Copilot or Codex answer from the index.
 
 Adding a folder, removing one or changing what it holds starts a build at once: links run across folders,
-so one changed folder can change links anywhere in the project. **Show the build live** (off unless you
-switch it on) draws the Complete Atlas while the build runs, from the build's own results: the documents
-as they are read, the code as it is mapped, each document moving to its stage, the links as they are
-found, the validation gate, and at the end the same drawing as the Complete Atlas page. The text log
-stays as it is. It costs the build no measurable time: on 10,060 code files and 10,000 documents
-the build took 288.5 s with it and 288.7 s without.
+so one changed folder can change links anywhere in the project. Above the log, the window shows the
+build's steps, what it is doing now and a clock; the log has a line at least every two seconds, and a
+summary at the end. The CMD window shows the same lines, and everything else the window does. Each
+build's log is also saved in the project's working folder, under `logs`. **Stop the build** stops it
+and keeps what it finished; the next build goes on from there. Above the build buttons, the window says
+what the last build could not read and what changed in the folders since, and marks the button to press.
+
+A build uses the PC's processors: documents, scans and the document map's searches are spread over
+worker processes (one per processor thread but one, running below normal priority), and the index is the
+same, byte for byte, as with one. To run one at a time, set `CONTEXTMAX_WORKERS=1`.
+**Show the build live** (off unless you switch it on, also during a build) draws the Complete Atlas while
+the build runs, from the build's own results: the documents as they are read, the code as it is mapped,
+each document moving to its stage, the links as they are found, the validation gate, and at the end the
+same drawing as the Complete Atlas page. It costs the build no measurable time: on 10,060 code files and
+10,000 documents the build took 288.5 s with it and 288.7 s without. A built project shows its Complete
+Atlas at the bottom of the window.
 
 ### A PC without internet
 
@@ -82,7 +102,7 @@ works offline, from the folder. A switch at the top right gives light or dark.
 | **Complete Atlas** | Everything in one drawing: every module of every code base on a wheel with the calls between them, every document in its lifecycle stage, and every link: documents to the code they name, and documents to documents (cited, quoted, shared values, values that differ, same part of the code). Click a module, a document or any line for what it connects; double-click a module for its functions, the modules it calls and is called from, and the documents that name each function. Each kind of line can be switched on and off. |
 | **Code** (one per code base) | **Bubbles**: modules, then a module's functions, laid out by physics. **Drafting table**: modules as blocks holding their functions as circles, in a fixed layout. **Metro lines**: each module a coloured line, its functions the stations in call order, calls into another module as changes between lines. **Zoom levels**: code bases, then modules, then one function with its callers and callees. **Hierarchy**: VHDL entities and which one places which. |
 | **Documents** | **Document map**: stages left to right, rows by how closely a document ties to the code. **Drafting table**: the same documents as pages. **Network**: linked documents and the code modules they name, laid out by physics. Each link kind can be switched on and off. |
-| **Parameters** | Find a value by its name, see every document that states it, and whether they agree. Trace a cell's formula back to its constants. |
+| **Parameters** | Find a value by its name, see every document that states it (cited to the line, page and section, with **Show the line**), and whether they agree. **In the code**: what the code sets for it, and whether that matches. Trace a cell's formula back to its constants. |
 | **Connections** | Your code bases and the links a call graph cannot see (between programs, chips and devices), which you write once in `notes\connections.json`. |
 
 Click anything for its details: file and line with an **Open in editor** link, callers and calls,
@@ -104,14 +124,26 @@ and Claude's chat), **VS Code** (for Copilot), **Claude Code** and **Codex** (in
 are installed). ContextMAX prepares the working folder for them: `CLAUDE.md` and `AGENTS.md` say what the
 project is and which skill to use (in a block between two marks: what an assistant or you write there
 stays), `.claude\settings.json` lets Claude Code read the project's folders (and no longer one taken out
-of the project), and `<project>.code-workspace` opens them all in VS Code.
+of the project), and `<project>.code-workspace` opens them all in VS Code. Claude starts with the
+project's skill: **Claude Code** in a terminal is started with `/contextmax-<project>` as its first message,
+which loads the skill; **VS Code with Claude** waits for the project's VS Code window, brings it to the
+front and opens Claude's chat there with `/contextmax-<project>` typed in (Claude Code never sends a
+typed-in message by itself: write your question after it and press Enter).
 
-**A model on this PC** asks Ollama, llama.cpp's server or LM Studio, whichever runs. ContextMAX first finds
-what the question is about in the index, by itself (functions with their code, passages of the documents,
-named values), gives only that to the model, and lists those sources with links; the answer cites them
-as [1], [2]. Nothing leaves the PC. Larger models answer better: on made-up questions a 26 to 31 billion
-parameter model (gemma4, qwen3-coder) found that two documents disagree where an 8 billion one did not.
-The first question loads the model and takes longer.
+**A model on this PC** asks Ollama, llama.cpp's server or LM Studio, whichever runs. It needs no skill:
+ContextMAX guides it step by step. It finds where the question leads in the index (values with their line,
+the other documents that state them, the code the index links them to, functions, passages), opens each
+file at that place, and has the model read one passage at a time: what the passage says, in its exact
+words with their line numbers, and what it points to, which is then read too. Every quote is looked up in
+the file; one the file does not hold is left out. The answer comes only from the quotes that hold, cites
+them as [1], [2], and ends with its confidence beside ContextMAX's own; when nothing relevant is read, the
+answer is a plain "not found". A model that can see (gemma4, qwen3.8) also reads the PDF pages as pictures,
+so formulas, tables and figures are read from the original. The Ask page shows every step, with **Show the
+line**, **Open document** or **Open in editor**. Nothing leaves the PC. The window suggests a model for the
+PC's graphics memory (Qwen 3.8 27B with 20 GB or more) and can have Ollama download it. Larger models
+answer better: on made-up questions a 26 to 31 billion parameter model (gemma4, qwen3-coder) found that
+two documents disagree where an 8 billion one did not. The first question loads the model and takes
+longer.
 
 ## From the command line
 
@@ -139,10 +171,12 @@ project.json        your folders and the project's vocabulary (edit it to change
 Home.html           the front door
 buildinfo.json      what was mapped, how complete it is, and fingerprints to prove it
 catalogue\          every file, its category, priority and document numbers (all-files.csv)
-code\<base>\        function-list.jsonl, call-pairs.json, name-lookup.json, module-list.json, code-guide.md
+code\<base>\        function-list.jsonl, call-pairs.json, name-lookup.json, module-list.json, code-guide.md,
+                    values.jsonl (named numbers in the code)
 documents\          text\ and sheets\ (what was read), doc-list.jsonl (documents), doc-outlines.jsonl,
                     params.sqlite (every value), value-conflicts.jsonl (values documents give differently),
-                    links\ (document and code links), document-guide.md
+                    links\ (document and code links; value-to-code.jsonl: values against the code),
+                    document-guide.md
 pages\              the pages
 notes\              project-notes.md and connections.json: knowledge people write down
 CLAUDE.md, AGENTS.md, .claude\, <project>.code-workspace

@@ -6,13 +6,18 @@ import shutil
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from contextmax import util
+from contextmax import parallel, util
 from contextmax.catalogue import SKIP_DIR_NAMES
-from contextmax.code import c_lang, cpp_lang, matlab_lang, python_lang, vhdl_lang
-from contextmax.code.common import list_sources, module_depth, write_map
+from contextmax.code import c_lang, cpp_lang, matlab_lang, python_lang, values, vhdl_lang
+from contextmax.code.common import list_sources_by, module_depth, write_map
 from contextmax.project import Project
 
 READERS = [("C", c_lang), ("Python", python_lang), ("MATLAB", matlab_lang)]
+
+
+def _header_is_cpp(full: str) -> bool:
+    """One .h file: C++ or C (a piece of parallel work)."""
+    return cpp_lang.is_cpp_header(util.load_text(full))
 
 
 def _module_includes(file_info: dict) -> dict:
@@ -34,17 +39,20 @@ def _module_includes(file_info: dict) -> dict:
 def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
     root = Path(target["root"])
     skip = set(SKIP_DIR_NAMES)
-    found = {}
-    for lang, reader in READERS:
-        found[lang] = list_sources(root, reader.EXTENSIONS, skip)
-    found["C++"] = list_sources(root, cpp_lang.EXTENSIONS, skip)
-    vhdl_files = list_sources(root, vhdl_lang.EXTENSIONS, skip)
+    util.say("code", f"{target['label']}: listing the code files, and telling C++ headers from C headers")
+    lists = list_sources_by(root, {**{lang: reader.EXTENSIONS for lang, reader in READERS},
+                                   "C++": cpp_lang.EXTENSIONS, "VHDL": vhdl_lang.EXTENSIONS}, skip)
+    found = {lang: lists[lang] for lang, _ in READERS}
+    found["C++"] = lists["C++"]
+    vhdl_files = lists["VHDL"]
     if workspace is not None:
         ws = str(workspace.resolve()).lower()
         for lang in found:
             found[lang] = [f for f in found[lang] if not str(Path(f[0]).resolve()).lower().startswith(ws)]
     # A .h file belongs to C++ when its own text is C++ (classes, namespaces, templates, ::), else to C.
-    cpp_headers = [f for f in found["C"] if f[1].lower().endswith(".h") and cpp_lang.is_cpp_header(util.load_text(f[0]))]
+    headers = [f for f in found["C"] if f[1].lower().endswith(".h")]
+    told = parallel.map_in_order(_header_is_cpp, [full for full, _ in headers])
+    cpp_headers = [f for f, is_cpp in zip(headers, told, strict=True) if is_cpp]
     if cpp_headers:
         moved = set(cpp_headers)
         found["C"] = [f for f in found["C"] if f not in moved]
@@ -56,11 +64,16 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
     rels = [rel for files in found.values() for _, rel in files] + [rel for _, rel in cpp_files]
     depth = int(target.get("module_depth") or module_depth(rels)) if rels else 1
     util.live("codefiles", target=target["name"], files=len(rels) + len(vhdl_files))
+    counts = [(lang, len(found[lang])) for lang, _ in READERS] + [("C++", len(cpp_files)), ("VHDL", len(vhdl_files))]
+    util.say("code", f"{target['label']}: {util.count(len(rels) + len(vhdl_files), 'code file')} ("
+                     + (", ".join(f"{lang} {n:,}" for lang, n in counts if n) or "none") + ")")
     defs, file_info, extras = [], {}, {"prototypes": {}, "macro_map": {}, "module_includes": {}}
     for lang, reader in READERS:
         if not found[lang]:
             continue
-        d, fi, ex = reader.analyze(str(root), found[lang], depth)
+        with util.progress("code", f"reading {lang}", len(found[lang])):
+            d, fi, ex = reader.analyze(str(root), found[lang], depth)
+        util.say("code", f"  {lang}: {util.count(len(found[lang]), 'file')} read, {util.count(len(d), 'function')}")
         defs.extend(d)
         file_info.update(fi)
         for k in extras:
@@ -69,8 +82,10 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
     if cpp_files:
         # C++ may call the C functions of the same code base, and C may call C++ functions with C linkage.
         c_defs = [d for d in defs if d["lang"] == "C"]
-        d, fi, ex = cpp_lang.analyze(str(root), cpp_files, depth, c_defs)
+        with util.progress("code", "reading C++", len(cpp_files)):
+            d, fi, ex = cpp_lang.analyze(str(root), cpp_files, depth, c_defs)
         cpp_lang.link_c_callers(c_defs, d, ex["c_linkage"])
+        util.say("code", f"  C++: {util.count(len(cpp_files), 'file')} read, {util.count(len(d), 'function')} and methods")
         defs.extend(d)
         file_info.update(fi)
         extras["prototypes"].update(ex["prototypes"])
@@ -79,11 +94,16 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
         extras["cpp"] = ex["cpp"]
         util.live("coderead", target=target["name"], files=len(cpp_files), language="C++")
     extras["module_depth"] = depth
+    util.say("code", "  writing the code map: functions, calls, modules, the name lookup")
     summary = write_map(out, target, defs, file_info, extras)
     if vhdl_files:
-        summary["vhdl"] = vhdl_lang.map_vhdl(str(root), vhdl_files, out, target)
-        util.save_json(out / "overview.json", summary)
+        with util.progress("code", "reading VHDL", len(vhdl_files)):
+            summary["vhdl"] = vhdl_lang.map_vhdl(str(root), vhdl_files, out, target)
         util.live("coderead", target=target["name"], files=len(vhdl_files), language="VHDL")
+    with util.progress("code", "named numbers in the code: constants, parameters, generics", len(rels) + len(vhdl_files)):
+        summary["values_count"] = values.write(out, {**found, "C++": cpp_files, "VHDL": vhdl_files}, file_info)
+    util.say("code", f"  {util.count(summary['values_count'], 'named number')} in the code (values.jsonl)")
+    util.save_json(out / "overview.json", summary)
     return summary
 
 

@@ -14,7 +14,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 
-from contextmax import util
+from contextmax import citations, util
 from contextmax.catalogue import SKIP_DIR_NAMES
 from contextmax.code import c_lang, cpp_lang, matlab_lang, python_lang, vhdl_lang
 from contextmax.code.common import list_sources
@@ -263,7 +263,8 @@ def params(proj, name=None, compare=False, value=None, exact=None, unit=None, or
         where.append("e.origin=?")
         vals.append(origin)
     sql = ("SELECT pl.label, pl.label_norm, e.value_shown, e.value_as_written, e.value_norm, e.unit_norm, e.origin, "
-           "pl.sheet, pl.cell, pl.formula, pl.hidden, pl.context, s.file_key, s.doc_ref, s.stage, s.folder, s.relative_path "
+           "pl.sheet, pl.cell, pl.formula, pl.hidden, pl.context, pl.label_source, pl.line_no, pl.page, pl.section, "
+           "pl.sentence, s.file_key, s.doc_ref, s.stage, s.folder, s.relative_path "
            "FROM entries e JOIN places pl ON pl.id = e.place JOIN sources s ON s.id = pl.source")
     if where:
         sql += " WHERE " + " AND ".join(where)
@@ -274,8 +275,10 @@ def params(proj, name=None, compare=False, value=None, exact=None, unit=None, or
         rows = [dict(r) for r in con.execute(sql, vals)]
     finally:
         con.close()
+    titles = {d["key"]: d.get("title") or d["key"] for d in util.load_jsonl(proj.documents_dir / "doc-list.jsonl")}
     for r in rows:
         r["where"] = f"{r['sheet']}!{r['cell']}" if r.get("sheet") else "text"
+        r["cite"] = citations.value(r, titles.get(r["doc_ref"], r["doc_ref"]))
     if not compare:
         return {"query": {"name": name, "value": value, "exact": exact, "unit": unit}, "n": len(rows), "rows": rows[:limit],
                 "note": "A bare number matches every place it is written; prefer --name." if (value or exact) and not name else ""}
@@ -293,7 +296,7 @@ def params(proj, name=None, compare=False, value=None, exact=None, unit=None, or
                     "verdict": "match" if len(stated) == 1 else f"{len(stated)} different values",
                     "values": [{"value": g[0]["value_shown"] + (" " + g[0]["unit_norm"] if g[0]["unit_norm"] else ""),
                                 "stated_in": [{"document": h["file_key"], "where": h["where"], "found_as": h["origin"],
-                                               "formula": h["formula"]} for h in g]}
+                                               "formula": h["formula"], "cite": h["cite"]} for h in g]}
                                for _, g in sorted(stated.items(), key=lambda kv: -len(kv[1]))]})
     return {"query": {"name": name}, "compare": out,
             "note": "The verdict compares numbers only. Check any value that matters in the original document."}

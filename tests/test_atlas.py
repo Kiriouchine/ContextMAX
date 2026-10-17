@@ -93,25 +93,70 @@ def test_a_live_build_draws_the_atlas_and_writes_the_same_index(tmp_path, monkey
     assert sorted(docs["keys"]) == sorted(r["key"] for r in util.load_jsonl(proj.documents_dir / "text-index.jsonl"))
 
 
-def test_the_window_keeps_live_events_out_of_the_text_log(built, monkeypatch):
-    lines = [b"[docs] reading\n", util.LIVE_MARK.encode() + b'{"e":"read","n":3}\n', b"[done] built\n"]
+class _Build:
+    """A build process that prints the given lines and ends with the given code."""
+    lines: list[bytes] = []
+    code = 0
+    pid = 0
 
-    class Process:
-        stdout = iter(lines)
+    def __init__(self, cmd, env, **kw):
+        _Build.env = env
+        self.stdout = iter(_Build.lines)
 
-        def __init__(self, cmd, env, **kw):
-            Process.env = env
+    def wait(self):
+        return _Build.code
 
-        def wait(self):
-            return 0
 
-    monkeypatch.setattr(panel.subprocess, "Popen", Process)
+def test_the_window_keeps_live_events_out_of_the_text_log(built, monkeypatch, capsys):
+    _Build.lines = [b"[docs] reading\n", util.LIVE_MARK.encode() + b'{"e":"read","n":3}\n', b"[done] built\n"]
+    monkeypatch.setattr(panel.subprocess, "Popen", _Build)
     panel.JOBS["t"] = {"lines": [], "events": [], "done": False, "code": None}
-    panel._run_build("t", built.slug, "quick", live=True)
-    assert Process.env["CONTEXTMAX_LIVE"] == "1"
+    panel._run_build("t", built.slug, "quick")
+    # the events are always recorded: the window may switch the drawing on halfway, and starts from the first
+    assert _Build.env["CONTEXTMAX_LIVE"] == "1"
     got = panel.Handler._act(panel.Handler, "job", {"slug": built.slug, "job": "t", "since": 0, "events_since": 0})
     assert got["lines"] == ["[docs] reading", "[done] built"] and got["events"] == [{"e": "read", "n": 3}]
     assert got["done"] and got["code"] == 0
-    Process.stdout = iter(lines)
-    panel._run_build("t", built.slug, "quick", live=False)
-    assert "CONTEXTMAX_LIVE" not in Process.env
+    # a window that does not draw is sent no events, and is not kept waiting for them
+    got = panel.Handler._act(panel.Handler, "job", {"slug": built.slug, "job": "t", "since": 0, "events_since": -1})
+    assert got["events"] == [] and not got["more"] and got["done"] and got["lines"] == ["[docs] reading", "[done] built"]
+    # every line of the build is also shown in the CMD window; the drawing's events are not
+    out = capsys.readouterr().out
+    assert f"{built.slug} | [docs] reading" in out and "build finished" in out and '"e":"read"' not in out
+
+
+def test_a_build_in_the_window_brings_an_installed_skill_up_to_date(built, monkeypatch):
+    from contextmax import agentskill
+
+    _Build.lines, _Build.code = [b"[done] built\n"], 0
+    monkeypatch.setattr(panel.subprocess, "Popen", _Build)
+    panel.JOBS["s"] = {"lines": [], "events": [], "done": False, "code": None}
+    panel._run_build("s", built.slug, "quick")
+    assert not any((base / f"contextmax-{built.slug}").exists() for base in agentskill.HOSTS.values())   # none installed: none written
+    skill = agentskill.HOSTS["claude"] / f"contextmax-{built.slug}" / "SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_text("from an older build", encoding="utf-8")
+    status = {h["host"]: h for h in panel._skill_status(built)["hosts"]}
+    assert status["claude"]["installed"] and not status["claude"]["current"] and not status["copilot"]["installed"]
+    panel.JOBS["s"] = {"lines": [], "events": [], "done": False, "code": None}
+    panel._run_build("s", built.slug, "quick")
+    assert skill.read_text(encoding="utf-8") == agentskill.compose(built)
+    assert not (agentskill.HOSTS["copilot"] / f"contextmax-{built.slug}").exists()     # only where it was installed
+    assert panel.JOBS["s"]["lines"][-1] == "[skill] the AI skill now describes this build, for Claude Code"
+    assert {h["host"]: h for h in panel._skill_status(built)["hosts"]}["claude"]["current"]
+    # a build that fails leaves the skill as it is
+    skill.write_text("from an older build", encoding="utf-8")
+    _Build.code = 1
+    panel.JOBS["s"] = {"lines": [], "events": [], "done": False, "code": None}
+    panel._run_build("s", built.slug, "quick")
+    _Build.code = 0
+    assert skill.read_text(encoding="utf-8") == "from an older build"
+
+
+def test_the_window_has_the_atlas_and_the_start_screen_facts(built):
+    page = json.loads(panel._atlas_data(built.slug))
+    assert page["stages"] and page["docs"]["k"]
+    cards = {c["slug"]: c for c in panel.Handler._act(panel.Handler, "projects", {})["projects"]}
+    card = cards[built.slug]
+    assert card["found"] and card["built"] and card["documents"] and card["functions"] and card["atlas"]
+    assert card["home"] == f"/ws/{built.slug}/Home.html"

@@ -15,7 +15,7 @@ import os
 import re
 from collections import Counter, defaultdict
 
-from contextmax import util
+from contextmax import parallel, util
 from contextmax.code.common import leading_comment, line_at, line_offsets, module_for, role_for, squash_ws
 
 EXTENSIONS = {".c", ".h"}
@@ -243,6 +243,27 @@ def _link_calls(record: dict, body: str, body_at: int, starts: list[int], known:
     record["indirect_calls"] = sorted(unknown, key=lambda x: (x["line"], x["expr"]))
 
 
+def _read_file(pair: tuple[str, str]) -> dict:
+    """One .c or .h file's own part of the reading: its macros, its definitions with their bodies, its
+    prototypes and its facts (a piece of parallel work; the shared data is the module depth)."""
+    full, rel = pair
+    depth = parallel.shared()
+    text = util.load_text(full)
+    raw_lines = text.split("\n")
+    clean = blank_out(text)
+    starts = line_offsets(clean)
+    code = blank_directives(clean)
+    ext = os.path.splitext(rel)[1].lower()
+    module, role = module_for(rel, depth), role_for(rel)
+    found = [(record, code[body_at:body_end], body_at)
+             for record, body_at, body_end in _definitions(code, raw_lines, starts, rel, module, role)]
+    prototypes = [m.group("name") for m in _PROTOTYPE.finditer(code)
+                  if m.group("name") not in NOT_A_FUNCTION] if ext == ".h" else []
+    info = {"module": module, "role": role, "lang": "C", "ext": ext, "lines_count": clean.count("\n") + 1,
+            "includes": [m.group(2) for m in _INCLUDE.finditer(clean)], "defs_count": len(found)}
+    return {"macros": macro_bodies(clean), "found": found, "starts": starts, "prototypes": prototypes, "info": info}
+
+
 def analyze(root: str, files: list[tuple[str, str]], depth: int):
     """Read every .c/.h file of one code base. Returns (defs, file_info, extras)."""
     defs: list[dict] = []
@@ -251,28 +272,18 @@ def analyze(root: str, files: list[tuple[str, str]], depth: int):
     by_name: dict[str, list[int]] = defaultdict(list)
     macros: dict[str, str] = {}
     bodies: list[tuple[int, str, int, list[int]]] = []
-    for full, rel in files:
-        text = util.load_text(full)
-        raw_lines = text.split("\n")
-        clean = blank_out(text)
-        starts = line_offsets(clean)
-        macros.update(macro_bodies(clean))
-        code = blank_directives(clean)
-        ext = os.path.splitext(rel)[1].lower()
-        module, role = module_for(rel, depth), role_for(rel)
-        count = 0
-        for record, body_at, body_end in _definitions(code, raw_lines, starts, rel, module, role):
+    # each file is read on its own (in parallel when there are many); what the files give is put
+    # together here in the files' order, as when they were read one after another
+    read = parallel.map_in_order(_read_file, files, data=depth, progress=util.current())
+    for (_full, rel), got in zip(files, read, strict=True):
+        macros.update(got["macros"])
+        for record, body, body_at in got["found"]:
             by_name[record["name"]].append(len(defs))
-            bodies.append((len(defs), code[body_at:body_end], body_at, starts))
+            bodies.append((len(defs), body, body_at, got["starts"]))
             defs.append(record)
-            count += 1
-        if ext == ".h":
-            for m in _PROTOTYPE.finditer(code):
-                if m.group("name") not in NOT_A_FUNCTION:
-                    prototypes[m.group("name")].append(rel)
-        file_info[rel] = {"module": module, "role": role, "lang": "C", "ext": ext,
-                          "lines_count": clean.count("\n") + 1,
-                          "includes": [m.group(2) for m in _INCLUDE.finditer(clean)], "defs_count": count}
+        for name in got["prototypes"]:
+            prototypes[name].append(rel)
+        file_info[rel] = got["info"]
     known = set(by_name)
     macro_map = macro_targets(macros, known)
     choose = _chooser(defs, by_name)

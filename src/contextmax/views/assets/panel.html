@@ -4,154 +4,480 @@
 <link rel="icon" href="/assets/contextmax.ico">
 <link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script><script src="/assets/atlas.js"></script>
 <style>
+[hidden] { display:none !important; }
+.wordmark { color:var(--text); } .wordmark:hover { text-decoration:none; }
+.here { font-weight:600; color:var(--text-2); }
+.btn.huge { min-height:48px; padding:10px 22px; font-size:16px; border-radius:10px; }
+.btn.accent { background:var(--code); color:var(--paper); }
+.small { font-size:12.5px; line-height:18px; }
+.kick { font-size:12.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--text-2); font-weight:600; }
+.check { display:flex; gap:10px; align-items:flex-start; line-height:21px; margin:0; cursor:pointer; }
+.check input { flex:none; width:18px; height:18px; margin:2px 0 0; }
+.input { min-height:40px; padding:6px 10px; border:1px solid var(--rule); border-radius:8px; background:var(--surface); }
+/* start screen */
+.startgrid { display:flex; flex-wrap:wrap; gap:24px; align-items:flex-start; }
+.startlist { flex:999 1 560px; min-width:0; display:flex; flex-direction:column; gap:14px; }
+.newtile { flex:1 1 320px; min-width:0; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
+.pcard { background:var(--surface); border:1px solid var(--rule); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+.pcard.is-last { border:2px solid var(--text); box-shadow:var(--shadow); }
+.pcard h3 { margin:0; font-size:21px; line-height:27px; overflow-wrap:anywhere; }
+.pcard .hstack { margin-top:auto; padding-top:4px; }
+.facts { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; margin:0; font-size:13px; line-height:19px; }
+.facts dt { color:var(--text-2); } .facts dd { margin:0; min-width:0; overflow-wrap:anywhere; }
+/* one project */
+.projhead { display:flex; flex-wrap:wrap; gap:18px 28px; align-items:center; justify-content:space-between; padding:22px 24px; background:var(--surface); border:1px solid var(--rule); border-radius:14px; }
+.projhead .who { flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.projhead .enter { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.chip { border:1px solid var(--rule); background:var(--surface-2); border-radius:999px; padding:4px 12px; font-size:13px; min-height:30px; }
+.chip.ok { border-color:var(--ok); color:var(--ok); } .chip.warn { border-color:var(--code); color:var(--code-ink); background:var(--code-tint); }
 .fold { display:flex; flex-wrap:wrap; align-items:center; gap:12px 18px; padding:14px 18px; background:var(--surface); border:1px solid var(--rule); border-radius:12px; }
 .fold .who { flex:1 1 260px; min-width:0; display:flex; flex-direction:column; gap:3px; }
 .seg { display:flex; border:1px solid var(--rule); border-radius:8px; overflow:hidden; }
 .seg button { border:0; background:var(--surface); padding:7px 13px; min-height:38px; }
 .seg button + button { border-left:1px solid var(--rule); }
 .seg button[aria-pressed="true"] { background:var(--text); color:var(--paper); }
-.log { background:var(--sunken); border-radius:10px; padding:12px 14px; max-height:300px; overflow:auto; font-size:12.5px; line-height:19px; white-space:pre-wrap; }
+.attention { border-radius:10px; padding:12px 14px; border:1px solid var(--rule); background:var(--surface-2); display:flex; flex-direction:column; gap:6px; line-height:20px; }
+.attention.warn { border-color:var(--code); background:var(--code-tint); }
+.attention.ok { border-color:var(--ok); background:var(--ok-tint); }
+.attention.bad { border-color:var(--conflict); background:var(--conflict-tint); }
+.attention div { overflow-wrap:anywhere; }
+.btn.recommended { box-shadow:0 0 0 3px var(--paper), 0 0 0 5px var(--code); }
+.addrow { display:flex; flex-wrap:wrap; gap:10px 12px; align-items:center; }
+.livetoggle { padding:12px 16px; border:1px dashed var(--text-3); border-radius:12px; background:var(--surface-2); }
 .stepper { display:flex; gap:8px 22px; flex-wrap:wrap; margin:0; padding:0; list-style:none; }
 .stepper li { display:flex; align-items:center; gap:8px; color:var(--text-2); }
-.stepper b { width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--text-3); font-size:13px; }
+.stepper b { width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; border:1.5px solid var(--text-3); font-size:13px; flex:none; }
 .stepper li.is-on { color:var(--text); font-weight:600; } .stepper li.is-on b { background:var(--text); color:var(--paper); border-color:var(--text); }
+.stepper li.is-now { color:var(--text); font-weight:600; } .stepper li.is-now b { border-color:var(--code); border-width:2.5px; color:var(--code-ink); }
+.stepper li.is-bad b { background:var(--conflict); border-color:var(--conflict); color:var(--paper); }
+.row { display:flex; flex-wrap:wrap; gap:24px; align-items:stretch; }
+.leftcol { flex:999 1 560px; min-width:0; display:flex; flex-direction:column; gap:12px; }
+/* This PC: as tall as the column beside it, and scrolls inside */
+.pc { flex:1 1 320px; min-width:0; position:relative; min-height:420px; padding:0; }
+.pcin { position:absolute; inset:0; overflow:auto; padding:0 22px 22px; }
+.pcin h2 { position:sticky; top:0; background:var(--surface); padding:22px 0 12px; margin:0; z-index:1; }
+.checks { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px; }
 .checks li { display:flex; gap:10px; line-height:20px; min-width:0; }
 .checks li > span { min-width:0; overflow-wrap:anywhere; }
 .checks i { flex:none; width:10px; height:10px; margin-top:5px; border-radius:50%; background:var(--ok); }
 .checks i.lvl-warn { background:var(--caution); border-radius:0; clip-path:polygon(50% 0,100% 100%,0 100%); }
 .checks i.lvl-fail { background:var(--conflict); }
-.livebox { display:flex; flex-direction:column; gap:12px; }
-.livecanvas { position:relative; height:min(68vh,720px); min-height:380px; border-radius:10px; overflow:hidden; background:var(--paper); border:1px solid var(--rule); }
-.livesteps li.is-now { color:var(--text); font-weight:600; } .livesteps li.is-now b { border-color:var(--text); border-width:2px; }
-.livesteps li.is-bad b { background:var(--conflict); border-color:var(--conflict); color:var(--paper); }
+/* the build as it runs */
+.run { display:flex; flex-direction:column; gap:12px; padding:14px 16px; border:1px solid var(--rule); border-radius:10px; background:var(--surface-2); }
+.now { display:flex; align-items:center; gap:10px; min-width:0; }
+.now #nowtext { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pulse { flex:none; width:10px; height:10px; border-radius:50%; background:var(--text-3); }
+.run.is-running .pulse { background:var(--code); animation:pulse 1.2s ease-in-out infinite; }
+.run.is-ok .pulse { background:var(--ok); } .run.is-bad .pulse { background:var(--conflict); }
+@keyframes pulse { 0%, 100% { opacity:1; transform:scale(1); } 50% { opacity:.35; transform:scale(.7); } }
+@media (prefers-reduced-motion: reduce) { .run.is-running .pulse { animation:none; } }
+.clock { font-variant-numeric:tabular-nums; color:var(--text-2); }
+.log { background:var(--sunken); border-radius:10px; padding:12px 14px; height:360px; overflow:auto; font-size:12.5px; line-height:19px; resize:vertical; }
+.log div { white-space:pre-wrap; overflow-wrap:anywhere; min-height:19px; }
+.log .hd { font-weight:700; color:var(--text); }
+.log .bad { color:var(--conflict); font-weight:600; }
+.log .sum { color:var(--text); }
+/* connect your AI */
+.aicard { border:2px solid var(--code); }
+.aihead { display:flex; flex-wrap:wrap; gap:16px 28px; align-items:flex-start; justify-content:space-between; }
+.aihead > div:first-child { flex:1 1 420px; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.aihead h2 { margin:0; font-size:26px; line-height:32px; }
+.aiaction { display:flex; flex-direction:column; align-items:flex-start; gap:8px; flex:0 1 300px; min-width:0; }
+.aigrid { list-style:none; padding:0; margin:4px 0 0; display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:14px; }
+.aigrid li { border:1px solid var(--rule); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; background:var(--surface-2); min-width:0; }
+.aigrid li .hstack { margin:0; justify-content:space-between; }
+.aigrid p { margin:0; line-height:20px; }
+.aigrid .fixed { font-size:12px; overflow-wrap:anywhere; color:var(--text-2); }
+/* the Complete Atlas */
+.atlasbox { gap:12px; }
+.atlascanvas { position:relative; height:min(70vh,720px); min-height:380px; border-radius:10px; overflow:hidden; background:var(--paper); border:1px solid var(--rule); }
+@media (max-width:560px) { .here { display:none; } }
 </style></head>
 <body class="page">
-<header class="masthead"><span class="wordmark">Context<b>MAX</b></span>
-<label class="hstack" style="margin:0;gap:8px"><span class="quiet">Project</span><select id="proj" style="min-height:36px;border-radius:8px;border:1px solid var(--rule);background:var(--surface);padding:4px 8px"></select></label>
-<span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
+<header class="masthead"><a class="wordmark" href="#" title="All projects">Context<b>MAX</b></a><span class="here" id="here"></span>
+<span class="spacer"></span><a class="iconbtn" id="allprojects" href="#" style="display:inline-flex;align-items:center;color:var(--text)">All projects</a><button type="button" class="iconbtn" id="theme">Dark</button></header>
 <main class="column" style="gap:26px">
-<section id="newbox" class="tile" style="display:none;max-width:620px">
-<h1 class="headline" style="font-size:28px">Start a project</h1>
-<p class="quiet">A project is a set of folders that belong together: code, documents, or both. Nothing is ever written inside them.</p>
-<div class="hstack"><label for="newname" class="quiet">Name</label><input id="newname" style="flex:1;min-height:40px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface)" placeholder="My project"><button type="button" class="btn" id="create">Create</button></div>
-</section>
-<div id="main" style="display:none;flex-direction:column;gap:26px">
-<div class="hstack" style="justify-content:space-between;margin:0"><ol class="stepper"><li class="is-on" id="s1"><b>1</b>Choose folders</li><li id="s2"><b>2</b>Check this PC</li><li id="s3"><b>3</b>Build</li></ol><span class="quiet fixed" id="ws"></span></div>
-<div><h1 class="headline" style="font-size:30px">Which folders should ContextMAX read?</h1>
-<p class="quiet" style="margin:6px 0 0;max-width:760px;line-height:22px">Pick as many as you like, on any drive. Nothing is written inside them; the index is kept in the working folder shown above. Say for each one whether it holds code, documents or both.</p></div>
-<div style="display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start">
-<section style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px">
-<div id="folders" style="display:flex;flex-direction:column;gap:10px"></div>
-<div class="hstack"><button type="button" class="btn ghost" id="pick" style="border-style:dashed;border-width:1.5px">Add a folder…</button>
-<input id="typed" placeholder="or paste a folder path" style="flex:1;min-width:220px;min-height:36px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface)"><button type="button" class="btn ghost" id="addtyped">Add</button></div>
-<label class="hstack"><input type="checkbox" id="cloud" style="width:18px;height:18px">Download files that are still in the cloud before reading them</label>
-<section class="tile" style="margin-top:10px"><h2 class="sec" style="margin:0">Build</h2>
-<div class="hstack"><button type="button" class="btn" data-depth="documents">Read documents and build</button><button type="button" class="btn ghost" data-depth="quick">Quick refresh</button><button type="button" class="btn ghost" data-depth="full">Rebuild everything</button></div>
-<label class="hstack" style="margin:0" title="Off: the text log only. On: the Complete Atlas is drawn from the build's own results while it runs."><input type="checkbox" id="live" style="width:18px;height:18px">Show the build live: draw the Complete Atlas as it is built</label>
-<p class="quiet" id="built" style="margin:0"></p>
-<div class="log fixed" id="log" style="display:none"></div>
-<div class="hstack" id="after" style="display:none"><a class="btn" id="home" target="_blank" href="#">Open the project</a><button type="button" class="btn ghost" id="skill">Install the AI skill</button><span class="quiet" id="skillmsg"></span></div>
-</section>
-</section>
-<aside class="tile" style="flex:1 1 320px;min-width:0"><h2 class="sec" style="margin:0">This PC</h2><ul class="checks" id="checks" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px"><li class="quiet">Checking…</li></ul></aside>
+
+<section id="start" hidden style="display:flex;flex-direction:column;gap:24px">
+<div><h1 class="headline">Open a project, or start a new one</h1>
+<p class="quiet" style="margin:6px 0 0;max-width:780px;line-height:22px">A project is a set of folders that belong together: code, documents, or both. ContextMAX reads them and builds an index beside them, in the project's working folder; nothing is ever written inside them.</p></div>
+<div class="startgrid">
+<section class="startlist" aria-labelledby="yours"><h2 class="sec" id="yours" style="margin:0">Your projects</h2><div class="cards" id="cards"><p class="quiet">Looking for projects…</p></div></section>
+<aside class="tile newtile" aria-labelledby="newhead"><h2 class="sec" id="newhead" style="margin:0">Start a new project</h2>
+<p class="quiet">Give it a name, then choose its folders. Adding a folder starts the build by itself.</p>
+<label for="newname" class="kick">Project name</label>
+<input id="newname" class="input" placeholder="For example: Motor controller" autocomplete="off">
+<div><button type="button" class="btn huge" id="create">Create the project</button></div>
+<hr style="border:0;border-top:1px solid var(--rule);width:100%;margin:6px 0">
+<label class="check"><input type="checkbox" data-live><span><b>Show the build live</b><br><span class="quiet small">ContextMAX draws the Complete Atlas while it builds: modules, documents and links appear as they are found. Off: the text log only. You can also switch it on during a build.</span></span></label>
+</aside>
 </div>
-<section class="tile livebox" id="livebox" style="display:none" aria-label="Live build">
-<div class="hstack" style="margin:0;justify-content:space-between"><h2 class="sec" style="margin:0">Live build · Complete Atlas</h2>
-<ol class="stepper livesteps" id="livesteps"><li data-step="catalogue"><b>1</b>Catalogue</li><li data-step="read"><b>2</b>Read documents</li><li data-step="code"><b>3</b>Code map</li><li data-step="place"><b>4</b>Document map</li><li data-step="links"><b>5</b>Links</li><li data-step="gate"><b>6</b>Validation gate</li><li data-step="pages"><b>7</b>Pages</li></ol></div>
-<div class="livecanvas" id="livecanvas"></div>
-<div class="hstack" style="margin:0;justify-content:space-between"><span class="quiet" id="livestatus" aria-live="polite"></span><a class="btn" id="liveopen" target="_blank" href="#" style="display:none">Open the Complete Atlas</a></div>
+</section>
+
+<div id="main" hidden style="display:flex;flex-direction:column;gap:26px">
+<section class="projhead">
+<div class="who"><span class="kick">Project</span><h1 class="headline" id="pname" style="overflow-wrap:anywhere"></h1>
+<p class="quiet" id="pfacts" style="margin:0;line-height:21px"></p>
+<p class="quiet small" style="margin:0">Working folder: <span class="fixed" id="ws" style="overflow-wrap:anywhere"></span></p>
+<p class="small" id="pproblems" style="margin:0;color:var(--caution)"></p></div>
+<div class="enter"><a class="btn huge" id="home" target="_blank" href="#" hidden>Open the project&nbsp;↗</a>
+<span class="quiet small" id="homehint"></span>
+<button type="button" class="chip" id="skillchip" hidden></button></div>
+</section>
+<ol class="stepper"><li id="s1"><b>1</b>Choose folders</li><li id="s2"><b>2</b>Check this PC</li><li id="s3"><b>3</b>Build</li><li id="s4"><b>4</b>Connect your AI</li></ol>
+<div class="row">
+<section class="leftcol">
+<div><h2 class="sec" style="margin:0;font-size:26px">Which folders should ContextMAX read?</h2>
+<p class="quiet" style="margin:6px 0 0;max-width:760px;line-height:22px">Pick as many as you like, on any drive. Say for each one whether it holds code, documents or both. Adding, removing or changing a folder starts a build at once.</p></div>
+<label class="check livetoggle"><input type="checkbox" data-live><span><b>Show the build live</b> <span class="quiet">— the Complete Atlas is drawn below while ContextMAX builds. Tick it before you add a folder to watch from the start; switching it on during a build also shows everything from the start.</span></span></label>
+<div id="folders" style="display:flex;flex-direction:column;gap:10px"></div>
+<div class="addrow"><button type="button" class="btn huge" id="pick"><span aria-hidden="true" style="font-size:22px;margin-right:9px">+</span>Add a folder…</button>
+<span class="quiet small">or paste its path:</span><input id="typed" class="input" placeholder="C:\Users\…\Project folder" style="flex:1;min-width:220px"><button type="button" class="btn ghost" id="addtyped" style="min-height:40px">Add</button></div>
+<label class="check"><input type="checkbox" id="cloud">Download files that are still in the cloud before reading them</label>
+<section class="tile" id="buildbox" style="margin-top:10px"><h2 class="sec" style="margin:0">Build</h2>
+<div class="attention" id="attention" hidden aria-live="polite"><b id="atthead"></b><div id="attbody" class="small" style="display:flex;flex-direction:column;gap:4px"></div></div>
+<div class="hstack" style="margin:0"><button type="button" class="btn" data-depth="documents">Read documents and build</button><button type="button" class="btn ghost" data-depth="quick">Quick refresh</button><button type="button" class="btn ghost" data-depth="full">Rebuild everything</button></div>
+<p class="quiet" id="built" style="margin:0"></p>
+<div class="run" id="run" hidden aria-label="The build as it runs">
+<ol class="stepper" id="runsteps"></ol>
+<div class="now"><span class="pulse"></span><span id="nowtext" aria-live="polite"></span><span class="clock fixed" id="clock" title="Time since the build started">0:00</span></div>
+<p class="small" id="runwhy" hidden style="margin:0;color:var(--conflict)"></p>
+<div class="hstack" style="margin:0"><button type="button" class="btn ghost" id="runstop" hidden>Stop the build</button>
+<a class="small" id="runlog" target="_blank" hidden href="#">Open this build's saved log</a><span class="quiet small fixed" id="runlogpath"></span></div>
+</div>
+<div class="log fixed" id="log" hidden></div>
+</section>
+</section>
+<aside class="tile pc" aria-labelledby="pchead"><div class="pcin"><h2 class="sec" id="pchead">This PC</h2><ul class="checks" id="checks"><li class="quiet">Checking…</li></ul></div></aside>
+</div>
+
+<section class="tile aicard" id="aicard" aria-labelledby="aihead">
+<div class="aihead"><div><span class="kick" style="color:var(--code-ink)">Step 4 · Connect your AI</span>
+<h2 id="aihead">Give your AI this project's index</h2>
+<p style="margin:0;line-height:22px;max-width:760px">The AI skill is what lets an assistant answer from this project. It tells the assistant where the index is and how to answer from it: with the file and line, the document, or the sheet and cell, and with what it did not check. Without it, an assistant sees loose files and guesses.</p></div>
+<div class="aiaction"><button type="button" class="btn huge accent" id="skill">Install the AI skill</button><span class="quiet small" id="skillmsg"></span></div></div>
+<ul class="aigrid" id="aigrid"></ul>
+<p class="quiet small" style="margin:0">Start an assistant on this project from its Home page (Open the project), under Ask your AI. After each build here, an installed skill is brought up to date by itself.</p>
+</section>
+
+<section class="tile atlasbox" id="atlasbox" hidden aria-labelledby="atlashead">
+<div class="hstack" style="margin:0;justify-content:space-between"><div style="min-width:0"><h2 class="sec" id="atlashead" style="margin:0">Complete Atlas</h2><span class="quiet small" id="atlasnote"></span></div>
+<div class="hstack" style="margin:0"><button type="button" class="iconbtn" id="zin" aria-label="Zoom in">+</button><button type="button" class="iconbtn" id="zout" aria-label="Zoom out">−</button><button type="button" class="iconbtn" id="zfit" title="Back to the whole map">Reset view</button><a class="btn" id="atlasopen" target="_blank" href="#">Open the Complete Atlas page&nbsp;↗</a></div></div>
+<div class="atlascanvas" id="atlascanvas"></div>
+<div class="hstack" style="margin:0;justify-content:space-between"><span class="quiet" id="livestatus" aria-live="polite"></span><span class="quiet small" id="atlaspick"></span></div>
 </section>
 </div>
 </main>
 <script>
 (function () {
-  var TOKEN = "__TOKEN__", safe = CMX.safe, $ = CMX.$, slug = decodeURIComponent(location.hash.slice(1)) || CMX.store.get("panel:project") || "";
+  var TOKEN = "__TOKEN__", safe = CMX.safe, $ = CMX.$, $$ = CMX.$$, num = CMX.num;
+  var slug = "", P = null;
   function api(action, body) {
     return fetch("/api/" + action, { method: "POST", headers: { "Content-Type": "application/json", "X-CMX-Token": TOKEN }, body: JSON.stringify(Object.assign({ slug: slug }, body || {})) })
       .then(function (r) { return r.json(); }).then(function (j) { if (j.error) { alert(j.error); throw new Error(j.error); } return j; });
   }
+  function when(iso) { return iso ? new Date(iso).toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""; }
+  function clock(ms) { var s = Math.round(ms / 1000); return (s >= 3600 ? Math.floor(s / 3600) + ":" + ("0" + Math.floor(s / 60) % 60).slice(-2) : Math.floor(s / 60)) + ":" + ("0" + s % 60).slice(-2); }
+  function plural(n, w, many) { return num(n) + " " + (n === 1 ? w : many || w + "s"); }
+
+  /* ---- the screens: all projects, or one (#<project>) ---- */
+  function route() {
+    slug = decodeURIComponent(location.hash.slice(1));
+    if (slug) openProject(); else showStart();
+  }
+  window.addEventListener("hashchange", route);
+  $("#allprojects").onclick = $(".wordmark").onclick = function (ev) { ev.preventDefault(); if (location.hash.length > 1) location.hash = ""; else showStart(); };
+
+  /* ---- start screen ---- */
+  function showStart() {
+    P = null; $("#start").hidden = false; $("#main").hidden = true; $("#here").textContent = ""; document.title = "ContextMAX";
+    api("projects").then(function (r) {
+      var last = CMX.store.get("panel:project");
+      var list = r.projects.slice().sort(function (a, b) {
+        return (b.slug === last) - (a.slug === last) || String(b.built || "").localeCompare(String(a.built || "")) || a.name.localeCompare(b.name);
+      });
+      $("#cards").innerHTML = list.length ? list.map(function (p) {
+        var facts = p.found ? (p.built ? "<dt>Built</dt><dd>" + safe(when(p.built)) + "</dd><dt>Confidence</dt><dd>" + safe(p.confidence || "?") + "</dd>" +
+          "<dt>Index</dt><dd>" + [p.documents != null ? plural(p.documents, "document") : "", p.functions ? plural(p.functions, "function") : ""].filter(Boolean).join(" · ") + "</dd>"
+          : "<dt>Built</dt><dd>not yet</dd>") : "<dt>Status</dt><dd>its working folder is not found</dd>";
+        return '<article class="pcard' + (p.slug === last ? " is-last" : "") + '"><div class="hstack" style="margin:0;justify-content:space-between;padding:0"><h3>' + safe(p.name) + "</h3>" +
+          (p.slug === last ? '<span class="badge">last opened</span>' : "") + "</div>" +
+          '<p class="quiet small" style="margin:0">' + (p.folders.length ? plural(p.folders.length, "folder") + ": " + safe(p.folders.join(", ")) : "no folders yet") + "</p>" +
+          '<dl class="facts">' + facts + "</dl>" +
+          '<div class="hstack"><button type="button" class="btn huge" data-go="' + safe(p.slug) + '">Open</button>' +
+          (p.home ? '<a class="btn ghost" target="_blank" href="' + safe(p.home) + '">Home page&nbsp;↗</a>' : "") + "</div></article>";
+      }).join("") : '<div class="tile"><p class="quiet">No projects yet. Start one: give it a name, then choose its folders.</p></div>';
+    });
+  }
+  $("#cards").addEventListener("click", function (ev) { var b = ev.target.closest("[data-go]"); if (b) location.hash = encodeURIComponent(b.getAttribute("data-go")); });
+  function create() {
+    var name = $("#newname").value.trim(); if (!name) { $("#newname").focus(); return; }
+    api("create", { name: name }).then(function (st) { $("#newname").value = ""; location.hash = encodeURIComponent(st.project.slug); });
+  }
+  $("#create").onclick = create;
+  $("#newname").addEventListener("keydown", function (ev) { if (ev.key === "Enter") create(); });
+
+  /* ---- the live drawing: one setting, shown on both screens ---- */
+  function liveOn() { return CMX.store.get("panel:live") === "1"; }
+  $$("input[data-live]").forEach(function (x) {
+    x.checked = liveOn();
+    x.addEventListener("change", function () {
+      CMX.store.set("panel:live", x.checked ? "1" : "0");
+      $$("input[data-live]").forEach(function (y) { y.checked = x.checked; });
+      if (cur) cur.setLive(x.checked);
+    });
+  });
+
+  /* ---- one project ---- */
+  function openProject() {
+    $("#start").hidden = true; $("#main").hidden = false;
+    load().then(function () { if (P) { loadSkill(); showAtlas(); if (!cur) loadFreshness(); } });
+  }
+  function load() { return api("state").then(repaint); }
   function repaint(st) {
-    var sel = $("#proj");
-    sel.innerHTML = st.projects.map(function (p) { return '<option value="' + safe(p.slug) + '"' + (p.slug === slug ? " selected" : "") + ">" + safe(p.slug) + "</option>"; }).join("") + '<option value="">New project…</option>';
-    var P = st.project;
-    $("#newbox").style.display = P ? "none" : "flex"; $("#newbox").style.flexDirection = "column";
-    $("#main").style.display = P ? "flex" : "none";
-    if (!P) { sel.value = ""; return; }
+    P = st.project;
+    if (!P) { location.hash = ""; return; }
     CMX.store.set("panel:project", slug);
-    $("#ws").textContent = P.workspace;
+    $("#here").textContent = P.name; document.title = P.name + " · ContextMAX";
+    $("#pname").textContent = P.name; $("#ws").textContent = P.workspace;
+    $("#pfacts").textContent = P.built ? ["Built " + when(P.built), "confidence " + (P.confidence || "?"),
+      P.files != null ? plural(P.files, "file") : "", P.documents != null ? plural(P.documents, "document") : "",
+      P.functions ? plural(P.functions, "function") : "", P.links ? plural(P.links, "link") + " between documents" : ""].filter(Boolean).join(" · ") : "Not built yet.";
+    $("#pproblems").textContent = P.problems && P.problems.length ? "Not complete: " + P.problems.join("; ") : "";
+    $("#home").hidden = !P.home; if (P.home) $("#home").href = P.home;
+    $("#homehint").textContent = P.home ? "The code and document maps, the values, the Complete Atlas, and Ask your AI" :
+      P.folders.length ? "Build the project first; then this opens its maps" : "Add its folders below: the project builds by itself";
     $("#cloud").checked = !!P.download_cloud_files;
     $("#folders").innerHTML = P.folders.length ? P.folders.map(function (f) {
       return '<div class="fold"><div class="who"><b>' + safe(f.name) + '</b><span class="fixed quiet" style="font-size:13px;overflow-wrap:anywhere">' + safe(f.path) + "</span></div>" +
         '<div class="seg" role="group" aria-label="What ' + safe(f.name) + ' holds">' + ["documents", "code", "both"].map(function (h) { return '<button type="button" data-holds="' + h + '" data-name="' + safe(f.name) + '" aria-pressed="' + (f.holds === h) + '">' + h[0].toUpperCase() + h.slice(1) + "</button>"; }).join("") + "</div>" +
-        '<span class="fixed" style="min-width:80px;text-align:right">' + (f.files === null || f.files === undefined ? "" : CMX.num(f.files) + " files") + "</span>" +
+        '<span class="fixed" style="min-width:80px;text-align:right">' + (f.files === null || f.files === undefined ? "" : num(f.files) + " files") + "</span>" +
         (f.exists ? '<span class="status ok">Ready</span>' : '<span class="status bad">Not found</span>') +
         '<button type="button" class="btn ghost" data-remove="' + safe(f.name) + '" aria-label="Remove ' + safe(f.name) + '">Remove</button></div>';
     }).join("") : '<div class="tile"><p class="quiet" style="margin:0">No folders yet. Add the folders that hold this project\'s code and documents.</p></div>';
-    $("#built").textContent = P.built ? "Last built " + new Date(P.built).toLocaleString() + " · confidence " + P.confidence + (P.problems.length ? " · " + P.problems.join("; ") : "") : "Not built yet.";
-    $("#after").style.display = P.home ? "flex" : "none";
-    if (P.home) $("#home").href = P.home;
-    $("#s3").classList.toggle("is-on", !!P.built); $("#s2").classList.toggle("is-on", P.folders.length > 0);
+    $("#built").textContent = (P.built ? "Last built " + when(P.built) + " · confidence " + P.confidence : "Not built yet.") +
+      (cur && cur.slug !== P.slug ? " · The build below is of another project, " + cur.slug + "; one build runs at a time." : "");
+    $("#s1").classList.toggle("is-on", P.folders.length > 0); $("#s2").classList.toggle("is-on", P.folders.length > 0); $("#s3").classList.toggle("is-on", !!P.built);
   }
-  function load() { return api("state").then(repaint); }
-  $("#proj").onchange = function () { slug = this.value; location.hash = slug; load(); };
-  $("#create").onclick = function () { api("create", { name: $("#newname").value }).then(function (st) { slug = st.project.slug; location.hash = slug; repaint(st); }); };
   /* a folder added, removed or changed changes the links anywhere in the project: build again, at once */
-  function changed(st) { repaint(st); if (st.project && st.project.folders.length) build("documents", "A folder changed, so ContextMAX reads the documents and builds again: no link is missed.\n"); }
+  function changed(st) { repaint(st); if (st.project && st.project.folders.length) build("documents", "A folder changed, so ContextMAX reads the documents and builds again: no link is missed."); }
   $("#pick").onclick = function () { api("pick").then(function (r) { if (r.path) return api("add", { path: r.path, holds: "both" }).then(changed); }); };
   $("#addtyped").onclick = function () { var p = $("#typed").value.trim(); if (p) api("add", { path: p, holds: "both" }).then(function (st) { $("#typed").value = ""; changed(st); }); };
+  $("#typed").addEventListener("keydown", function (ev) { if (ev.key === "Enter") $("#addtyped").click(); });
   $("#cloud").onchange = function () { api("option", { download_cloud_files: this.checked }).then(repaint); };
   $("#folders").addEventListener("click", function (ev) {
     var b = ev.target.closest("[data-holds]"); if (b) { if (b.getAttribute("aria-pressed") !== "true") api("holds", { name: b.getAttribute("data-name"), holds: b.getAttribute("data-holds") }).then(changed); return; }
     b = ev.target.closest("[data-remove]"); if (b && confirm("Stop reading " + b.getAttribute("data-remove") + "? Its files are not touched.")) api("remove", { name: b.getAttribute("data-remove") }).then(changed);
   });
 
-  /* the live build: off unless asked for; the text log is always there */
-  var live = $("#live"), atlas = null, running = false, again = null;
-  live.checked = CMX.store.get("panel:live") === "1";
-  live.onchange = function () { CMX.store.set("panel:live", live.checked ? "1" : "0"); };
-  var STEPS = ["catalogue", "read", "code", "place", "links", "gate", "pages"], EVENT_STEP = {
-    catalogue: "catalogue", docs: "read", read: "read", codefiles: "code", coderead: "code", code: "code", stages: "place",
-    dcode: "place", placed: "place", values: "place", links: "links", gate: "gate", pages: "pages" };
-  function step(name, bad) {
-    var at = STEPS.indexOf(name);
-    CMX.$$("#livesteps li").forEach(function (li, i) {
-      li.classList.toggle("is-on", at < 0 ? name === "done" : i < at); li.classList.toggle("is-now", i === at); li.classList.toggle("is-bad", !!bad && i === at);
+  /* ---- the build: its steps, what it does now, a clock, and every line it prints ---- */
+  var cur = null, again = null;
+  var STEP_RX = /^=== Step (\d+) of (\d+) · (.+?)\s+\(([\d:]+)\)$/;
+  function steps(titles) {
+    $("#runsteps").innerHTML = titles.map(function (t, i) { return "<li><b>" + (i + 1) + "</b>" + safe(t) + "</li>"; }).join("");
+  }
+  function stepAt(at, bad) {
+    $$("#runsteps li").forEach(function (li, i) {
+      li.classList.toggle("is-on", i < at); li.classList.toggle("is-now", i === at); li.classList.toggle("is-bad", !!bad && i === at);
     });
   }
+  function addLines(run, lines) {
+    var log = $("#log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 40, frag = document.createDocumentFragment();
+    lines.forEach(function (line) {
+      var div = document.createElement("div"), m;
+      div.textContent = line;
+      if (line.indexOf("=== Steps: ") === 0) { steps(line.slice(11).split(" · ")); div.className = "hd"; }
+      else if ((m = STEP_RX.exec(line))) { run.step = +m[1] - 1; stepAt(run.step); div.className = "hd"; run.now = m[3]; }
+      else if (line.indexOf("=== Summary") === 0) { run.summary = true; stepAt(99); div.className = "hd"; run.now = "Summary"; }
+      else if (/VALIDATION FAILED/.test(line)) { run.bad = true; run.why = []; stepAt(run.step, true); div.className = "bad"; run.now = "The validation gate found problems"; }
+      else if (run.why && (m = /^\[gate\]\s+- (.*)$/.exec(line))) { run.why.push(m[1]); div.className = "bad"; }
+      else if ((m = /^\[log\] this build's log is saved in (.+)$/.exec(line))) {
+        run.logPath = m[1];
+        $("#runlog").href = "/ws/" + encodeURIComponent(run.slug) + "/logs/" + encodeURIComponent(m[1].split(/[\\\/]/).pop()); $("#runlog").hidden = false;
+      }
+      else if (run.summary && line.trim()) div.className = "sum";
+      if (line.trim() && !/^===/.test(line) && !run.summary) run.now = line.replace(/^\[[a-z]+\]\s*/, "").trim();
+      frag.appendChild(div);
+    });
+    log.appendChild(frag);
+    if (stick) log.scrollTop = log.scrollHeight;
+    $("#nowtext").textContent = run.now || "";
+  }
+  function build(depth, note) {
+    if (cur) { again = depth; return; }
+    var run = cur = { slug: slug, next: 0, seen: 0, feed: null, t0: Date.now(), now: note || "Starting the build…", step: 0, ended: false };
+    run.setLive = function (on) {
+      if (run.ended) return;
+      if (on && !run.feed) { run.feed = Feed(run.slug); run.seen = 0; }         /* from the first event: the build keeps them all */
+      else if (!on && run.feed) { run.feed.stop(); run.feed = null; showAtlas(true); }
+    };
+    $("#run").hidden = false; $("#run").className = "run is-running"; $("#log").hidden = false; $("#log").innerHTML = ""; steps([]);
+    $("#runwhy").hidden = true; $("#runlog").hidden = true; $("#runlogpath").textContent = ""; $("#attention").hidden = true;
+    $("#runstop").hidden = false; $("#runstop").disabled = false; $("#runstop").textContent = "Stop the build";
+    addLines(run, note ? [note, ""] : []);
+    $("#nowtext").textContent = run.now;
+    run.timer = setInterval(function () { $("#clock").textContent = clock(Date.now() - run.t0); }, 1000); $("#clock").textContent = "0:00";
+    CMX.$$("[data-depth]").forEach(function (x) { x.disabled = true; });
+    run.setLive(liveOn());
+    $("#buildbox").scrollIntoView({ behavior: "smooth", block: "start" });
+    api("build", { depth: depth }).then(function (r) {
+      run.job = r.job;
+      (function poll() {
+        var asked = run.feed;
+        api("job", { job: r.job, since: run.next, events_since: asked ? run.seen : -1 }).then(function (j) {
+          run.next = j.next;
+          if (j.lines.length) addLines(run, j.lines);
+          if (asked && run.feed === asked) { run.seen = j.events_next; if (j.events.length) asked.push(j.events); }
+          if (!j.done) return setTimeout(poll, j.more ? 120 : 600);
+          finish(run, j.code);
+        }, function () { finish(run, -1); });
+      })();
+    }, function () { finish(run, 1); });
+  }
+  function finish(run, code) {
+    run.ended = true; clearInterval(run.timer); $("#clock").textContent = clock(Date.now() - run.t0);
+    $("#runstop").hidden = true;
+    $("#run").className = "run " + (code === 0 ? "is-ok" : code === 3 ? "" : "is-bad");
+    if (code === 0) { stepAt(99); run.now = "Built in " + clock(Date.now() - run.t0) + ". Open the project at the top of this window."; }
+    else if (code === 3) { run.now = "Stopped, as you asked. What it finished is kept: the next build goes on from there."; }
+    else if (code === -1) {
+      /* this page cannot reach ContextMAX any more: its CMD window was closed, and the build with it */
+      run.now = "ContextMAX was closed (its CMD window), so the build stopped. Start ContextMAX again to go on.";
+      $("#runlog").hidden = true;
+      if (run.logPath) $("#runlogpath").textContent = "The log of this build: " + run.logPath;
+    }
+    else {
+      if (!run.bad) stepAt(run.step, true);
+      run.now = run.why ? "The validation gate stopped the build: no page was written, and the last pages stay as they were." : "The build stopped with a problem: the log says why.";
+      if (run.why && run.why.length) { $("#runwhy").textContent = "What the gate found: " + run.why.join(" · "); $("#runwhy").hidden = false; }
+    }
+    addLines(run, ["", code === 0 ? "Done." : code === 3 ? "Stopped." : "The build stopped with a problem (see above)."]);
+    $("#nowtext").textContent = run.now;
+    var drew = run.feed && code === 0;
+    if (run.feed) run.feed.end(code);
+    cur = null; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; });
+    if (code === -1) return;                  /* nothing more to ask a ContextMAX that is gone */
+    load().then(function () {
+      if (!P) return;
+      loadSkill();
+      loadFreshness();
+      if (drew && P.slug === run.slug) { shown = key(P); $("#atlasnote").textContent = "This build, drawn as it ran. " + when(P.built) + "."; }
+      else showAtlas();
+    });
+    if (again) { var d = again; again = null; build(d, "Building again: a folder changed while the last build ran."); }
+  }
+  CMX.$$("[data-depth]").forEach(function (b) { b.onclick = function () { build(b.getAttribute("data-depth")); }; });
+  $("#runstop").onclick = function () {
+    if (!cur || !cur.job) return;
+    var b = this; b.disabled = true; b.textContent = "Stopping… (it finishes the step it is on)";
+    api("stop", { job: cur.job }).catch(function () { b.disabled = false; b.textContent = "Stop the build"; });
+  };
+
+  /* ---- what was missed, and what to press next ---- */
+  function names(list, max) {
+    max = max || 6;
+    return list.slice(0, max).map(function (x) { return safe(x); }).join(", ") + (list.length > max ? " and " + num(list.length - max) + " more" : "");
+  }
+  function loadFreshness() {
+    if (!P || cur) return;
+    $("#attention").hidden = false; $("#attention").className = "attention"; $("#attbody").innerHTML = "";
+    $("#atthead").textContent = "Looking at the folders: has anything changed since the last build?";
+    api("freshness").then(function (f) { if (P && f.slug === P.slug && !cur) paintFreshness(f); }, function () { $("#attention").hidden = true; });
+  }
+  function paintFreshness(f) {
+    var m = f.missed, ch = f.changes, body = [], gate = f.last && f.last.state === "gate";
+    $("#attention").className = "attention " + (gate ? "bad" : f.advice === "documents" ? "warn" : f.advice === "full" ? "" : "ok");
+    $("#atthead").textContent = f.why + (f.advice === "documents" ? " Press “Read documents and build”." : "");
+    if (gate && f.last.gate.length) body.push("What the gate found: " + names(f.last.gate, 3));
+    if (ch && (ch.new || ch.changed || ch.removed)) {
+      var bits = [];
+      if (ch.new) bits.push(plural(ch.new, "new file") + " (" + names(ch.examples.new, 3) + ")");
+      if (ch.changed) bits.push(plural(ch.changed, "changed file") + " (" + names(ch.examples.changed, 3) + ")");
+      if (ch.removed) bits.push(plural(ch.removed, "file") + " removed (" + names(ch.examples.removed, 3) + ")");
+      body.push("Since the last build: " + bits.join("; ") + ".");
+    }
+    if (ch && ch.missing.length) body.push("Not found: the folder " + names(ch.missing) + ".");
+    if (m.unread.length) body.push(plural(m.unread.length, "document") + " could not be read: " +
+      names(m.unread.map(function (u) { return u.name + " (" + u.why.replace(/^could not read: /, "").replace(/[.]+$/, "") + ")"; }), 4) + ".");
+    if (m.no_text.length) body.push(plural(m.no_text.length, "scan") + " in which text recognition found no text (figures, mostly): " + names(m.no_text) + ".");
+    if (m.partial.length) body.push(plural(m.partial.length, "scan") + " read only in part: " + names(m.partial) + ".");
+    if (m.cloud.length) body.push(plural(m.cloud.length, "document") + " still in the cloud: tick “Download files that are still in the cloud” above to read them.");
+    if (f.last) body.push('<a target="_blank" href="' + safe(f.last.log) + '">The last build\'s log</a> (started ' + safe(f.last.when) + ")");
+    $("#attbody").innerHTML = body.map(function (x) { return "<div>" + x + "</div>"; }).join("");
+    CMX.$$("[data-depth]").forEach(function (b) { b.classList.toggle("recommended", b.getAttribute("data-depth") === f.advice); });
+    var retry = m.unread.length + m.no_text.length + m.partial.length;
+    $('[data-depth="full"]').title = retry ? "Reads everything again, and tries again the " + num(retry) + " documents that were not read (or not wholly)" : "Reads everything again";
+  }
+
+  /* ---- the Complete Atlas: the last build's, or this build's as it is made ---- */
+  var atlas = null, shown = null, loading = null;
+  function key(p) { return p.slug + "|" + p.stamp + "|" + p.built; }
+  function atlasOf() {
+    $("#atlasbox").hidden = false;
+    if (!atlas) atlas = CMXAtlas.current = CMXAtlas.create($("#atlascanvas"), { onSelect: picked });
+    return atlas;
+  }
+  function picked(sel) {
+    var t = "";
+    try {
+      var m = atlas.model();
+      if (sel && sel.t === "mod") t = "Module " + m.modules[sel.i][1] + " · " + plural(m.modules[sel.i][2], "function") + ". Double-click it to see its functions.";
+      else if (sel && sel.t === "doc") t = "Document " + m.docs.t[sel.i] + " · " + m.stages[m.docs.s[sel.i]];
+      else if (sel) t = "The Complete Atlas page shows what this joins.";
+    } catch (e) { t = ""; }
+    $("#atlaspick").textContent = t;
+  }
+  function showAtlas(force) {
+    if (cur && cur.feed) return;                              /* the live drawing is there */
+    if (!P || !P.atlas) { $("#atlasbox").hidden = true; return; }
+    var want = key(P);
+    $("#atlasopen").href = "/ws/" + encodeURIComponent(P.slug) + "/pages/atlas.html";
+    if (!force && shown === want) return;
+    loading = want; atlasOf();
+    $("#atlasnote").textContent = "Loading the Complete Atlas of the last build…"; $("#livestatus").textContent = ""; $("#atlaspick").textContent = "";
+    fetch("/api/atlas", { method: "POST", headers: { "Content-Type": "application/json", "X-CMX-Token": TOKEN }, body: JSON.stringify({ slug: P.slug }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.statusText); return j; }); })
+      .then(function (D) {
+        if (loading !== want || (cur && cur.feed)) return;
+        atlas.setData(D); atlas.fit(); shown = want;
+        $("#atlasnote").textContent = "The last build, " + when(P.built) + (cur ? ". A new build runs: switch on “Show the build live” to watch it drawn." : ". Click a module or a document; double-click a module to open it.");
+      }, function (e) { if (loading === want) $("#atlasnote").textContent = "The Complete Atlas could not be loaded: " + e.message; });
+  }
+  $("#zin").onclick = function () { if (atlas) atlas.zoom(1.3); };
+  $("#zout").onclick = function () { if (atlas) atlas.zoom(1 / 1.3); };
+  $("#zfit").onclick = function () { if (atlas) atlas.fit(); };
   function Feed(slugNow) {
     /* the build's events, drawn in order; each move and each batch of lines gets a moment to be seen */
-    var queue = [], ended = false, say = $("#livestatus"), n = { links: 0, dcode: 0, docs: 0, codeTotal: 0, codeRead: 0 };
-    var box = $("#livebox"); box.style.display = "flex"; $("#liveopen").style.display = "none";
-    if (!atlas) atlas = CMXAtlas.current = CMXAtlas.create($("#livecanvas"));
-    atlas.live.begin(); step("catalogue"); say.textContent = "Starting the build…";
-    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    function num(x) { return CMX.num(x); }
+    var queue = [], ended = false, stopped = false, say = $("#livestatus"), n = { links: 0, dcode: 0, docs: 0, codeTotal: 0, codeRead: 0 };
+    var A = atlasOf(); shown = null; loading = null;
+    $("#atlasnote").textContent = "Live: drawn from what the build finds, as it finds it.";
+    $("#atlasopen").href = "/ws/" + encodeURIComponent(slugNow) + "/pages/atlas.html";
+    A.live.begin(); say.textContent = "Starting the build…"; $("#atlaspick").textContent = "";
     function apply(ev) {
-      var A = atlas.live;
-      if (EVENT_STEP[ev.e]) step(EVENT_STEP[ev.e], ev.e === "gate" && ev.state === "failed");
+      var L = A.live;
       switch (ev.e) {
         case "catalogue": say.textContent = "Catalogue: " + num(ev.files) + " files listed."; break;
-        case "docs": n.docs = ev.keys.length; A.docList(ev.keys, ev.read); say.textContent = "Reading documents: " + num(ev.read) + " of " + num(n.docs) + " already read before."; break;
-        case "read": A.read(ev.n); say.textContent = "Reading documents: " + num(Math.min(ev.n, n.docs)) + " of " + num(n.docs) + "."; break;
-        case "codefiles": n.codeTotal += ev.files; A.codeFiles(ev.files); say.textContent = "Mapping the code: " + num(n.codeTotal) + " files."; break;
-        case "coderead": n.codeRead += ev.files; A.codeRead(ev.files); say.textContent = "Mapping the code: " + num(Math.min(n.codeRead, n.codeTotal)) + " of " + num(n.codeTotal) + " files read (" + ev.language + ")."; break;
-        case "code": A.code(ev); say.textContent = "Code map: " + num(ev.modules.length) + " modules and " + num(ev.calls.length) + " lines of calls between them."; break;
-        case "stages": A.stages(ev); say.textContent = "Document map: " + num(ev.docs.k.length) + " documents by lifecycle stage."; break;
-        case "dcode": n.dcode += ev.rows.length; A.dcode(ev.rows); say.textContent = "Documents that name code: " + num(n.dcode) + " links."; break;
-        case "placed": A.placed(); say.textContent = "Each document moves beside the code it names most."; break;
-        case "values": say.textContent = "Values: " + num(ev.rows) + " named values with their source, " + num(ev.requirements) + " shall statements."; break;
-        case "links": n.links += ev.a.length; A.links(ev); say.textContent = "Links between documents: " + num(n.links) + "."; break;
-        case "gate": A.gate(ev.state); say.textContent = ev.state === "checking" ? "Validation gate: every document, link and value is checked before any page is written…" :
+        case "docs": n.docs = ev.keys.length; L.docList(ev.keys, ev.read); say.textContent = "Reading documents: " + num(ev.read) + " of " + num(n.docs) + " already read before."; break;
+        case "read": L.read(ev.n); say.textContent = "Reading documents: " + num(Math.min(ev.n, n.docs)) + " of " + num(n.docs) + "."; break;
+        case "codefiles": n.codeTotal += ev.files; L.codeFiles(ev.files); say.textContent = "Mapping the code: " + num(n.codeTotal) + " files."; break;
+        case "coderead": n.codeRead += ev.files; L.codeRead(ev.files); say.textContent = "Mapping the code: " + num(Math.min(n.codeRead, n.codeTotal)) + " of " + num(n.codeTotal) + " files read (" + ev.language + ")."; break;
+        case "code": L.code(ev); say.textContent = "Code map: " + num(ev.modules.length) + " modules and " + num(ev.calls.length) + " lines of calls between them."; break;
+        case "stages": L.stages(ev); say.textContent = "Document map: " + num(ev.docs.k.length) + " documents by lifecycle stage."; break;
+        case "dcode": n.dcode += ev.rows.length; L.dcode(ev.rows); say.textContent = "Documents that name code: " + num(n.dcode) + " links."; break;
+        case "placed": L.placed(); say.textContent = "Each document moves beside the code it names most."; break;
+        case "values": say.textContent = "Values: " + num(ev.rows) + " values, each with its line, " + num(ev.requirements) + " shall statements."; break;
+        case "links": n.links += ev.a.length; L.links(ev); say.textContent = "Links between documents: " + num(n.links) + "."; break;
+        case "gate": L.gate(ev.state); say.textContent = ev.state === "checking" ? "Validation gate: every document, link and value is checked before any page is written…" :
           ev.state === "passed" ? "Validation gate passed." : "Validation gate: " + num(ev.errors) + " problems; no page was written (see the log)."; break;
         case "pages": say.textContent = "Writing the pages."; break;
-        case "done":
-          A.done(); step("done"); say.textContent = "Built in " + ev.seconds + " s. This drawing is the Complete Atlas of the finished index.";
-          var open = $("#liveopen"); open.href = "/ws/" + encodeURIComponent(slugNow) + "/pages/atlas.html"; open.style.display = ""; break;
+        case "done": L.done(); say.textContent = "Built in " + ev.seconds + " s. This drawing is the Complete Atlas of the finished index."; break;
       }
     }
     var HEAVY = { code: 1, stages: 1, placed: 1, dcode: 1, links: 1 };
     (function pump() {
-      while (queue.length && !atlas.live.busy()) {
+      if (stopped) return;
+      while (queue.length && !A.live.busy()) {
         var ev = queue.shift(); apply(ev);
         if (HEAVY[ev.e]) break;
       }
@@ -159,39 +485,80 @@
     })();
     return {
       push: function (events) { queue.push.apply(queue, events); },
-      end: function (code) {
-        ended = true;
-        if (code !== 0) { atlas.live.gate("stopped"); say.textContent = "The build stopped with a problem (see the log)."; }
-      }
+      end: function (code) { ended = true; if (code !== 0) { A.live.gate("stopped"); say.textContent = code === 3 ? "Stopped, as you asked." : "The build stopped with a problem (see the log)."; } },
+      stop: function () { stopped = true; say.textContent = ""; }
     };
   }
-  function build(depth, note) {
-    if (running) { again = depth; return; }
-    running = true;
-    var log = $("#log"), feed = live.checked ? Feed(slug) : null;
-    log.style.display = "block"; log.textContent = note || ""; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = true; });
-    api("build", { depth: depth, live: !!feed }).then(function (r) {
-      var next = 0, seen = 0;
-      (function poll() {
-        api("job", { job: r.job, since: next, events_since: seen }).then(function (j) {
-          next = j.next; seen = j.events_next;
-          if (j.lines.length) { log.textContent += j.lines.join("\n") + "\n"; log.scrollTop = log.scrollHeight; }
-          if (feed && j.events.length) feed.push(j.events);
-          if (!j.done) return setTimeout(poll, j.more ? 120 : 600);
-          log.textContent += j.code === 0 ? "\nDone." : "\nThe build stopped with a problem (see above).";
-          log.scrollTop = log.scrollHeight;
-          if (feed) feed.end(j.code);
-          running = false; CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); load();
-          if (again) { var d = again; again = null; build(d, "Building again: a folder changed while the last build ran.\n"); }
-        });
-      })();
-    }, function () { running = false; if (feed) feed.end(1); CMX.$$("[data-depth]").forEach(function (x) { x.disabled = false; }); });
+
+  /* ---- connect your AI: what the skill does for each assistant, and where it is installed ---- */
+  var ABOUT = {
+    claude: function (h, s) { return "Claude Code, in a terminal or in VS Code. The skill goes to <span class=\"fixed\">" + safe(h.path) + "</span>. In the working folder, <b>CLAUDE.md</b> tells Claude what this project is and to use the skill, and <b>.claude/settings.json</b> lets Claude read the project's folders without asking for each one."; },
+    copilot: function (h, s) { return "GitHub Copilot's chat in VS Code. The skill goes to <span class=\"fixed\">" + safe(h.path) + "</span>. <b>AGENTS.md</b> tells Copilot the same, and <b>" + safe(s.slug) + ".code-workspace</b> opens the index and your folders together in VS Code."; },
+    codex: function (h, s) { return "OpenAI's Codex. The skill goes to <span class=\"fixed\">" + safe(h.path) + "</span>, and AGENTS.md tells Codex the same. Only when Codex is on this PC."; }
+  };
+  function chip(h) {
+    if (h.installed && h.current) return '<span class="status ok">✓ installed</span>';
+    if (h.installed) return '<span class="status caution">from an older build</span>';
+    if (h.host === "codex" && !h.on_pc) return '<span class="status">not on this PC</span>';
+    return '<span class="status bad">not installed</span>';
   }
-  CMX.$$("[data-depth]").forEach(function (b) { b.onclick = function () { build(b.getAttribute("data-depth")); }; });
-  $("#skill").onclick = function () { api("skill").then(function (r) { $("#skillmsg").textContent = "Installed: " + r.lines.join(" · "); }); };
+  function loadSkill() { if (P) api("skillstatus").then(paintSkill, function () {}); }
+  var localInfo = null;
+  function paintLocal() {
+    if (!localInfo) { api("assistants").then(function (r) { localInfo = r.local || {}; paintLocal(); }, function () {}); return; }
+    var L = localInfo, chipEl = $("#localchip"), box = $("#localsuggest");
+    if (!chipEl || !box) return;
+    var s = L.suggest || {};
+    if (!L.ollama_installed) {
+      chipEl.className = "status"; chipEl.textContent = "no model server";
+      box.innerHTML = "Install Ollama from <a href=\"" + safe(L.download) + "\" target=\"_blank\" rel=\"noopener\">ollama.com/download</a>; for this PC ContextMAX then suggests <b>" + safe(s.model) + "</b> (" + s.gb + " GB).";
+      return;
+    }
+    chipEl.className = "status " + (L.ollama_running ? "ok" : "caution");
+    chipEl.textContent = !L.ollama_running ? "Ollama not running" : L.vision_models.length ? "✓ ready · " + L.vision_models.length + " can see pages" : "✓ ready";
+    var parts = [];
+    if (L.vision_models.length) parts.push("Models here that can see, and so also read PDF pages and pictures as they are printed: " + L.vision_models.map(function (m) { return "<b>" + safe(m) + "</b>"; }).join(", ") + ".");
+    if (!s.installed) parts.push("Suggested for this PC" + (L.gpu_gb ? " (graphics card " + L.gpu_gb + " GB)" : "") + ": <b>" + safe(s.model) + "</b>, " + s.gb + " GB. <button type=\"button\" class=\"btn ghost\" id=\"pullmodel\">Download it with Ollama</button>");
+    if (!L.ollama_running) parts.push("Start Ollama from the Start menu to use it.");
+    box.innerHTML = parts.join(" ");
+    var b = $("#pullmodel");
+    if (b) b.addEventListener("click", function () {
+      b.disabled = true;
+      api("ollama-pull", { model: s.model }).then(function (r) { b.insertAdjacentHTML("afterend", " <span class=\"small\">" + safe(r.message) + "</span>"); },
+        function (e) { b.disabled = false; b.insertAdjacentHTML("afterend", " <span class=\"small\" style=\"color:var(--conflict)\">" + safe(e.message) + "</span>"); });
+    });
+  }
+  function paintSkill(s) {
+    if (!P || s.slug !== P.slug) return;
+    var wanted = s.hosts.filter(function (h) { return h.installed || h.host !== "codex" || h.on_pc; });
+    var any = wanted.some(function (h) { return h.installed; }), all = wanted.every(function (h) { return h.installed && h.current; });
+    $("#aigrid").innerHTML = s.hosts.map(function (h) {
+      return '<li><div class="hstack"><b>' + safe(h.label) + "</b>" + chip(h) + "</div><p class=\"small\">" + ABOUT[h.host](h, s) + "</p></li>";
+    }).join("") + '<li id="localai"><div class="hstack"><b>A model on this PC</b><span class="status" id="localchip">looking…</span></div>' +
+      '<p class="small">Ollama, LM Studio or llama.cpp\'s server. It needs no skill: ContextMAX guides it step by step, the way the skill guides Claude. ContextMAX finds where the question leads in the index, opens each document or code file at that place, and has the model read one passage at a time, quoting its exact words; every quote is looked up in the file, and what a passage points to is read too. The answer comes only from the quotes that hold, with its confidence beside ContextMAX\'s own, or a plain "not found". Nothing leaves the PC.</p>' +
+      '<p class="small" id="localsuggest"></p></li>';
+    paintLocal();
+    var b = $("#skill");
+    b.textContent = !any ? "Install the AI skill" : all ? "Install the AI skill again" : "Update the AI skill";
+    b.className = "btn huge" + (all ? " ghost" : " accent");
+    var c = $("#skillchip"); c.hidden = false;
+    c.className = "chip" + (all ? " ok" : " warn");
+    c.textContent = !any ? "AI skill: not installed · connect your AI ↓" : all ? "AI skill: installed ✓" : "AI skill: from an older build · update it ↓";
+    $("#s4").classList.toggle("is-on", all);
+  }
+  $("#skillchip").onclick = function () { $("#aicard").scrollIntoView({ behavior: "smooth", block: "start" }); };
+  $("#skill").onclick = function () {
+    var b = this; b.disabled = true; $("#skillmsg").textContent = "Installing…";
+    api("skill").then(function (r) {
+      b.disabled = false; paintSkill(r.status);
+      $("#skillmsg").textContent = "Installed for " + r.status.hosts.filter(function (h) { return h.installed; }).map(function (h) { return h.label; }).join(", ") +
+        "; CLAUDE.md, AGENTS.md, .claude/settings.json and the workspace file written in the working folder.";
+    }, function () { b.disabled = false; $("#skillmsg").textContent = ""; });
+  };
+
   api("checkup").then(function (r) {
     $("#checks").innerHTML = r.checks.map(function (c) { return '<li><i class="' + (c.level === "ok" ? "" : "lvl-" + c.level) + '"></i><span><b>' + safe(c.what) + '</b><br><span class="quiet">' + safe(c.detail) + "</span></span></li>"; }).join("");
   });
-  load();
+  route();
 })();
 </script></body></html>

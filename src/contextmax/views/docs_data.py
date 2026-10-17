@@ -31,6 +31,13 @@ def build(proj, portable: bool = False) -> dict:
     per_code = defaultdict(list)
     for e in dc:
         per_code[e["document_key"]].append(e)
+    # its values in the code: [value name, its value here, code name, the code's value, outcome, note, code base]
+    in_code = defaultdict(list)
+    for r in util.load_jsonl(dm / "links" / "value-to-code.jsonl"):
+        c = r["code"]
+        for d in r["documents"]:
+            in_code[d["doc_ref"]].append([r.get("label") or "", r["doc_shown"], c["name"], f"{c['value']} {c.get('unit') or ''}".strip(),
+                                          r["outcome"], r["note"], c.get("target_label") or c["target"]])
     roots = {f.name: f.path for f in proj.folders}
 
     modules_with_code = {d.get("main_module") for d in core if d.get("linked_code")}
@@ -85,6 +92,7 @@ def build(proj, portable: bool = False) -> dict:
                 id_by_key[d["key"]] = nid
                 nodes.append(_doc_node(nid, d, c, t, colx[c] + (i // LIST_ROWS) * SUB_W,
                                    tier_top[t] + (i % LIST_ROWS) * ROW_H, per_code, structure, roots, portable))
+                nodes[-1]["vc"] = in_code.get(d["key"], [])
     edges = []
     for e in dd:
         if e["from"] in id_by_key and e["to"] in id_by_key:

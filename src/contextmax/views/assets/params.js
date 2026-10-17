@@ -4,18 +4,29 @@
   var D = CMX.pageData(), safe = CMX.safe, $ = CMX.$;
   var V = D.variables, list = $("#vars"), main = $("#detail"), q = $("#find");
   var KIND = { cell_entry: "typed in a cell", computed_value: "result of a formula", prose_value: "written in the text" };
+  var OUTCOME = { match: ["ok", "code: match"], mismatch: ["bad", "code: mismatch"], "unit unknown": ["caution", "code: unit unknown"], "units differ": ["bad", "code: units differ"] };
+  var CODE = D.code || {};
   var only = "all";
+  /* the line a value is on: in the window, the line viewer at that line; from disk, the extracted text */
+  function lineLink(r) {
+    if (!r[13]) return "";
+    var P = CMX.panel();
+    if (P && P.token) return '<a target="_blank" rel="noopener" href="/lines?slug=' + encodeURIComponent(D.project) + "&key=" + encodeURIComponent(r[10]) + "&n=" + r[13] + '">Show the line</a>';
+    return r[14] ? '<a target="_blank" rel="noopener" href="../documents/' + safe(r[14]) + '" title="Line ' + r[13] + ' of the text ContextMAX read">Extracted text</a>' : "";
+  }
+  function outcomeChip(o) { var c = OUTCOME[o]; return c ? '<span class="status ' + c[0] + '">' + safe(c[1]) + "</span>" : ""; }
 
   function renderList() {
     var term = q.value.trim().toLowerCase();
     var hits = V.filter(function (v) {
       if (only === "shared" && v[2] < 2) return false;
       if (only === "differ" && !(v[2] > 1 && v[4] === "differ")) return false;
+      if (only === "code" && !v[5]) return false;
       return !term || v[1].indexOf(term) >= 0;
     }).slice(0, 400);
     list.innerHTML = hits.length ? hits.map(function (v) {
       var badge = v[2] > 1 ? (v[4] === "match" ? '<span class="status ok">match</span>' : '<span class="status bad">differ</span>') : '<span class="quiet" style="font-size:12px">1 document</span>';
-      return '<li><a href="#" data-val="' + safe(v[1]) + '" class="fixed">' + safe(v[0]) + "</a><span>" + (v[2] > 1 ? v[2] + " docs " : "") + badge + "</span></li>";
+      return '<li><a href="#" data-val="' + safe(v[1]) + '" class="fixed">' + safe(v[0]) + "</a><span>" + (v[2] > 1 ? v[2] + " docs " : "") + badge + (v[5] ? " " + outcomeChip(v[5]) : "") + "</span></li>";
     }).join("") : '<li class="quiet">No named value matches. A bare number is not a name: search for what the number measures.</li>';
   }
   function trace(doc, sheet, cell, depth, seen) {
@@ -53,10 +64,10 @@
       var odd = uniqueValues.length > 1 && r[9] !== common;
       var traceBtn = r[7] && D.cells[r[10]] ? '<button type="button" class="switch" data-trace="' + i + '">Trace</button>' : "";
       return "<tr" + (odd ? ' class="bad"' : "") + '><td><a href="documents.html#doc=' + encodeURIComponent(r[1]) + '">' + safe(r[0]) + '</a><div class="quiet" style="font-size:12px">' + safe(r[2]) + "</div></td>" +
-        '<td class="fixed" style="font-size:13px">' + safe(r[5] || "text") + (r[8] ? ' <span class="badge">hidden</span>' : "") + (r[11] ? '<div class="quiet" style="font-family:inherit;font-size:12px">' + safe(r[11]) + "</div>" : "") + "</td>" +
-        '<td class="fixed"' + (odd ? ' style="color:var(--conflict);font-weight:600"' : "") + ">" + safe(r[3]) + (r[4] ? " " + safe(r[4]) : "") + "</td>" +
+        '<td style="font-size:13px"><div class="fixed">' + safe(r[12] || r[5] || "text") + (r[8] ? ' <span class="badge">hidden</span>' : "") + "</div>" + (r[11] && !r[5] ? '<div class="quiet" style="font-size:12px">“' + safe(r[11]) + "”</div>" : "") + '<div style="font-size:12px">' + lineLink(r) + "</div></td>" +
+        '<td class="fixed"' + (odd ? ' style="color:var(--conflict);font-weight:600"' : "") + ">" + (r[15] ? safe(r[15]) + " = " : "") + safe(r[3]) + (r[4] ? " " + safe(r[4]) : "") + "</td>" +
         "<td>" + safe(KIND[r[6]] || r[6]) + (r[7] ? '<div class="fixed quiet" style="font-size:12px">' + safe(r[7]) + "</div>" : "") + "</td><td>" + traceBtn + "</td></tr>";
-    }).join("") + "</tbody></table></div><div id=\"trace\"></div>";
+    }).join("") + "</tbody></table></div>" + codeSide(key) + "<div id=\"trace\"></div>";
     main.innerHTML = h;
     CMX.$$("[data-trace]", main).forEach(function (b) {
       b.onclick = function () {
@@ -66,6 +77,23 @@
       };
     });
     if (history.replaceState) history.replaceState(null, "", "#v=" + encodeURIComponent(key));
+  }
+  /* what the code says of this value: each code name it meets, compared in one unit */
+  function codeSide(key) {
+    var cs = CODE[key];
+    if (!cs || !cs.length) return "";
+    return '<h2 class="sec" style="margin:22px 0 8px">In the code</h2><div class="tablebox"><table class="listing"><thead><tr><th>Code</th><th>Value</th><th>Documents</th><th>Outcome</th></tr></thead><tbody>' +
+      cs.map(function (c) {
+        var where = safe(c[7]) + " · " + safe(c[8]) + ":" + c[9];
+        return "<tr" + (c[0] === "mismatch" || c[0] === "units differ" ? ' class="bad"' : "") + '><td><span class="fixed"><b>' + safe(c[3]) + "</b></span>" +
+          '<div class="quiet fixed" style="font-size:12px">' + (c[10] ? '<a href="' + safe(c[10]) + '">' + where + "</a>" : where) + "</div>" +
+          (c[14] ? '<div class="quiet" style="font-size:12px">// ' + safe(c[14]) + "</div>" : "") + "</td>" +
+          '<td class="fixed">' + safe(c[4]) + " " + (c[5] ? safe(c[5]) + ' <span class="quiet" style="font-size:12px">(from its ' + safe(c[6]) + ")</span>" : '<span class="quiet">unit not stated</span>') +
+          (c[13] ? '<div class="quiet" style="font-size:12px">' + safe(c[13]) + "</div>" : "") + "</td>" +
+          '<td class="fixed">' + safe(c[11]) + ' <span class="quiet" style="font-size:12px">in ' + c[15].length + " document" + (c[15].length > 1 ? "s" : "") + "</span></td>" +
+          "<td>" + outcomeChip(c[0]) + '<div class="quiet" style="font-size:12px">' + safe(c[1]) + "</div>" +
+          '<div class="quiet" style="font-size:12px">found by ' + safe(c[2]) + (c[12] > 1 ? "; one of " + c[12] + " candidates" : "") + "</div></td></tr>";
+      }).join("") + "</tbody></table></div>";
   }
   list.addEventListener("click", function (ev) { var a = ev.target.closest("[data-val]"); if (a) { ev.preventDefault(); showVar(a.getAttribute("data-val")); } });
   q.addEventListener("input", renderList);

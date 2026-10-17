@@ -26,6 +26,17 @@ def test_registry_places(monkeypatch):
     _delete_tree(root)
 
 
+@pytest.fixture(autouse=True)
+def test_skill_places(monkeypatch, tmp_path):
+    """No test ever writes a real skills folder (~/.claude/skills and the others): a build in the window
+    brings an installed skill up to date, so every test gets skills folders of its own."""
+    from contextmax import agentskill
+
+    monkeypatch.setattr(agentskill, "HOSTS", {name: tmp_path / "skills-home" / f".{name}" / "skills"
+                                              for name in agentskill.HOSTS})
+    yield
+
+
 def _delete_tree(name: str) -> None:
     import winreg
 

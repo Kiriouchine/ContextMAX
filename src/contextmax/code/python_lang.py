@@ -108,6 +108,7 @@ def analyze(root: str, files: list[tuple[str, str]], depth: int):
         for dn in _dotted_names(rel):
             module_file.setdefault(dn, rel)
     for full, rel in files:
+        util.tick(rel)
         text = util.load_text(full)
         mod = module_for(rel, depth)
         role = role_for(rel)

@@ -861,6 +861,7 @@ def analyze(root: str, files: list[tuple[str, str]], depth: int, c_defs: list[di
     C functions of the same code base, which C++ code may call."""
     reader = _Reader(depth, c_defs or [])
     for full, rel in files:
+        util.tick(rel)
         reader.read(full, rel)
     reader.index()
     reader.link_all()

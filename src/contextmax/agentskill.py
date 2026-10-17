@@ -69,6 +69,34 @@ find, and open the original before you rely on it.
 
 ContextMAX only reads. It never edits the project's files.
 
+## The source is the truth
+ContextMAX is the way in, not the answer. A value, a link or a passage in the index tells you **where to
+look**; the document or the code says **what is true**. For every answer:
+1. Find it in the index (the tasks below): it gives the document and the line, the sheet and cell, or the
+   code file and line.
+2. Open that source and read the whole passage, from the heading above to the next: the document's text at
+   the cited line (`$WORK\\documents\\text\\<key>.txt`, line `line_no`), the workbook's rows around the
+   cell, or the whole function in the code file at `file:line`.
+3. Follow what the passage points to (a table, a figure, a requirement, another document, a function it
+   calls) and read that too. Where the extracted text is garbled (formulas, tables, figures, a scanned
+   page), open the original (its path is in `text-index.jsonl`; for a PDF, the page) and read it there.
+4. Answer from what the source says, not from the index's fields. Quote the exact words with their line or
+   page, and link the file, cited as ContextMAX cites (below).
+5. When the source says something other than the index (a number read wrong, a name taken from the wrong
+   words), the source wins: say so. Where documents disagree, quote each.
+
+## End every answer with its confidence
+`Confidence: High | Medium | Low (the reason, in a few words)`, judged on what you read, not on what the
+index says:
+- **High**: you opened the source and it states the answer directly; where code and documents both apply,
+  they agree.
+- **Medium**: you read the source, but it answers only in part or indirectly; or only one source where more
+  would be expected; or the index is older than the files (`cmx status {slug}`).
+- **Low**: you answered from the index without opening the source; or the sources disagree and nothing
+  settles it; or the link is weak (one shared name).
+- **Not found**: say plainly that the index and the sources you opened do not answer it, and list what you
+  searched (names, words, files). Never fill a gap with a guess.
+
 ## Use it for
 - "Where is the document about X?" / "find the requirements / test report / budget for Y"
 - "Where is `foo` defined?" (exact file and line) / "who calls `foo`, what breaks if I change it?"
@@ -80,8 +108,10 @@ Code is the authority for what the system **does today**; documents state **inte
 disagree, and finding that out is the point. For every how/why/what answer, write three parts:
 
 1. **What the code does**: every claim cited `code base file:line`.
-2. **What the documents say**: cited by document title and section, sheet and cell for a
-   workbook. If you did not open a document's text, write **Documents: not opened**.
+2. **What the documents say**: cited the way ContextMAX cites, `Document · stage · page 12, line 340 ·
+   §3.1 PID step` (page for a PDF, line in the document's text, the section above it), or
+   `Workbook · stage · Sheet!B7` for a cell. Every value row carries these fields (`line_no`, `page`,
+   `section`, `sheet`, `cell`). If you did not open a document's text, write **Documents: not opened**.
    Naming a document is not reading it.
 3. **Outcome**, exactly one: **Match** (the code does what the document says), **Only in
    documents** (written down, not found in code), **Only in code** (in the code, in no document
@@ -112,12 +142,15 @@ line on later answers unless asked.
 - `catalogue\\all-files.csv`: every file. Columns `Folder,Priority,FirstFolder,Category,Products,DocNumbers,Name,Ext,Kilobytes,Modified,OnlineOnly,RelativePath`.
 - `code\\<code base>\\`: `name-lookup.json` (name to definitions), `function-list.jsonl` (one per
   function: `callee_ids`, `caller_ids`, `external_calls`, `indirect_calls`, `ambiguous`), `call-pairs.json`,
-  `module-list.json`, `code-guide.md` (read this for architecture). VHDL adds `hdl-*.json(l)` and `hdl-guide.md`.
+  `module-list.json`, `code-guide.md` (read this for architecture), `values.jsonl` (every named number:
+  #define, const, constexpr, Python and MATLAB assignments, VHDL constants and generics, with `file`,
+  `line`, `unit` and where the unit came from). VHDL adds `hdl-*.json(l)` and `hdl-guide.md`.
 - `documents\\`: `text-index.jsonl` and `text\\<key>.txt` (each document's text, to quote),
   `sheets\\<key>.jsonl` (every cell), `doc-list.jsonl` (documents, with stage and copies folded in),
   `doc-outlines.jsonl` (headings, shall statements, values), `params.sqlite` (every value, indexed),
   `links\\doc-to-code.jsonl`, `links\\between-docs.jsonl` (cites, quotes, shares, anchor, differs, samepart),
-  `links\\code-to-doc.json`, `value-conflicts.jsonl` (every named value documents give differently), `document-guide.md`, `text-coverage.json` and `not-read.csv` (check these before
+  `links\\code-to-doc.json`, `links\\value-to-code.jsonl` (each document value found in the code, compared in one
+  unit), `value-conflicts.jsonl` (every named value documents give differently), `document-guide.md`, `text-coverage.json` and `not-read.csv` (check these before
   saying something is not there).
 - `pages\\`: the pages a person opens; `Home.html` at the top.
 
@@ -172,6 +205,15 @@ not downloaded)? Open the original at the path task 1 gives.
   name, each value with its documents and cells; when most documents agree, `differing` lists the ones
   that do not (with no majority it is empty: the values are only different, none is the odd one out).
 - By number, only when there is no name, and expect noise: `cmx params {slug} --value 12 --unit ms --named`.
+- A name comes from a label (`settle time: 12 ms`), a workbook's label, or the value's own sentence
+  (`a settle time of 12 ms`): `label_source` says which. A name from a sentence is a reading: open the
+  document at `line_no` and read the sentence there before you rely on the name or the number. `symbol` is the symbol written with the name (`E`, `Ts`).
+- A range is written with a tilde: `1~4` means from 1 to 4, never 1 minus 4. Write ranges the same way.
+- Documents against the code: `$WORK\\documents\\links\\value-to-code.jsonl`, one row per document value
+  and code value, with `outcome`: **match**, **mismatch**, **unit unknown** (the code or the document
+  states no unit; `note` says whether the numbers agree) or **units differ** (most likely not the same
+  value). `matched_by` says how the two met; `candidates_count` > 1 means several code names could be
+  it. Use these as leads for the Outcome of the three-part answer, and open the code line to confirm.
 - A workbook live: `cmx sheet {slug} --key <key> --trace "Sheet!B7"` walks a formula back to the
   cells and constants it uses; `--lint` finds rows whose label and value come from different rows.
 The index finds the value; the live workbook confirms it. Say which one you quote.

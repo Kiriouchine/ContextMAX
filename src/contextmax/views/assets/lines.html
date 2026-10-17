@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Show the line · ContextMAX</title>
+<link rel="icon" href="/assets/contextmax.ico">
+<script>window.CMX_PANEL = { token: "__TOKEN__", slug: new URLSearchParams(location.search).get("slug") || "" };</script>
+<link rel="stylesheet" href="/assets/cmx.css"><script src="/assets/cmx.js"></script>
+<style>
+.textview { background:var(--surface); border:1px solid var(--rule); border-radius:12px; overflow:auto; }
+.textview ol { list-style:none; margin:0; padding:8px 0; font:13px/20px var(--mono, Consolas, monospace); }
+.textview li { display:grid; grid-template-columns:64px minmax(0,1fr); gap:12px; padding:0 14px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.textview li .no { color:var(--muted, #6b7280); text-align:right; user-select:none; }
+.textview li.hit { background:var(--highlight, #fff3bf); }
+.textview li.page { color:var(--muted, #6b7280); font-weight:600; padding-top:10px; }
+.textview li.page .no { visibility:hidden; }
+.more { display:flex; justify-content:center; padding:6px; }
+</style></head>
+<body class="page">
+<header class="masthead"><span class="wordmark">Context<b>MAX</b><small id="pname"></small></span>
+<nav class="tabs"><a id="homelink" href="#">Home</a><a class="is-on" href="#">Show the line</a></nav>
+<span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
+<main class="column" style="gap:16px;max-width:1080px">
+<section><h1 class="headline" style="font-size:26px" id="title">…</h1>
+<p class="quiet" id="where" style="margin:6px 0 0"></p>
+<div class="hstack" id="acts" style="margin:10px 0 0"></div></section>
+<section class="textview" id="view" aria-label="The document's extracted text"><div class="more"><button type="button" class="btn ghost" id="earlier" hidden>Earlier lines</button></div><ol id="lines"></ol><div class="more"><button type="button" class="btn ghost" id="later" hidden>Later lines</button></div></section>
+<p class="quiet small">This is the text ContextMAX read from the document; line numbers count in it. Page marks come from the PDF.</p>
+</main>
+<script>
+"use strict";
+(function () {
+  var $ = CMX.$, safe = CMX.safe, q = new URLSearchParams(location.search);
+  var slug = q.get("slug") || "", key = q.get("key") || "", n = Math.max(1, parseInt(q.get("n") || "1", 10) || 1);
+  var first = 0, last = 0, total = 0;
+  $("#homelink").href = "/ws/" + encodeURIComponent(slug) + "/Home.html";
+  $("#pname").textContent = slug;
+  function rows(r) {
+    var out = [], page = null;
+    r.lines.forEach(function (text, i) {
+      var no = r.first + i, pg = r.pages ? r.pages[i] : null;
+      if (pg && pg !== page) { out.push('<li class="page"><span class="no"></span><span>page ' + pg + "</span></li>"); page = pg; }
+      out.push('<li id="L' + no + '"' + (no === n ? ' class="hit"' : "") + '><span class="no">' + no + "</span><span>" + (safe(text) || " ") + "</span></li>");
+    });
+    return out.join("");
+  }
+  function load(before, after, where) {
+    return CMX.ask("lines", { slug: slug, key: key, n: n, before: before, after: after }).then(function (r) {
+      total = r.total;
+      if (where === "start") { first = r.first; last = r.first + r.lines.length - 1; $("#lines").innerHTML = rows(r); }
+      else if (where === "earlier") { $("#lines").insertAdjacentHTML("afterbegin", rows(r)); first = r.first; }
+      else { $("#lines").insertAdjacentHTML("beforeend", rows(r)); last = r.first + r.lines.length - 1; }
+      $("#earlier").hidden = first <= 1; $("#later").hidden = last >= total;
+      return r;
+    });
+  }
+  load(60, 60, "start").then(function (r) {
+    document.title = r.title + " · line " + n + " · ContextMAX";
+    $("#title").textContent = r.title;
+    var page = r.pages ? r.pages[n - r.first] : null;
+    $("#where").textContent = [r.stage, (page ? "page " + page + ", " : "") + "line " + n + " of " + total].filter(Boolean).join(" · ");
+    var acts = [];
+    if (r.path) acts.push('<button type="button" class="btn ghost" data-file="' + safe(r.path) + '" data-how="open">Open document</button>' +
+                          '<button type="button" class="btn ghost" data-file="' + safe(r.path) + '" data-how="select">Show in folder</button>');
+    acts.push('<a class="btn ghost" target="_blank" rel="noopener" href="' + safe(r.text_link) + '">Whole extracted text</a>');
+    $("#acts").innerHTML = acts.join("");
+    var hit = document.getElementById("L" + n);
+    if (hit) hit.scrollIntoView({ block: "center" });
+  }, function (e) { $("#title").textContent = "This line cannot be shown"; $("#where").textContent = e.message; });
+  $("#earlier").addEventListener("click", function () {
+    var before = Math.min(120, first - 1); if (before < 1) return;
+    var keep = $("#view").scrollHeight;
+    CMX.ask("lines", { slug: slug, key: key, n: first - 1, before: before - 1, after: 0 }).then(function (r) {
+      $("#lines").insertAdjacentHTML("afterbegin", rows(r)); first = r.first; $("#earlier").hidden = first <= 1;
+      $("#view").scrollTop += $("#view").scrollHeight - keep;
+    });
+  });
+  $("#later").addEventListener("click", function () {
+    CMX.ask("lines", { slug: slug, key: key, n: last + 1, before: 0, after: 119 }).then(function (r) {
+      $("#lines").insertAdjacentHTML("beforeend", rows(r)); last = r.first + r.lines.length - 1; $("#later").hidden = last >= total;
+    });
+  });
+})();
+</script>
+</body></html>

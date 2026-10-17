@@ -50,6 +50,17 @@ def test_what_could_run_is_shown_in_its_folder_never_started(built, started):
     assert "not a document" in message and [k for k, _ in started] == ["explorer"]
 
 
+
+def test_a_module_s_folder_opens_in_explorer_and_its_code_is_shown_never_run(built, started):
+    """"Open its folder" on a module: Explorer in that folder. "Show in folder" on a function: its file
+    selected. Neither starts the code."""
+    code = next(p for f in built.folders for p in Path(f.path).rglob("*.c"))
+    assert opener.open_path(str(code.parent), "open") == f"opened the folder {code.parent.name}"
+    assert opener.open_path(str(code), "select").startswith("showed")
+    assert started == [("open", str(code.parent.resolve())), ("explorer", f'explorer.exe /select,"{code.resolve()}"')]
+    with pytest.raises(ValueError):
+        opener.open_path(str(Path(built.folders[0].path).parent.parent), "open")     # outside the project
+
 def test_a_file_outside_every_project_is_refused(built, started, tmp_path):
     outside = tmp_path / "elsewhere.pdf"
     outside.write_bytes(b"%PDF")

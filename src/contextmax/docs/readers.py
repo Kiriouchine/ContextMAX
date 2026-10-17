@@ -52,12 +52,23 @@ def read_pdf(in_path: str, out_path: str) -> dict:
             title_field = (doc.get_metadata_dict() or {}).get("Title") or ""
         except Exception:  # noqa: BLE001 - the title field is optional
             title_field = ""
-    text = write_out(out_path, "\n".join(p.replace("\r\n", "\n") for p in pages))
+    pages = [_CARRIAGE_RETURN.sub("\n", p) for p in pages]
+    text = write_out(out_path, "\n".join(pages))
     letters = len(text) - sum(1 for c in text if c.isspace())
     title, source = document_title(title_field, pages[0] if pages else "")
-    return {"ok": True, "method": "pdfium", "pages": len(pages),
+    return {"ok": True, "method": "pdfium", "pages": len(pages), "page_lines": page_starts(pages, 1),
             "needs_ocr": bool(pages) and letters / len(pages) < SCAN_CHARS_PER_PAGE,
             "title": title, "title_source": source}
+
+
+def page_starts(pages: list[str], gap: int) -> list[int]:
+    """The line each page starts on (counted from 1) in the pages' text joined by `gap` line ends: what a
+    value's page is found by."""
+    starts, line = [], 1
+    for p in pages:
+        starts.append(line)
+        line += p.count("\n") + gap
+    return starts
 
 
 _NOT_A_TITLE = re.compile("|".join((

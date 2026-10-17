@@ -13,6 +13,10 @@
     samepart: { label: "same part", title: "about the same part of the code, next stage" }
   };
   var kindsOn = { cites: true, quotes: true, shares: true, anchor: false, differs: true, samepart: false, onlyCoded: false };
+  /* a map drawn again because a switch was turned (or the theme changed) keeps where the viewer left it */
+  var held = null;
+  function hold() { held = current && current.view ? { id: current.id, v: current.view() } : null; }
+  function take(id) { var v = held && held.id === id ? held.v : null; held = null; return v; }
   var BIG_NODES = 1500, BIG_LINKS = 15000;     // above either, a map is drawn the cheaper way (every line still drawn)
   var linksOf = N.map(function () { return []; });
   E.forEach(function (e, i) { linksOf[e.a].push(i); linksOf[e.b].push(i); });
@@ -80,6 +84,13 @@
         return "<li><span>" + name + "</span><span class=\"fixed\">" + safe(p[1]) + (p[2] ? " " + safe(p[2]) : "") + "</span></li>";
       }).join("") + "</ul><div id=\"varbox\"></div><p class=\"quiet\" style=\"font-size:12.5px\">A linked name is stated in other documents too: click it to compare.</p>";
     }
+    if (n.vc && n.vc.length) {
+      h += "<h3>Its values in the code</h3><ul>" + n.vc.map(function (v) {
+        var bad = v[4] === "mismatch" || v[4] === "units differ";
+        return '<li style="display:block"><b>' + safe(v[0] || v[2]) + '</b> <span class="fixed">' + safe(v[1]) + "</span> · code <span class=\"fixed\">" + safe(v[2]) + " = " + safe(v[3]) + "</span> " +
+          '<span class="status ' + (bad ? "bad" : v[4] === "match" ? "ok" : "caution") + '">' + safe(v[4]) + '</span><div class="quiet" style="font-size:12.5px">' + safe(v[5]) + " · " + safe(v[6]) + "</div></li>";
+      }).join("") + '</ul><p class="quiet" style="font-size:12.5px">The values page lists every place each value is stated: <a href="params.html">Parameters</a>.</p>';
+    }
     side.innerHTML = h;
     if (current && current.select) current.select(id);
   }
@@ -110,8 +121,17 @@
       var sw = k === "shares" ? "border-top:2.5px solid var(--ok)" : k === "anchor" ? "border-top:2.5px dotted var(--ok)" : k === "differs" ? "border-top:2.5px solid var(--conflict)" :
         k === "samepart" ? "border-top:2px dashed var(--text-3)" : k === "quotes" ? "border-top:2px dashed var(--doc)" : "border-top:2.5px solid var(--doc)";
       return '<button type="button" class="switch' + (kindsOn[k] ? " is-on" : "") + '" data-kind="' + k + '" aria-pressed="' + kindsOn[k] + '" title="' + safe(KIND[k].title) + '"><i style="display:inline-block;width:18px;' + sw + '"></i>' + safe(KIND[k].label) + "</button>";
-    }).join("") + '<button type="button" class="switch' + (kindsOn.onlyCoded ? " is-on" : "") + '" data-kind="onlyCoded" aria-pressed="' + kindsOn.onlyCoded + '">Only documents that name code</button>';
-    CMX.$$("button", controls).forEach(function (b) { b.onclick = function () { var k = b.getAttribute("data-kind"); kindsOn[k] = !kindsOn[k]; current.enter(); }; });
+    }).join("") + '<button type="button" class="switch' + (kindsOn.onlyCoded ? " is-on" : "") + '" data-kind="onlyCoded" aria-pressed="' + kindsOn.onlyCoded + '">Only documents that name code</button>' +
+      '<button type="button" class="switch" data-all="1" title="Show every kind of link">All links on</button>' +
+      '<button type="button" class="switch" data-all="0" title="Hide every link: the documents only">All links off</button>';
+    CMX.$$("button", controls).forEach(function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute("data-kind"), all = b.getAttribute("data-all");
+        if (all !== null) Object.keys(KIND).forEach(function (kind) { kindsOn[kind] = all === "1"; });
+        else kindsOn[k] = !kindsOn[k];
+        hold(); current.enter();
+      };
+    });
   }
   function visibleEdge(e) { return kindsOn[e.k] && (!kindsOn.onlyCoded || (N[e.a].code.length && N[e.b].code.length)); }
   function visibleNode(n) { return !kindsOn.onlyCoded || n.code.length; }
@@ -155,13 +175,16 @@
       net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: new vis.DataSet(links) },
         { physics: false, layout: { improvedLayout: false },
           interaction: { hover: true, hoverConnectedEdges: true, tooltipDelay: 120, hideEdgesOnDrag: large, hideEdgesOnZoom: large } });
-      net.once("afterDrawing", function () { net.fit(); });
+      var zoomer = CMX.visZoom(net), keep = take("map");
+      CMX.zoomButtons(canvas, zoomer);
+      net.once("afterDrawing", function () { if (keep) zoomer.setView(keep); else net.fit(); });
       net.on("click", function (p) { if (p.nodes.length && typeof p.nodes[0] === "number") showDoc(p.nodes[0]); });
     }
     return {
       id: "map", label: "Document map", title: "Stages left to right, rows by how closely a document ties to the code",
       enter: function () { linkToggles(); crumbs.innerHTML = "<b>Document map</b>"; build(); if (selected !== null) showDoc(selected); else overview(); },
       leave: function () { if (net) { net.destroy(); net = null; } },
+      view: function () { return net ? CMX.visZoom(net).view() : null; },
       select: function (id) { if (net && nodes.get(id)) net.selectNodes([id]); },
       focus: function (id) { if (net && nodes.get(id)) { net.selectNodes([id]); net.focus(id, { scale: 1, animation: true }); } }
     };
@@ -208,6 +231,7 @@
       });
       pz = CMX.panZoom(svg, D.width, D.height + 40);
       CMX.zoomButtons(canvas, pz);
+      pz.setView(take("drafting"));
     }
     function select(id) {
       Object.keys(pages).forEach(function (k) { pages[k].classList.remove("sel"); });
@@ -224,6 +248,7 @@
       id: "drafting", label: "Drafting table", title: "Documents as pages in a fixed grid, light or dark",
       enter: function () { linkToggles(); crumbs.innerHTML = "<b>Drafting table</b>"; draw(); if (selected !== null) showDoc(selected); else overview(); },
       select: select,
+      view: function () { return pz ? pz.view() : null; },
       focus: function (id) { var n = N[id]; pz.center(n.x + W / 2, n.y, 1100); select(id); },
       onTheme: function () { draw(); if (selected !== null) select(selected); }
     };
@@ -265,22 +290,26 @@
       // straight lines and without the slow first layout, and then stands still instead of being
       // simulated and redrawn on every frame; it hides its lines only while it is dragged or zoomed.
       // The layout starts from a fixed seed, so the same documents give the same picture.
-      var large = items.length > BIG_NODES || links.length > BIG_LINKS;
+      var large = items.length > BIG_NODES || links.length > BIG_LINKS, keep = take("network");
       nodes = new vis.DataSet(items);
       net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: new vis.DataSet(links) },
         { physics: { solver: "forceAtlas2Based", forceAtlas2Based: { gravitationalConstant: -60, springLength: 110 },
-                     stabilization: { iterations: large ? 100 : 250, updateInterval: 50 } },
+                     stabilization: { iterations: large ? 100 : 250, updateInterval: 50, fit: !keep } },
           layout: { improvedLayout: !large, randomSeed: 7 },
           interaction: { hover: !large, tooltipDelay: 120, hideEdgesOnDrag: large, hideEdgesOnZoom: large },
           edges: { smooth: large ? false : { type: "continuous" } } });
       if (large) net.once("stabilizationIterationsDone", function () { net.setOptions({ physics: { enabled: false } }); });
+      var zoomer = CMX.visZoom(net);
+      if (keep) net.once("stabilizationIterationsDone", function () { zoomer.setView(keep); });
       net.on("click", function (p) { if (p.nodes.length && typeof p.nodes[0] === "number") showDoc(p.nodes[0]); });
       if (!items.length) canvas.innerHTML = '<div class="empty">No document links of the kinds switched on.</div>';
+      else CMX.zoomButtons(canvas, zoomer);
     }
     return {
       id: "network", label: "Network", title: "Linked documents and the code modules they name, laid out by physics",
       enter: function () { linkToggles(); crumbs.innerHTML = "<b>Network</b> <span class=\"quiet\">only documents with a link are drawn</span>"; build(); if (selected !== null) showDoc(selected); else overview(); },
       leave: function () { if (net) { net.destroy(); net = null; } },
+      view: function () { return net ? CMX.visZoom(net).view() : null; },
       select: function (id) { if (net && nodes.get(id)) net.selectNodes([id]); },
       focus: function (id) { if (net && nodes.get(id)) { net.selectNodes([id]); net.focus(id, { scale: 1.1, animation: true }); } }
     };
@@ -289,7 +318,7 @@
   var selected = null, current = null;
   var list = [corpus, drafting, network];
   CMX.initViews("docs", list.map(function (v) { return { id: v.id, label: v.label, title: v.title, enter: function () { current = v; v.enter(); }, leave: v.leave }; }));
-  CMX.onTheme(function () { if (current.onTheme) current.onTheme(); else current.enter(); });
+  CMX.onTheme(function () { hold(); if (current.onTheme) current.onTheme(); else current.enter(); });
   $("#find").addEventListener("keydown", function (ev) {
     if (ev.key !== "Enter") return;
     var q = ev.target.value.trim().toLowerCase(); if (!q) return;

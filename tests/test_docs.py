@@ -219,3 +219,25 @@ def test_values_that_differ_are_listed_and_the_gate_checks_the_list(built):
         assert "value-conflicts.jsonl does not match the value list" in errors
     finally:
         path.write_bytes(before)
+
+
+def test_names_that_differ_only_in_capitals_get_keys_of_their_own(built, tmp_path):
+    """Windows takes ReadMe.txt and readme.txt for one file: as keys (text/<key>.txt) they must differ more."""
+    from contextmax import pipeline, project
+    from contextmax.docs import textcache
+
+    rows = [{"Name": n, "Folder": "f", "RelativePath": f"{d}/{n}"} for d, n in (("a", "ReadMe.txt"), ("b", "readme.txt"),
+                                                                                 ("c", "Notes.txt"))]
+    keys = textcache.assign_keys(rows)
+    assert keys[("f", "c/Notes.txt")] == "Notes"
+    assert len({keys[("f", "a/ReadMe.txt")].casefold(), keys[("f", "b/readme.txt")].casefold()}) == 2
+    src = tmp_path / "src"
+    # of different sizes, as in the project where this was found: same name and size would be one document's copies
+    for d, n, text in (("a", "ReadMe.txt", "the first read-me"), ("b", "readme.txt", "the second read-me" + " longer" * 60)):
+        (src / d).mkdir(parents=True)
+        (src / d / n).write_text(text, encoding="utf-8")
+    proj = project.create("Two readmes", [{"path": str(src), "holds": "documents"}], str(tmp_path / "ws"))
+    pipeline.build(proj, depth="documents", ocr=False)          # the gate passes: no text replaced another
+    texts = sorted((proj.documents_dir / r["cached_text"]).read_text(encoding="utf-8")
+                   for r in util.load_jsonl(proj.documents_dir / "text-index.jsonl"))
+    assert texts == ["the first read-me", "the second read-me" + " longer" * 60]

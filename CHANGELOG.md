@@ -60,6 +60,155 @@ database (where a value comes from). The design from 0.1 to 0.3 is kept in git h
   to 225,370 (shared values 39,622 to 61,964, and 37,052 same-value and 1,092 red links), 14,257 names
   are stated with more than one value, and the build takes a few seconds longer.
 - Fixed: the window ended a build's log with "doneCount." instead of "Done.".
+- The window opens on a start screen: every project as a card (its folders, when it was built, its
+  confidence, how many documents and functions) with a large **Open** button, the last one opened first,
+  and **Start a new project** beside them. **Show the build live** is on the start screen and above the
+  folder list, so it can be ticked before adding a folder starts a build; switched on during a build, the
+  drawing starts from the build's first event (the build now always reports them; the window asks for
+  them only while it draws). A built project shows its Complete Atlas at the bottom of the window; a live
+  build draws into the same place.
+- A project's screen starts with its name, what the last build made and a large **Open the project**
+  button. **This PC** is as tall as the folders and the build beside it and scrolls inside. **Connect your
+  AI** is a step of its own: what the skill does for Claude Code, for Copilot in VS Code, for Codex, and
+  that a model on this PC needs none; whether it is installed for each, and whether it describes the
+  last build. After a build in the window, a skill that is installed is brought up to date there.
+- The build's log says what it is doing at every moment: the steps it will take, a header for each
+  (`=== Step 3 of 6 · Code map (1:49)`) with the time it took, a line at least every two seconds in
+  every long loop (`reading documents: 1,079 of 10,002 (10%) · DOC-15326 … · about 2 min left`), what
+  changed since the last catalogue, and a summary at the end (files, documents, code, links, values,
+  gate, pages, confidence). The window shows the steps, the line of the moment and a running clock above
+  the log. On 10,000 documents and 10,060 code files the longest silence in the log went from 59 s to
+  9 s, and the index is the same, byte for byte.
+- The CMD window that runs ContextMAX shows what the window does, with the time: every line of a build,
+  folders added and removed, the skill installed, assistants started, files opened, questions asked.
+- Every build's log is saved in the working folder, `logs\build-<date>_<time>.txt` (the newest 30 are
+  kept), with the time it started and ended and how; the window links to it. When the validation gate
+  stops a build, the window says what it found.
+- Fixed: two documents whose names differ only in capitals (`ReadMe.txt`, `readme.txt`) were given keys
+  that Windows takes for one file name, so one document's text replaced the other's and the validation
+  gate stopped the build at the end. Such names now get a key of their own each, as names that are the
+  same do.
+- **Add a folder…** is the largest button on a project's screen.
+- The maps keep their view: switching a kind of link (documents), tests or stubs (code) or the theme no
+  longer zooms back out. Every map has **Reset view** for the whole map, and **All links on** and **All
+  links off** (documents, code, Complete Atlas).
+- Code opens from every view: a function has **Open in editor** and **Show in folder** (Explorer, the
+  file selected), on the code pages and in the Complete Atlas; a module has **Open its folder** (the
+  folder its files share). A folder in a project opens in Explorer from a page too.
+- **Claude starts with the project's skill.** Claude Code in a terminal starts with `/contextmax-<project>`
+  as its first message, which loads the skill. **VS Code with Claude** waits for the project's VS Code
+  window (up to 30 s), brings it to the front, and only then opens Claude's chat there with
+  `/contextmax-<project>` typed in; before, the chat's link went to whichever VS Code window was in front,
+  often another one, and the project's window showed Copilot. If the window does not appear, the window
+  says so.
+- **Every value says exactly where it is.** A value records its line in the document's text, its page
+  (PDFs, from where each page starts; recognised scans too), the heading it stands under and the words
+  around it, cut only between words. One citation format everywhere (Ask, values page, documents page,
+  `contextmax params`, the skill): *Detailed design · Design · page 12, line 340 · §3.1 PID step*, or
+  *Budget.xlsx · Design · Budget!B6* for a cell. In the window, **Show the line** opens the document's
+  text at that line, highlighted, with the page marks; a page opened from disk links to the extracted
+  text. The validation gate checks that the line a value names shows that value (and a range that runs
+  onto the next line, its end there) and that the page holds the line. The value database
+  (`params.sqlite`, schema 2) keeps line, page, section, sentence, symbol and where the name came from.
+  A scan recognised before this keeps its text and cites lines; **Rebuild everything** recognises it
+  again with its pages (the build summary says how many such scans there are).
+- **Values are named by their sentence.** Before, a value had a name only when written "Name: value"
+  (5% of the values of a folder of papers and books, 22% of a master's project). Now "a settle time of
+  12 ms", "the supply voltage shall be 24 V" and "shall keep the gain margin at 6 dB" name their value
+  too: two to four words before the value, up to a linking word, never only generic words, never a
+  comparison ("a much higher value"), never cut from the words before it ("the speed of the drive
+  shaft"). The symbol written with a name is kept beside it ("total energy" with E), values listed after
+  a named one share its name ("are 128.3 rad/s and 104.8 rad/s"), and a word a PDF broke over a line is
+  joined ("resis-tance"). `label_source` says where each name came from (label, cell, sentence). 50 of
+  the new names, drawn at random and judged by hand: 37 right, 6 with the wrong name, 7 not names; the
+  rules were then corrected for the patterns those showed, and a second round of 50 is out for judging.
+- **The source is the truth, and every answer says how sure it is.** The index is the way in: the skill
+  (Claude Code, Copilot, Codex) and the project's `CLAUDE.md` and `AGENTS.md` now say to open the document
+  or the code the index points to, at the cited line, read it, answer from it and link it; when the source
+  says otherwise than the index, the source wins. Every answer ends with `Confidence: High`, `Medium` or
+  `Low` and why, judged on what was read, or says plainly that nothing was found and what was searched.
+  A model on this PC gets the same rule, and each value it is given carries the lines of the document or
+  code file it comes from, read by ContextMAX itself. The Ask page shows the model's own confidence beside
+  ContextMAX's check (are the numbers in the sources they cite, are the cited sources real) and counts the
+  lower of the two; when the model is surer than its sources allow, it says so.
+- **A range is written 1~4.** A dash between two numbers reads as a minus, to a model as much as to a
+  person, so every range is written with a tilde: in the value list, on the pages, in what a model is
+  given and in the skill (`4–20` from an earlier version still reads as 4~20). A range written with its
+  unit on both numbers, `1 cm - 4 cm`, or `from 35 mm to 150 mm`, is one range, not two values.
+- **Fewer things read as values that are none.** Left out now: decades ("the 1980s", not 1,980
+  seconds), the numbers of figures, tables, equations, sections, examples and algorithms ("Fig. 76.16 A
+  mobile robot"), numbered references ("192 A. Smith", "12.45 N.P. Clark"), a unit on the next line
+  when a formula follows ("1 / s + 10"), and a unit whose capitals do not match ("a13" is no ampere). A
+  unit a PDF put on the next line of running text still counts ("1.2 / m of wingspan", "2 to 3 / cm.").
+  Each rule was checked on a random sample of what it leaves out. On the folder of papers and books the
+  values went from 16,185 to 11,969 (1,778 references, 203 figure and table numbers, 356 decades, about
+  1,900 formula pieces) while the named values went from 878 to 1,326, distinct names from 250 to 604, and
+  links for shared values from 22 to 106.
+- **Values in the code.** Each code map lists its named numbers (`code\<base>\values.jsonl`): `#define`,
+  `const` and `constexpr` in C and C++, numbers set at module or class level in Python, `name = number`
+  in MATLAB (struct fields too), constants and generics in VHDL, each with its file, line, comment and
+  unit. The unit comes from the name (`TIMEOUT_MS`; `_A`, `_V` and `_S` only beside a word for that
+  quantity, so `CHANNEL_A` is no current), the comment (`[ms]`, `in ms`) or the literal (`10 ns`); when
+  the name and the comment disagree, the unit is unknown and the row says why. A unit is never guessed.
+- **Documents against the code.** A document's value name meets a code name when they say the same
+  words (`settle time` and `PID_SETTLE_TIME_MS`; abbreviations such as MAX, FREQ and CLK read out; the
+  code may add one word, such as its module), or when the code's comment is that name; a value without a
+  name meets a code value with the same number when its sentence says two words of the code's name ("The
+  sensor shall be sampled at 2000 Hz" and `SENSOR_SAMPLE_HZ`). Each pair is compared in one unit:
+  **match** (a range holds the code's value; "at least" and "at most" are kept), **mismatch**, **unit
+  unknown** (the note says whether the numbers agree, or in which unit they would) or **units differ**.
+  Several code names that could be meant are all listed as candidates. `documents\links\value-to-code.jsonl`
+  holds every pair and the gate recomputes it. The values page has **In the code** with each code value,
+  its outcome and **Open in editor**; a document's details list its values in the code; the Complete Atlas
+  draws **value in code** lines from a document to the module, red on a mismatch.
+- **A model on this PC reads the sources, guided step by step** (`reading.py`). In an editor Claude
+  finds a way in, opens the file, reads the passage, follows what it points to and checks it; a local
+  model is not good at deciding all that by itself, so ContextMAX holds the procedure and the model only
+  reads. ContextMAX finds the ways in (values with their line, every other document that states the same
+  value names, the code the index links a value to and the documents it links a code value to, functions,
+  passages), opens each file at that place (the section from the heading above to the next, the whole
+  function, the sheet's rows; copies and versions of one document once), and has the model read one
+  passage at a time, answering in JSON with the exact words it relies on and their line numbers, and what
+  the passage points to. Every quote is looked up in the file; one the file does not hold is left out and
+  said. What a passage points to (a function, a named number, a table in the same document, another
+  document) is read too, up to three. The answer is made from the checked quotes only and cites them;
+  nothing relevant read is a plain "not found", said by ContextMAX without asking the model to guess. A
+  model that can see (gemma4, qwen3.8; Ollama says which) also gets the PDF pages as pictures, so formulas,
+  tables and figures the extracted text garbles are read from the original, and pictures whose file name
+  the question says. Every reading runs at temperature 0 with a fixed seed. The Ask page shows what was
+  read, step by step, with **Show the line**, **Open document** or **Open in editor** for each passage, the
+  checked words of every source, and three confidences: ContextMAX's from what was read and checked, the
+  answer's numbers against the words they cite, and the model's own; the lowest counts. It works with every
+  model, tool calling or not. On the demo, qwen3-coder 30B read six passages in about 9 s and found the
+  test plan's 15 ms against 12 ms everywhere else; gemma4 31B read a thesis with its pages as pictures. The
+  window suggests a model for the PC's graphics memory (Qwen 3.8 27B for 20 GB or more,
+  smaller Qwen 3 models below), with a button that has Ollama download it in a window of its own, or a link
+  to Ollama when it is not installed. Only a model ContextMAX suggests is ever downloaded.
+- Builds use the PC's processors. Documents are read, scans recognised (in pieces of four pages, the
+  largest scans first), C files and headers read, the document map's searches done (code names, headings
+  and values, cited titles), the pages written and the fingerprints checked by worker processes: one per processor thread but one, as many as
+  the memory allows, below normal priority so the PC stays quick to use. Word and Excel still open one
+  document at a time. A worker writes only its own document's files; the main process writes everything
+  shared, in the same order as ever, so the index is the same, byte for byte, with one worker or many
+  (`CONTEXTMAX_WORKERS=1` runs as before). Measured on a Ryzen 5 3600 (12 threads): 10,002 documents and
+  10,060 code files in 131 s instead of 308 s (reading 105 s to 25 s, the code map 39 s to 25 s, the
+  document map 115 s to 48 s, the pages 24 s to 12 s), the same index; the scale demo in 148 s with
+  eleven workers and 304 s with one, the same index; a folder of 386 documents with 83 scans (872 pages)
+  in 8 minutes with eleven workers and 21 minutes with one, the same index.
+- Scans are recognised whole: the limit of 200 pages is gone, and a scan read only in part before is
+  read again, whole. Read in pieces, every page reads exactly as it did in one go: on that folder, 385 of
+  386 documents came out byte for byte as before, and the 646-page book's first 200 pages too.
+- A piece of work whose worker process dies is done again, alone, up to three times; a document that
+  kills its process every time is listed as unreadable, with that reason, and the build goes on.
+- **Stop the build** in the window stops a build at its next step and keeps what it finished: the
+  documents read and the scans recognised so far are saved, and the next build goes on from there.
+  Closing the CMD window stops the build the same way, and its log says so; the window says ContextMAX
+  was closed, with the log's place.
+- The window says, above the build buttons, how the last build ended, what it could not read
+  (unreadable documents with their reasons, scans in which no text was found, scans read in part,
+  documents still in the cloud), and what changed in the folders since; it marks the button to press:
+  **Read documents and build** when something changed or a build did not finish, **Rebuild everything**
+  to try again what could not be read.
 - The documents page's Network view opens on a large project: it laid out 9,620 documents and their
   links in about 18 s, where it had not finished after 5 minutes. Every link is still drawn as its
   own line; a large network is laid out once and then stands still, hides its lines only while it is

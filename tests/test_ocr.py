@@ -64,9 +64,10 @@ class FakeReaders:
 
         def render(pdf_path, out_dir, pages_wanted=None, rotation=0):
             out_dir.mkdir(parents=True, exist_ok=True)
-            for n in pages if pages_wanted is None else [i + 1 for i in pages_wanted]:
+            wanted = list(pages) if pages_wanted is None else [i + 1 for i in pages_wanted]
+            for n in wanted:
                 (out_dir / f"page-{n:04d}.png").write_bytes(b"")
-            return ({n: ink[n] for n in pages}, len(pages))
+            return ({n: ink[n] for n in wanted}, len(pages))
 
         def numbers(folder):
             return sorted(int(p.stem[5:]) for p in folder.glob("page-*.png"))
@@ -84,6 +85,7 @@ class FakeReaders:
             return {n: self._lines(n, f"rapidocr {model}{turn(folder)}") for n in numbers(folder)}
 
         monkeypatch.setattr(ocr, "render", render)
+        monkeypatch.setattr(ocr, "page_count", lambda pdf_path: len(pages))
         monkeypatch.setattr(ocr, "_read_windows", read_windows)
         monkeypatch.setattr(ocr, "_read_rapid", read_rapid)
         monkeypatch.setattr(ocr, "rapid_models", lambda: list(rapid))
@@ -199,13 +201,14 @@ def test_a_scan_that_could_not_be_read_is_not_read_again_until_something_changes
     pdf.write_bytes(b"%PDF")
     calls = []
 
-    def read_pdf(src, languages):
+    def read_pages(src, first, last, languages):
         calls.append(src)
         if len(calls) == 1:
             raise RuntimeError("a reader broke")
-        return ocr.Outcome(False, error="text recognition found no text")
+        return {"best": {}, "ink": {}, "problems": [], "count": 1}
 
-    monkeypatch.setattr(ocr, "read_pdf", read_pdf)
+    monkeypatch.setattr(ocr, "read_pages", read_pages)
+    monkeypatch.setattr(ocr, "page_count", lambda pdf_path: 1)
     monkeypatch.setattr(ocr, "rapid_models", lambda: ["default"])
     row = {"needs_ocr": True, "ext": ".pdf", "method": "pdfium", "folder": "f", "relative_path": "scan.pdf",
            "key": "scan"}
@@ -288,3 +291,43 @@ def test_the_offline_installer_uses_the_python_setup_cmd_names():
 
     values = bundle.setup_values(Path(__file__).resolve().parents[1])
     assert values["PYVER"].count(".") == 2 and len(values["PYSHA256"]) == 64
+
+
+def test_a_scan_read_in_pieces_reads_as_in_one_go(monkeypatch):
+    pages = {n: ({"windows en-GB": f"{ENGLISH} page {n}"} if n % 3 else
+                 {"windows en-GB": "o\nd", "windows en-GB@90": LOOKALIKE, "windows ru@90": RUSSIAN}) for n in range(1, 11)}
+    FakeReaders(monkeypatch, pages)
+    assert len(ocr.chunks(10)) == 3
+    in_pieces = ocr.read_pdf("x.pdf", ["en-GB", "nl-NL", "ru"])
+    monkeypatch.setattr(ocr, "CHUNK_PAGES", 1000)
+    at_once = ocr.read_pdf("x.pdf", ["en-GB", "nl-NL", "ru"])
+    assert in_pieces.ok and in_pieces.turned == 3
+    for field in ("text", "pages", "page_count", "readers", "turned", "empty", "doubtful"):
+        assert getattr(in_pieces, field) == getattr(at_once, field), field
+
+
+def test_every_page_of_a_long_scan_is_read(monkeypatch):
+    FakeReaders(monkeypatch, {n: {"windows en-GB": f"{ENGLISH} page {n}"} for n in range(1, 251)})
+    out = ocr.read_pdf("book.pdf", ["en-GB"])
+    assert out.ok and out.pages == out.page_count == 250 and out.text.rstrip().endswith("page 250")
+
+
+def test_a_scan_once_read_only_in_part_is_read_again_whole(tmp_path, monkeypatch):
+    from contextmax.docs import textcache
+
+    (tmp_path / "book.pdf").write_bytes(b"%PDF")
+    calls = []
+    monkeypatch.setattr(ocr, "rapid_models", lambda: [])
+    monkeypatch.setattr(ocr, "page_count", lambda pdf_path: 3)
+
+    def read_pages(src, first, last, languages):
+        calls.append((first, last))
+        return {"best": {n: ocr.PageText(f"{ENGLISH} page {n}", "windows en-GB", 0, 1.0, 70) for n in range(first + 1, last + 1)},
+                "ink": {n: 0.05 for n in range(first + 1, last + 1)}, "problems": [], "count": 3}
+
+    monkeypatch.setattr(ocr, "read_pages", read_pages)
+    row = {"needs_ocr": True, "ext": ".pdf", "method": "ocr", "ocr_version": ocr.OCR_VERSION, "ocr_partial": True,
+           "pages": 3, "folder": "f", "relative_path": "book.pdf", "key": "book"}
+    assert textcache._ocr_pass([row], {"f": str(tmp_path)}, tmp_path, ["en-GB"]) == 1
+    assert calls == [(0, 3)] and row["ocr_pages"] == 3 and "ocr_partial" not in row
+    assert textcache._ocr_pass([row], {"f": str(tmp_path)}, tmp_path, ["en-GB"]) == 0     # whole now: not again

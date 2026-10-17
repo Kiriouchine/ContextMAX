@@ -68,6 +68,9 @@ def check(path: str) -> Path:
 def open_path(path: str, how: str = "open", openable: frozenset = WINDOW_OPENABLE) -> str:
     """Open the file, or show it selected in its folder. Returns what was done."""
     p = check(path)
+    if how == "open" and p.is_dir():
+        os.startfile(str(p))  # type: ignore[attr-defined]  # Explorer, in that folder: nothing in it runs
+        return f"opened the folder {p.name}"
     if how == "open" and p.is_file() and p.suffix.lower() in openable:
         os.startfile(str(p))  # type: ignore[attr-defined]
         return f"opened {p.name}"

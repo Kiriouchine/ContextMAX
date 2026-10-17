@@ -9,11 +9,27 @@
 .askbox textarea { min-height:84px; padding:10px 12px; border:1px solid var(--rule); border-radius:10px; background:var(--surface); color:var(--text); font:inherit; resize:vertical; }
 .answer { background:var(--surface); border:1px solid var(--rule); border-radius:12px; padding:16px 18px; line-height:24px; white-space:pre-wrap; min-height:60px; }
 .answer a.cite { font-weight:600; text-decoration:none; }
+.answer .unsure { text-decoration:underline dotted var(--conflict); text-underline-offset:3px; cursor:help; }
 .sources { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; }
 .sources li { background:var(--surface); border:1px solid var(--rule); border-radius:10px; padding:10px 14px; }
 .sources li:target { outline:2px solid var(--focus); }
-.sources pre { white-space:pre-wrap; font-size:12.5px; line-height:18px; background:var(--sunken); border-radius:8px; padding:8px 10px; margin:8px 0 0; max-height:220px; overflow:auto; }
+.sources .cite { overflow-wrap:anywhere; }
+.quotes { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }
+.quotes li { border:0 !important; padding:0 !important; background:none !important; }
+.quotes .fixed { font-size:12px; color:var(--muted, #6b7280); }
 select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule); background:var(--surface); color:var(--text); padding:4px 8px; max-width:100%; }
+.trail { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13.5px; }
+.trail li { border-left:3px solid var(--rule); padding:2px 0 2px 10px; }
+.trail li.yes { border-left-color:var(--ok, #2f855a); }
+.trail li.no { border-left-color:var(--rule); color:var(--muted, #6b7280); }
+.trail li.busy { border-left-color:var(--focus); }
+.trail .why { color:var(--muted, #6b7280); }
+.trail a { margin-left:8px; font-size:12.5px; }
+.check { border:1px solid var(--rule); border-radius:12px; padding:12px 16px; background:var(--surface); }
+.check.ok { border-color:var(--ok, #2f855a); }
+.check.warn { border-color:var(--conflict); }
+.check ul { margin:6px 0 0; padding-left:18px; }
+.suggest { border:1px dashed var(--rule); border-radius:10px; padding:10px 12px; font-size:13.5px; line-height:20px; }
 </style></head>
 <body class="page">
 <header class="masthead"><span class="wordmark">Context<b>MAX</b><small id="pname"></small></span>
@@ -21,80 +37,195 @@ select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule);
 <span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
 <main class="column" style="gap:22px;max-width:980px">
 <section><h1 class="headline" style="font-size:30px">Ask a model on this PC</h1>
-<p class="quiet" style="margin:6px 0 0;line-height:22px">ContextMAX finds what your question is about in this project's index (functions, passages of the documents, named values) and gives only that to a model that runs on this PC. Nothing leaves the PC. The answer cites its sources as [1], [2]; check them before you rely on it.</p></section>
+<p class="quiet" style="margin:6px 0 0;line-height:22px">The documents and the code are the truth; the index is the way in. ContextMAX finds where your question leads (values, passages, functions, named numbers in the code), opens each of those files at that place, and has a model that runs on this PC read them one passage at a time: what the passage says, in its exact words, and what it points to, which is then read too. Every quote is looked up in the file; one the file does not hold is left out. The answer comes only from the quotes that hold, and ends with its confidence beside ContextMAX's own. Nothing leaves the PC.</p></section>
 <section class="tile askbox">
 <div class="hstack" style="margin:0"><label class="quiet" for="model">Model</label><select id="model" class="model"></select><span class="quiet" id="servers"></span></div>
-<textarea id="q" placeholder="For example: what is the settle time, and do the documents agree?"></textarea>
-<div class="hstack" style="margin:0"><button type="button" class="btn" id="go">Ask</button><span class="quiet" id="state">Larger models answer better; the first question loads the model and takes longer.</span></div>
+<div class="suggest" id="suggest" hidden></div>
+<textarea id="q" placeholder="For example: what is the settle time, and do the documents and the code agree?"></textarea>
+<div class="hstack" style="margin:0"><button type="button" class="btn" id="go">Ask</button><span class="quiet" id="state">The model reads up to nine passages, one at a time: this takes from a few seconds to a minute or two.</span></div>
 </section>
-<section id="out" style="display:none;flex-direction:column;gap:14px"><h2 class="sec" style="margin:0">Answer</h2><div class="answer" id="answer" aria-live="polite"></div>
-<h2 class="sec" style="margin:8px 0 0">Sources ContextMAX found</h2><ol class="sources" id="sources"></ol></section>
+<section id="out" style="display:none;flex-direction:column;gap:14px">
+<h2 class="sec" style="margin:0">What was read</h2><ol class="trail" id="trail"></ol>
+<h2 class="sec" style="margin:8px 0 0">Answer</h2>
+<div class="answer" id="answer" aria-live="polite"></div>
+<div class="check" id="check" hidden></div>
+<h2 class="sec" style="margin:8px 0 0">Sources: the passages that answer, with their checked words</h2><ol class="sources" id="sources"></ol></section>
 </main>
 <script>
 "use strict";
 (function () {
-  var $ = CMX.$, safe = CMX.safe, slug = CMX.panel().slug, models = [], sourceCount = 0;
+  var $ = CMX.$, safe = CMX.safe, slug = CMX.panel().slug, models = [], sources = [], seeing = {};
   $("#homelink").href = "/ws/" + encodeURIComponent(slug) + "/Home.html";
   $("#pname").textContent = slug;
-  function render(text) {
-    // what a thinking model says to itself is not part of the answer
-    var shown = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "").replace(/^\s+/, "");
-    return safe(shown).replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, function (all, list) {
+  var NUMBER = /(^|[^\w.,\]#&])([+-]?\d+(?:[.,]\d+)*)(?![\w\];])/g;
+  var LEVELS = ["Not found", "Low", "Medium", "High"];
+
+  function shownText(text) { return text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "").replace(/^\s+/, ""); }
+  // a number as a source would write it: decimal comma or point, no thousands marks, no trailing zeros
+  function norm(x) {
+    var t = x.replace(/^\+/, "");
+    if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, "");
+    t = t.replace(",", ".");
+    var f = parseFloat(t);
+    return isFinite(f) ? String(f) : t;
+  }
+  function numbersIn(text) {
+    var out = {}, m; NUMBER.lastIndex = 0;
+    while ((m = NUMBER.exec(text))) out[norm(m[2])] = true;
+    return out;
+  }
+  function sourceText(s) { return (s.quotes || []).map(function (q) { return q.text; }).join(" ") + " " + (s.window.cite || ""); }
+  // each sentence of the answer: its numbers must be in the checked words of a source it cites
+  function checkAnswer(text) {
+    var issues = [], checked = 0, flagged = {}, uncited = 0, missing = 0;
+    shownText(text).split(/(?<=[.!?])\s+|\n+/).forEach(function (sentence) {
+      if (/^\s*\**confidence/i.test(sentence)) return;
+      var cites = [], m, re = /\[(\d+(?:\s*,\s*\d+)*)\]/g;
+      while ((m = re.exec(sentence))) m[1].split(/\s*,\s*/).forEach(function (n) { cites.push(+n); });
+      var bare = sentence.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, " ");
+      var nums = Object.keys(numbersIn(bare)).filter(function (x) { return x.replace(/\D/g, "").length >= 2 || /\./.test(x); });
+      if (!nums.length) return;
+      var said = {};
+      cites.forEach(function (n) { var s = sources[n - 1]; if (s) Object.assign(said, numbersIn(sourceText(s))); });
+      nums.forEach(function (x) {
+        checked++;
+        if (!cites.length) { uncited++; issues.push("“" + x + "” is stated without a source: " + sentence.trim().slice(0, 140)); flagged[x] = "no source is cited for this number"; }
+        else if (!said[x]) { missing++; issues.push("“" + x + "” is not in the words of " + cites.map(function (n) { return "[" + n + "]"; }).join(", ") + ": " + sentence.trim().slice(0, 140)); flagged[x] = "this number is not in the source cited for it"; }
+      });
+    });
+    return { issues: issues, checked: checked, flagged: flagged, uncited: uncited, missing: missing };
+  }
+  function modelSays(text) {
+    var m, said = null, re = /confidence\s*[:\-–—]\s*\**\s*(high|medium|low|not found)\b\**[\s:,.;\-–—(]*([^\n]*)/ig;
+    while ((m = re.exec(shownText(text)))) said = { level: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), why: m[2].replace(/\)\s*$/, "").trim() };
+    return said;
+  }
+  function answerCheck(text, c) {
+    var cites = [], bad = 0, m, r = /\[(\d+(?:\s*,\s*\d+)*)\]/g, shown = shownText(text);
+    while ((m = r.exec(shown))) m[1].split(/\s*,\s*/).forEach(function (n) { if (+n >= 1 && +n <= sources.length) { if (cites.indexOf(+n) < 0) cites.push(+n); } else bad++; });
+    if (!sources.length) return null;
+    if (bad) return { level: "Low", why: "the answer cites a source that was not read (" + bad + "×)" };
+    if (!cites.length) return { level: "Low", why: "the answer cites no source" };
+    if (c.missing) return { level: "Low", why: c.missing + " number" + (c.missing > 1 ? "s are" : " is") + " not in the words cited for " + (c.missing > 1 ? "them" : "it") };
+    if (c.uncited) return { level: "Medium", why: c.uncited + " number" + (c.uncited > 1 ? "s have" : " has") + " no source" };
+    return { level: "High", why: (c.checked ? "every number (" + c.checked + ") is in the words it cites" : "no number to check") };
+  }
+  function render(text, flagged) {
+    var html = safe(shownText(text));
+    if (flagged) html = html.replace(NUMBER, function (all, pre, num) {
+      var why = flagged[norm(num)];
+      return why ? pre + '<span class="unsure" title="' + safe(why) + '">' + num + "</span>" : all;
+    });
+    return html.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, function (all, list) {
       return "[" + list.split(/\s*,\s*/).map(function (n) {
-        // only a number ContextMAX gave is a citation; another one is said to be none
-        return +n >= 1 && +n <= sourceCount ? '<a class="cite" href="#src-' + n + '">' + n + "</a>"
+        return +n >= 1 && +n <= sources.length ? '<a class="cite" href="#src-' + n + '">' + n + "</a>"
           : '<span title="no such source: the model made this number up" style="text-decoration:line-through">' + n + "</span>";
       }).join(", ") + "]";
     });
   }
-  function source(s) {
+  function links(w) {
     var acts = [];
-    if (s.editor) acts.push('<a class="btn ghost" href="' + safe(s.editor) + '">Open in editor</a>');
-    if (s.path) acts.push('<button type="button" class="btn ghost" data-file="' + safe(s.path) + '" data-how="open">Open document</button>');
-    if (s.text_link) acts.push('<a class="btn ghost" target="_blank" rel="noopener" href="' + safe(s.text_link) + '">Extracted text</a>');
-    return '<li id="src-' + s.n + '"><div class="hstack" style="margin:0;justify-content:space-between"><span><b>[' + s.n + "]</b> " +
-      '<span class="badge">' + safe(s.kind) + "</span> " + safe(s.cite) + "</span><span class=\"hstack\" style=\"margin:0\">" + acts.join("") + "</span></div>" +
-      "<pre>" + safe(s.text) + "</pre></li>";
+    if (w.line_link) acts.push('<a target="_blank" rel="noopener" href="' + safe(w.line_link) + '">Show the line</a>');
+    if (w.editor) acts.push('<a href="' + safe(w.editor) + '">Open in editor</a>');
+    if (w.path) acts.push('<a href="#" data-file="' + safe(w.path) + '" data-how="open">Open ' + (w.kind === "picture" ? "picture" : "document") + "</a>");
+    return acts.join("");
+  }
+  function trail(steps) {
+    var out = [], open = {};
+    steps.forEach(function (e) {
+      if (e.step === "read") { open[e.window.cite] = out.length; out.push({ e: e, done: null }); }
+      else if (e.step === "read done" && open[e.window.cite] !== undefined) out[open[e.window.cite]].done = e;
+    });
+    return out.map(function (x, i) {
+      var e = x.e, d = x.done, cls = !d ? "busy" : d.relevant ? "yes" : "no", what;
+      if (!d) what = "reading …";
+      else if (d.error) what = safe(d.error);
+      else if (d.relevant) what = "<b>answers</b>: " + d.held + " quote" + (d.held === 1 ? "" : "s") + " found in the file" + (d.pictured ? ", " + d.pictured + " read in the picture" : "") +
+        (d.missing ? '; <span style="color:var(--conflict)">' + d.missing + " not in the file, left out</span>" : "") + (d.says ? '<br><span class="why">' + safe(d.says) + "</span>" : "");
+      else what = "nothing on the question" + (d.missing ? '; <span style="color:var(--conflict)">' + d.missing + " quote" + (d.missing === 1 ? "" : "s") + " not in the file</span>" : "");
+      return '<li class="' + cls + '"><b>' + (i + 1) + ".</b> " + safe(e.window.cite) + ' <span class="why">· ' + safe(e.why) + "</span>" + links(e.window) + "<br>" + what + "</li>";
+    }).join("");
+  }
+  function source(s) {
+    return '<li id="src-' + s.n + '"><div class="cite"><b>[' + s.n + "]</b> " + safe(s.window.cite) + links(s.window) + "</div>" +
+      (s.says ? '<div class="quiet" style="font-size:13px;margin-top:4px">' + safe(s.says) + "</div>" : "") +
+      '<ul class="quotes">' + s.quotes.map(function (q) {
+        return "<li>“" + safe(q.text) + "” <span class=\"fixed\">" + (q.checked ? "line " + q.line + " · found in the file" : "read in the picture · not checkable against text") + "</span></li>";
+      }).join("") + "</ul></li>";
   }
   function ask() {
     var q = $("#q").value.trim(), m = models[$("#model").value];
     if (!q) { $("#q").focus(); return; }
     if (!m) { $("#state").textContent = "No model to ask: start Ollama (or llama.cpp's server, or LM Studio) and reload this page."; return; }
     CMX.store.set("ask:model", m.base + " " + m.model);
-    $("#go").disabled = true; $("#state").textContent = "Finding sources, then asking " + m.model + " …";
-    $("#out").style.display = "flex"; $("#answer").textContent = ""; $("#sources").innerHTML = ""; sourceCount = 0;
-    var text = "", since = 0, shownSources = false;
+    $("#go").disabled = true; $("#state").textContent = m.model + " reads the sources ContextMAX opens …";
+    $("#out").style.display = "flex"; $("#answer").innerHTML = '<span class="quiet">The answer comes when the reading is done.</span>';
+    $("#sources").innerHTML = ""; $("#trail").innerHTML = ""; $("#check").hidden = true; sources = [];
+    var text = "", since = 0;
     CMX.ask("ask", { question: q, kind: m.kind, base: m.base, model: m.model }).then(function (j) {
       (function poll() {
         CMX.ask("ask-poll", { job: j.job, since: since }).then(function (r) {
           text += r.text; since = r.next;
-          if (!shownSources && r.sources.length) { sourceCount = r.sources.length; $("#sources").innerHTML = r.sources.map(source).join(""); shownSources = true; }
-          $("#answer").innerHTML = render(text) || '<span class="quiet">…</span>';
+          $("#trail").innerHTML = trail(r.steps || []);
+          if (r.sources.length !== sources.length) { sources = r.sources; $("#sources").innerHTML = sources.map(source).join(""); }
+          if (text) $("#answer").innerHTML = render(text);
           if (r.done) {
             $("#go").disabled = false;
-            $("#state").textContent = r.error ? "" : (r.sources.length ? "Done. Check the sources before you rely on the answer." : "The index holds nothing on this question.");
-            if (r.error) $("#answer").innerHTML = '<span style="color:var(--conflict)">' + safe(r.error) + "</span>";
+            if (r.error) { $("#state").textContent = ""; $("#answer").innerHTML = '<span style="color:var(--conflict)">' + safe(r.error) + "</span>"; return; }
+            $("#state").textContent = "Done. The sources are where the answer comes from: open them before you rely on it.";
+            var c = checkAnswer(text), said = modelSays(text), read = r.confidence, check = answerCheck(text, c);
+            var all = [said, read, check].filter(function (x) { return x && LEVELS.indexOf(x.level) >= 0; });
+            var level = all.length ? LEVELS[Math.min.apply(null, all.map(function (x) { return LEVELS.indexOf(x.level); }))] : "Low";
+            $("#answer").innerHTML = render(text, c.flagged);
+            $("#check").hidden = false;
+            $("#check").className = "check " + (level === "High" ? "ok" : "warn");
+            $("#check").innerHTML = '<b style="font-size:17px">Confidence: ' + safe(level) + "</b>" +
+              "<ul><li>From what was read and checked (ContextMAX): " + (read ? "<b>" + safe(read.level) + "</b>, " + safe(read.why) : "nothing") + "</li>" +
+              (check ? "<li>The answer against its sources (ContextMAX): <b>" + safe(check.level) + "</b>, " + safe(check.why) + "</li>" : "") +
+              "<li>The model says: " + (said ? "<b>" + safe(said.level) + "</b>" + (said.why ? ", " + safe(said.why) : "") : "nothing (it gave no confidence)") + "</li>" +
+              (said && check && LEVELS.indexOf(said.level) > LEVELS.indexOf(level) ? "<li>The model is surer than what it read allows: the lowest counts.</li>" : "") + "</ul>" +
+              (c.issues.length ? "<b>Numbers to check:</b><ul>" + c.issues.map(function (x) { return "<li>" + safe(x) + "</li>"; }).join("") + "</ul>" : "");
             return;
           }
-          setTimeout(poll, 400);
+          setTimeout(poll, 500);
         }, function (e) { $("#go").disabled = false; $("#state").textContent = e.message; });
       })();
     }, function (e) { $("#go").disabled = false; $("#state").textContent = e.message; });
+  }
+  function suggest(local) {
+    var box = $("#suggest"), s = local.suggest, parts = [];
+    if (!local.ollama_installed) {
+      parts.push("To ask a model on this PC, install Ollama: <a href=\"" + safe(local.download) + "\" target=\"_blank\" rel=\"noopener\">ollama.com/download</a>. Then ContextMAX suggests <b>" + safe(s.model) + "</b> (" + s.gb + " GB) for this PC.");
+    } else {
+      parts.push("Every model here reads the passages ContextMAX opens for it." + (local.vision_models.length ? " Models that can see also read the PDF page itself, and pictures, so formulas, tables and figures the text garbles are read from the original: " + local.vision_models.map(function (m) { return "<b>" + safe(m) + "</b>"; }).join(", ") + "." : ""));
+      if (!s.installed) parts.push("Suggested for this PC" + (local.gpu_gb ? " (graphics card " + local.gpu_gb + " GB)" : "") + ": <b>" + safe(s.model) + "</b>, " + s.gb + " GB download. " + safe(s.why) + ". <button type=\"button\" class=\"btn ghost\" id=\"pull\">Download it with Ollama</button>");
+      if (!local.ollama_running) parts.push("Ollama is installed but not running: start it from the Start menu, then reload this page.");
+    }
+    box.innerHTML = parts.join(" ");
+    box.hidden = false;
+    var pull = $("#pull");
+    if (pull) pull.addEventListener("click", function () {
+      pull.disabled = true;
+      CMX.ask("ollama-pull", { model: s.model }).then(function (r) { pull.insertAdjacentHTML("afterend", " <span class=\"quiet\">" + safe(r.message) + "</span>"); },
+        function (e) { pull.disabled = false; pull.insertAdjacentHTML("afterend", " <span style=\"color:var(--conflict)\">" + safe(e.message) + "</span>"); });
+    });
   }
   $("#go").addEventListener("click", ask);
   $("#q").addEventListener("keydown", function (ev) { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) ask(); });
   CMX.ask("assistants").then(function (r) {
     var last = CMX.store.get("ask:model"), opts = [];
+    (r.local && r.local.vision_models || []).forEach(function (m) { seeing[m] = true; });
     r.servers.forEach(function (s) {
       opts.push('<optgroup label="' + safe(s.name) + '">' + s.models.map(function (name) {
         var i = models.push({ kind: s.kind, base: s.base, model: name }) - 1;
-        return '<option value="' + i + '"' + (last === s.base + " " + name ? " selected" : "") + ">" + safe(name) + "</option>";
+        return '<option value="' + i + '"' + (last === s.base + " " + name ? " selected" : "") + ">" + safe(name) + (seeing[name] ? " · sees pages" : "") + "</option>";
       }).join("") + "</optgroup>");
     });
     $("#model").innerHTML = opts.join("");
     $("#servers").textContent = r.servers.length ? r.servers.map(function (s) { return s.name + " (" + s.models.length + ")"; }).join(", ") :
       (r.ollama_installed ? "Ollama is installed but not running: start it from the Start menu, then reload this page." :
-       "No model server runs on this PC: install Ollama (ollama.com) or start llama.cpp's server or LM Studio.");
+       "No model server runs on this PC.");
+    if (r.local) suggest(r.local);
   }, function (e) { $("#servers").textContent = e.message; });
 })();
 </script>

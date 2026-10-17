@@ -95,15 +95,29 @@ var CMX = (function () {
     });
     window.addEventListener("pointerup", function () { if (drag && drag.moved) svg.dataset.dragged = "1"; drag = null; setTimeout(function () { delete svg.dataset.dragged; }, 0); });
     fit();
-    return { fit: fit, zoom: zoom, center: center };
+    /* a map drawn again (a switch turned, the theme changed) keeps the view the viewer left it at */
+    function view() { return { x: vb.x, y: vb.y, w: vb.w, h: vb.h }; }
+    function setView(v) { if (v) { vb.x = v.x; vb.y = v.y; vb.w = v.w; vb.h = v.h; set(); } }
+    return { fit: fit, zoom: zoom, center: center, view: view, setView: setView };
   }
 
+  /* the zoom buttons of every map: in, out, and back to the whole map */
   function zoomButtons(host, pz) {
     var box = document.createElement("div"); box.className = "zoomctl";
-    box.innerHTML = '<button type="button" aria-label="Zoom in">+</button><button type="button" aria-label="Zoom out">&minus;</button><button type="button" aria-label="Fit to screen">&#9634;</button>';
+    box.innerHTML = '<button type="button" aria-label="Zoom in" title="Zoom in">+</button><button type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>' +
+      '<button type="button" class="reset" title="Back to the whole map">Reset view</button>';
     var b = box.querySelectorAll("button");
     b[0].onclick = function () { pz.zoom(1 / 1.3); }; b[1].onclick = function () { pz.zoom(1.3); }; b[2].onclick = function () { pz.fit(); };
     host.appendChild(box);
+  }
+  /* the same for a network map (vis-network): its view is a centre and a scale */
+  function visZoom(net) {
+    return {
+      zoom: function (f) { net.moveTo({ scale: net.getScale() / f }); },
+      fit: function () { net.fit({ animation: { duration: 300 } }); },
+      view: function () { return { position: net.getViewPosition(), scale: net.getScale() }; },
+      setView: function (v) { if (v) net.moveTo({ position: v.position, scale: v.scale }); }
+    };
   }
 
   var SVGNS = "http://www.w3.org/2000/svg";
@@ -202,7 +216,8 @@ var CMX = (function () {
     }, function (e) { box.innerHTML = '<span class="quiet">' + safe(e.message) + "</span>"; });
     box.addEventListener("click", function (ev) {
       var b = ev.target.closest("[data-assistant]"); if (!b) return;
-      b.disabled = true; note(b, "Starting …");
+      b.disabled = true;
+      note(b, b.getAttribute("data-assistant") === "vscode-claude" ? "Starting VS Code; Claude's chat opens once the project's window is there …" : "Starting …");
       ask("assistant", { tool: b.getAttribute("data-assistant") }).then(function (j) { note(b, j.message); b.disabled = false; },
         function (e) { note(b, e.message, true); b.disabled = false; });
     });
@@ -217,7 +232,7 @@ var CMX = (function () {
 
   document.addEventListener("DOMContentLoaded", initTheme);
   return { safe: safe, $: $, $$: $$, pageData: pageData, css: css, store: store, theme: theme, onTheme: onTheme,
-           initViews: initViews, panZoom: panZoom, zoomButtons: zoomButtons, el: el, freshSvg: freshSvg,
+           initViews: initViews, panZoom: panZoom, zoomButtons: zoomButtons, visZoom: visZoom, el: el, freshSvg: freshSvg,
            wire: wire, arc: arc, color: color, editorLink: editorLink, num: num, dropHash: dropHash, panel: panel, ask: ask, note: note,
            openFile: openFile };
 })();

@@ -15,6 +15,7 @@ var CMXAtlas = (function () {
   var SETS = {
     calls: { color: "--code", label: "calls between modules", title: "a function of one module calls a function of another" },
     dcode: { color: "--code", label: "names code", title: "a document names functions or constants of a module" },
+    vcode: { color: "--ok", label: "value in code", title: "a value a document states, found in the code of a module (red when the code has another value)" },
     quotes: { color: "--doc", dash: [5, 4], label: "document number", title: "a document quotes another document's number" },
     cites: { color: "--doc", label: "cites", title: "a document writes another document's title or file name" },
     shares: { color: "--ok", label: "shared values", title: "two documents state the same named values (red when they differ)" },
@@ -27,6 +28,7 @@ var CMXAtlas = (function () {
     fdocs: { color: "--doc", label: "names this function", title: "a document names this function" }
   };
   var DOC_ORDER = ["samepart", "anchor", "shares", "quotes", "cites", "differs"];
+  var VOUT = ["match", "mismatch", "unit unknown", "units differ"];
 
   function lists(n) { var a = new Array(n); for (var i = 0; i < n; i++) a[i] = []; return a; }
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -39,9 +41,12 @@ var CMXAtlas = (function () {
     var m = {
       project: D.project || "", targets: D.targets || [], modules: D.modules || [], calls: D.calls || [],
       fn: D.functions || { m: [], n: [], q: [], f: [], l: [], c: [], k: [], r: [] }, files: D.files || [], fcalls: D.fcalls || [],
-      stages: D.stages || [], docs: D.docs || emptyDocs(), dcode: [], fdocs: D.fdocs || [], kinds: [], links: { k: [], a: [], b: [], d: [] }
+      stages: D.stages || [], docs: D.docs || emptyDocs(), dcode: [], fdocs: D.fdocs || [], kinds: [], links: { k: [], a: [], b: [], d: [] },
+      vcode: D.vcode || []
     };
     indexCode(m); indexDocs(m);
+    m.modVals = lists(m.modules.length); m.docVals = lists(m.docs.k.length);
+    m.vcode.forEach(function (r, i) { if (m.modVals[r[1]]) m.modVals[r[1]].push(i); if (m.docVals[r[0]]) m.docVals[r[0]].push(i); });
     addDcode(m, D.dcode || []);
     (D.kinds || []).forEach(function (k) { kindIndex(m, k); });
     if (D.links) addLinks(m, D.links.k.map(function (k) { return D.kinds[k]; }), D.links.a, D.links.b, D.links.d);
@@ -171,8 +176,8 @@ var CMXAtlas = (function () {
       var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       quad(a, { x: mx + (CX - mx) * 0.72, y: my + (CY - my) * 0.72 }, b, g); return { t: "q", p: g };
     }
-    if (set === "dcode") {
-      var r = m.dcode[i]; a = L.doc[r[0]]; b = L.mod[r[1]]; if (!a || !b) return null;
+    if (set === "dcode" || set === "vcode") {
+      var r = m[set][i]; a = L.doc[r[0]]; b = L.mod[r[1]]; if (!a || !b) return null;
       return { t: "c", p: [a.x, a.y, a.x - 260, a.y, CX + (b.x - CX) * 1.65, CY + (b.y - CY) * 1.65, b.x, b.y] };
     }
     if (set === "fcalls" || set === "fout" || set === "fin" || set === "fdocs") {
@@ -256,34 +261,38 @@ var CMXAtlas = (function () {
       S.m.kinds.forEach(function (k) { if (DOC_ORDER.indexOf(k) < 0 && S.on[k] !== false) out.push(k); });
       if (S.on.calls) out.push("calls");
       if (S.on.dcode) out.push("dcode");
+      if (S.on.vcode && S.m.vcode.length) out.push("vcode");
       return out;
     }
     function items(set) {
       if (S.drill) return S.drill.edges[set] ? S.drill.edges[set].length : 0;
       if (set === "calls") return S.m.calls.length;
       if (set === "dcode") return S.m.dcode.length;
+      if (set === "vcode") return S.m.vcode.length;
       return S.m.links.k.length;
     }
     function inSet(set, i) {
-      if (S.drill || set === "calls" || set === "dcode") return true;
+      if (S.drill || set === "calls" || set === "dcode" || set === "vcode") return true;
       return S.m.kinds[S.m.links.k[i]] === set;
     }
     var counts = {};
     function countOf(set) {
       if (counts[set] !== undefined) return counts[set];
-      if (S.drill || set === "calls" || set === "dcode") return items(set);
+      if (S.drill || set === "calls" || set === "dcode" || set === "vcode") return items(set);
       var ki = S.m.kinds.indexOf(set), n = 0; S.m.links.k.forEach(function (k) { if (k === ki) n++; }); counts[set] = n; return n;
     }
     function alphaOf(set, i) {
       var n = Math.max(1, countOf(set));
       if (set === "calls") return clamp(6 / Math.sqrt(n), 0.03, 0.8) * (0.45 + 0.55 * Math.min(1, Math.log(1 + S.m.calls[i][2]) / 5));
       if (set === "differs") return clamp(14 / Math.sqrt(n), 0.1, 0.85);
+      if (set === "vcode") return clamp(14 / Math.sqrt(n), 0.2, 0.9);
       if (set === "dcode" || set === "fdocs") return clamp(7 / Math.sqrt(n), 0.03, 0.7);
       return clamp(7 / Math.sqrt(n), 0.02, 0.7);
     }
     function widthOf(set) { var n = countOf(set); return n < 150 ? 1.5 : n < 3000 ? 1.1 : 0.8; }
     function colorOf(set, i) {
       if (set === "shares" || set === "anchor") { var d = S.m.links.d[i]; return d && d[2] ? C["--conflict"] : C["--ok"]; }
+      if (set === "vcode") { var o = S.m.vcode[i][2]; return o === 1 || o === 3 ? C["--conflict"] : o === 2 ? C["--text-3"] : C["--ok"]; }
       return C[SETS[set] ? SETS[set].color : "--text-3"];
     }
 
@@ -472,13 +481,15 @@ var CMXAtlas = (function () {
         out.mod[sel.i] = 1;
         m.modCalls[sel.i].forEach(function (c) { out.mod[m.calls[c][0]] = 1; out.mod[m.calls[c][1]] = 1; });
         m.modDocs[sel.i].forEach(function (r) { out.doc[m.dcode[r][0]] = 1; });
+        if (S.on.vcode) m.modVals[sel.i].forEach(function (r) { out.doc[m.vcode[r][0]] = 1; });
       } else if (sel.t === "doc") {
         out.doc[sel.i] = 1;
         m.docCode[sel.i].forEach(function (r) { out.mod[m.dcode[r][1]] = 1; });
+        if (S.on.vcode) m.docVals[sel.i].forEach(function (r) { out.mod[m.vcode[r][1]] = 1; });
         m.docLinks[sel.i].forEach(function (l) { if (S.on[m.kinds[m.links.k[l]]]) { out.doc[m.links.a[l]] = 1; out.doc[m.links.b[l]] = 1; } });
       } else if (sel.t === "edge") {
         if (sel.set === "calls") { out.mod[m.calls[sel.i][0]] = 1; out.mod[m.calls[sel.i][1]] = 1; }
-        else if (sel.set === "dcode") { out.doc[m.dcode[sel.i][0]] = 1; out.mod[m.dcode[sel.i][1]] = 1; }
+        else if (sel.set === "dcode" || sel.set === "vcode") { out.doc[m[sel.set][sel.i][0]] = 1; out.mod[m[sel.set][sel.i][1]] = 1; }
         else { out.doc[m.links.a[sel.i]] = 1; out.doc[m.links.b[sel.i]] = 1; }
       }
       return out;
@@ -500,8 +511,10 @@ var CMXAtlas = (function () {
       if (sel.t === "mod") {
         if (S.on.calls) m.modCalls[sel.i].forEach(function (c) { out.push({ set: "calls", i: c }); });
         if (S.on.dcode) m.modDocs[sel.i].forEach(function (r) { out.push({ set: "dcode", i: r }); });
+        if (S.on.vcode) m.modVals[sel.i].forEach(function (r) { out.push({ set: "vcode", i: r }); });
       } else if (sel.t === "doc") {
         if (S.on.dcode) m.docCode[sel.i].forEach(function (r) { out.push({ set: "dcode", i: r }); });
+        if (S.on.vcode) m.docVals[sel.i].forEach(function (r) { out.push({ set: "vcode", i: r }); });
         m.docLinks[sel.i].forEach(function (l) { var k = m.kinds[m.links.k[l]]; if (S.on[k]) out.push({ set: k, i: l }); });
       } else if (sel.t === "edge") out.push({ set: sel.set, i: sel.i });
       return out;
@@ -827,6 +840,7 @@ var CMXAtlas = (function () {
     var set = h.set, i = h.i;
     if (set === "calls") { var c = m.calls[i]; return m.modules[c[0]][1] + " calls " + m.modules[c[1]][1] + " · " + c[2] + " call" + (c[2] === 1 ? "" : "s"); }
     if (set === "dcode") { var r = m.dcode[i]; return m.docs.t[r[0]] + " names " + m.modules[r[1]][1] + " · " + r[2] + " name" + (r[2] === 1 ? "" : "s"); }
+    if (set === "vcode") { var v = m.vcode[i]; return (v[3] || v[5]) + ": " + v[4] + " in " + m.docs.t[v[0]] + ", " + v[6] + " in " + v[5] + " · " + VOUT[v[2]]; }
     if (Dr) {
       var e = Dr.edges[set][i];
       var nm = function (ref) { return ref.t === "fn" ? (m.fn.q[Dr.fns[ref.i]] || m.fn.n[Dr.fns[ref.i]]) : ref.t === "doc" ? m.docs.t[ref.i] : m.modules[Dr.others[ref.i].mi][1]; };
@@ -851,6 +865,11 @@ var CMXAtlas = (function () {
     var targetName = function (mi) { return (m.targets[m.modules[mi][0]] || {}).name; };
     var name = setName;
     function docLink(d) { return '<a href="#" data-doc="' + d + '">' + safe(m.docs.t[d]) + "</a>"; }
+    /* a code base's file or folder on this PC (a shared copy has no paths: no buttons then) */
+    function codePath(ti, rel) {
+      var t = m.targets[ti] || {};
+      return t.root ? t.root.replace(/[\\\/]+$/, "") + (rel ? "\\" + rel.replace(/\//g, "\\") : "") : "";
+    }
     function modLink(mi) { return '<a href="#" data-mod="' + mi + '">' + safe(m.modules[mi][1]) + "</a>"; }
     function overview() {
       var c = D.counts;
@@ -860,11 +879,16 @@ var CMXAtlas = (function () {
         '<div class="remark">Click a module, a document or a line to see what it connects. Double-click a module to open it: its functions, the modules it calls and is called from, and the documents that name each function. Drag to move, scroll to zoom, Esc to step back.</div>';
     }
     function legendRows() {
-      var rows = [["calls", m.calls.length], ["dcode", m.dcode.length]];
+      var rows = [["calls", m.calls.length], ["dcode", m.dcode.length], ["vcode", m.vcode.length]];
       m.kinds.forEach(function (k, i) { rows.push([k, (D.counts.links || {})[k] || 0]); });
       return rows.filter(function (r) { return r[1]; }).map(function (r) {
         return "<li><span>" + swatch(r[0]) + safe(name(r[0])) + "</span><span>" + CMX.num(r[1]) + "</span></li>";
       }).join("");
+    }
+    function valueRow(v, other) {
+      var bad = v[2] === 1 || v[2] === 3;
+      return '<li style="display:block">' + (other === "doc" ? docLink(v[0]) : modLink(v[1])) + '<br><span class="fixed" style="font-size:12.5px">' +
+        safe(v[3] || v[5]) + ": " + safe(v[4]) + " · code " + safe(v[5]) + " = " + safe(v[6]) + '</span> <span style="font-size:12.5px;' + (bad ? "color:var(--conflict);font-weight:600" : "") + '">' + safe(VOUT[v[2]]) + "</span></li>";
     }
     function swatch(set) {
       var st = SETS[set] || {}, col = "var(" + (st.color || "--text-3") + ")";
@@ -880,12 +904,14 @@ var CMXAtlas = (function () {
         var opened = A.drilled() && A.drilled().mi === mi;
         h += '<div class="hstack">' + (opened ? '<button type="button" class="btn" data-back="1">Back to all modules</button>' :
              x[2] ? '<button type="button" class="btn" data-open="' + mi + '">Open its functions</button>' : "") +
-             '<a class="btn ghost" href="code-' + safe(tn) + '.html#view=bubbles">Code page</a></div>';
+             '<a class="btn ghost" href="code-' + safe(tn) + '.html#view=bubbles">Code page</a>' +
+             (codePath(x[0], x[5]) ? '<button type="button" class="btn ghost" data-file="' + safe(codePath(x[0], x[5])) + '" data-how="open">Open its folder</button>' : "") + "</div>";
         var outs = [], ins = [];
         m.modCalls[mi].forEach(function (c) { var r = m.calls[c]; if (r[0] === mi) outs.push(r); else ins.push(r); });
         outs.sort(function (a, b) { return b[2] - a[2]; }); ins.sort(function (a, b) { return b[2] - a[2]; });
         if (outs.length) h += "<h3>Calls into</h3><ul>" + outs.slice(0, 15).map(function (r) { return "<li>" + modLink(r[1]) + "<span>" + CMX.num(r[2]) + "</span></li>"; }).join("") + "</ul>";
         if (ins.length) h += "<h3>Called from</h3><ul>" + ins.slice(0, 15).map(function (r) { return "<li>" + modLink(r[0]) + "<span>" + CMX.num(r[2]) + "</span></li>"; }).join("") + "</ul>";
+        if (m.modVals[mi].length) h += "<h3>Values documents state, in this module · " + CMX.num(m.modVals[mi].length) + "</h3><ul>" + m.modVals[mi].slice(0, 40).map(function (r) { return valueRow(m.vcode[r], "doc"); }).join("") + "</ul>";
         var ds = m.modDocs[mi].map(function (r) { return m.dcode[r]; }).sort(function (a, b) { return b[2] - a[2]; });
         h += "<h3>Documents that name it · " + CMX.num(ds.length) + "</h3>" + (ds.length ? "<ul>" + ds.slice(0, 40).map(function (r) {
           return "<li>" + docLink(r[0]) + "<span>" + r[2] + " name" + (r[2] === 1 ? "" : "s") + "</span></li>"; }).join("") + "</ul>" : '<p class="quiet">None.</p>');
@@ -904,6 +930,7 @@ var CMXAtlas = (function () {
           return "<li>" + modLink(r[1]) + "<span>" + ["one name", "some names", "strong"][r[3]] + "</span></li>" +
             '<li style="display:block;font-size:12.5px" class="fixed">' + r[4].map(function (s) { return '<a href="code-' + safe(tn2) + ".html#fn=" + encodeURIComponent(s[0]) + '">' + safe(s[0]) + "</a>"; }).join(", ") + "</li>";
         }).join("") + "</ul>";
+        if (m.docVals[d].length) h += "<h3>Its values in the code · " + CMX.num(m.docVals[d].length) + "</h3><ul>" + m.docVals[d].map(function (r) { return valueRow(m.vcode[r], "mod"); }).join("") + "</ul>";
         var by = {};
         m.docLinks[d].forEach(function (l) { var k = m.kinds[m.links.k[l]]; (by[k] = by[k] || []).push(l); });
         Object.keys(by).forEach(function (k) {
@@ -917,7 +944,10 @@ var CMXAtlas = (function () {
         h += "<h2>" + safe(fname) + '</h2><div class="hstack"><span class="badge is-code">function</span><span class="badge">' + safe(m.fn.r[f]) + "</span></div>";
         h += '<p class="quiet fixed" style="font-size:12.5px">' + safe(m.files[m.fn.f[f]][1]) + " · line " + m.fn.l[f] + "</p>";
         h += '<p class="quiet">' + CMX.num(m.fn.c[f]) + " callers · calls " + CMX.num(m.fn.k[f]) + "</p>";
-        h += '<div class="hstack"><a class="btn ghost" href="code-' + safe(tn3) + ".html#fn=" + encodeURIComponent(m.fn.n[f]) + '">Code page</a></div>';
+        var fr = m.files[m.fn.f[f]], fp = codePath(fr[0], fr[1]), ed = CMX.editorLink((m.targets[fr[0]] || {}).root, fr[1], m.fn.l[f]);
+        h += '<div class="hstack">' + (ed ? '<a class="btn" href="' + safe(ed) + '">Open in editor</a>' : "") +
+             (fp ? '<button type="button" class="btn ghost" data-file="' + safe(fp) + '" data-how="select">Show in folder</button>' : "") +
+             '<a class="btn ghost" href="code-' + safe(tn3) + ".html#fn=" + encodeURIComponent(m.fn.n[f]) + '">Code page</a></div>';
         var named = Dr.edges.fdocs.filter(function (e) { return e.toRef.i === sel.i; });
         h += "<h3>Documents that name it · " + named.length + "</h3>" + (named.length ? "<ul>" + named.map(function (e) { return "<li>" + docLink(e.fromRef.i) + "<span>" + e.n + "×</span></li>"; }).join("") + "</ul>" : '<p class="quiet">None.</p>');
       } else if (t === "edge") {
@@ -933,6 +963,13 @@ var CMXAtlas = (function () {
         var ex = [];
         for (var q = 0; q < m.fcalls.length && ex.length < 12; q++) { var p = m.fcalls[q]; if (m.fn.m[p[0]] === c[0] && m.fn.m[p[1]] === c[1]) ex.push(p); }
         if (ex.length) h += "<h3>For example</h3><ul>" + ex.map(function (p) { return '<li class="fixed" style="font-size:12.5px"><span>' + safe(m.fn.q[p[0]] || m.fn.n[p[0]]) + "</span><span>" + safe(m.fn.q[p[1]] || m.fn.n[p[1]]) + "</span></li>"; }).join("") + "</ul>";
+        return h;
+      }
+      if (set === "vcode") {
+        var v = m.vcode[i];
+        h += "<ul><li>" + docLink(v[0]) + "<span>" + safe(v[4]) + "</span></li><li>" + modLink(v[1]) + "<span class=\"fixed\">" + safe(v[5]) + " = " + safe(v[6]) + "</span></li></ul>";
+        h += "<p><b" + (v[2] === 1 || v[2] === 3 ? ' style="color:var(--conflict)"' : "") + ">" + safe(VOUT[v[2]]) + "</b>: " + safe(v[7]) + "</p>";
+        if (v[3]) h += '<p class="quiet">Value name: <b>' + safe(v[3]) + "</b>. The values page compares every place it is stated.</p>";
         return h;
       }
       if (set === "dcode") {
@@ -963,13 +1000,17 @@ var CMXAtlas = (function () {
     }
     crumbs.addEventListener("click", function (ev) { if (ev.target.closest("[data-back]")) A.close(); });
     function toggles() {
-      var sets = A.drilled() ? ["fcalls", "fout", "fin", "fdocs"] : ["calls", "dcode"].concat(DOC_ORDER.filter(function (k) { return m.kinds.indexOf(k) >= 0 && (D.counts.links || {})[k]; }));
+      var sets = A.drilled() ? ["fcalls", "fout", "fin", "fdocs"] : ["calls", "dcode"].concat(m.vcode.length ? ["vcode"] : [], DOC_ORDER.filter(function (k) { return m.kinds.indexOf(k) >= 0 && (D.counts.links || {})[k]; }));
       controls.innerHTML = sets.map(function (k) {
         var on = A.isOn(k);
         return '<button type="button" class="switch' + (on ? " is-on" : "") + '" data-set="' + k + '" aria-pressed="' + on + '" title="' + safe((SETS[k] || {}).title || "") + '">' + swatch(k) + safe(name(k)) + "</button>";
-      }).join("");
+      }).join("") + '<button type="button" class="switch" data-all="1" title="Show every kind of line">All links on</button>' +
+        '<button type="button" class="switch" data-all="0" title="Hide every line: the modules and documents only">All links off</button>';
+      controls.dataset.sets = sets.join(" ");
     }
     controls.addEventListener("click", function (ev) {
+      var all = ev.target.closest("[data-all]");
+      if (all) { controls.dataset.sets.split(" ").forEach(function (k) { A.setOn(k, all.getAttribute("data-all") === "1"); }); toggles(); return; }
       var b = ev.target.closest("[data-set]"); if (!b) return;
       var k = b.getAttribute("data-set"); A.setOn(k, !A.isOn(k)); toggles();
     });
@@ -995,7 +1036,8 @@ var CMXAtlas = (function () {
       if (f >= 0 && m.fn.m[f] >= 0) { A.open(m.fn.m[f]); var Dr = A.drilled(); A.select({ t: "fn", i: Dr.fns.indexOf(f) }); }
     });
     var zc = document.createElement("div"); zc.className = "zoomctl";
-    zc.innerHTML = '<button type="button" aria-label="Zoom in">+</button><button type="button" aria-label="Zoom out">&minus;</button><button type="button" aria-label="Fit to screen">&#9634;</button>';
+    zc.innerHTML = '<button type="button" aria-label="Zoom in" title="Zoom in">+</button><button type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>' +
+      '<button type="button" class="reset" title="Back to the whole map">Reset view</button>';
     var zb = zc.querySelectorAll("button");
     zb[0].onclick = function () { A.zoom(1.3); }; zb[1].onclick = function () { A.zoom(1 / 1.3); }; zb[2].onclick = function () { A.fit(); };
     host.appendChild(zc);

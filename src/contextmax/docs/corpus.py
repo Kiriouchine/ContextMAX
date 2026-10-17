@@ -20,16 +20,19 @@ Every output is sorted and carries no timestamp, so the same inputs give the sam
 """
 from __future__ import annotations
 
+import bisect
 import json
 import os
 import re
 import sqlite3
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from contextmax import util
+from contextmax import parallel, util
 from contextmax.docs import params as P
 from contextmax.docs import symbols as SYM
+from contextmax.docs import value_code
 from contextmax.project import Project
 
 SHEET_SUFFIXES = {".csv", ".xls", ".xlsm", ".xlsx"}
@@ -90,8 +93,20 @@ UNIT_WORDS = (
 )                                  # longer spellings first: "ms" before "m", "mm/s" never as "mm"
 _UNITS = _any(*UNIT_WORDS)
 _NUMBER = r"[+-]?\d+(?:[,.]\d+)?"
-VALUE_RANGE = re.compile(rf"(?<![.\w])({_NUMBER})\s*(?:to|-|–|—)\s*({_NUMBER})\s*({_UNITS})(?![a-zA-Z])", re.I)
-VALUE_WITH_UNIT = re.compile(rf"(?<![,.\w])({_NUMBER})\s*({_UNITS})(?![0-9A-Za-z])")
+# a range: 1~4 cm, 1 to 4 cm, 1-4 cm, and with the unit on both numbers, 1 cm - 4 cm (one unit, said twice)
+# A unit is on the number's own line ("37" and "K" on two lines are a table, not 37 K), and written with its
+# own capitals ("a13" in a table holds no ampere)
+_GAP = r"[ \t\xa0]*"
+VALUE_RANGE = re.compile(rf"(?<![.\w])({_NUMBER}){_GAP}(?:({_UNITS}){_GAP})?(?:(?i:to)|-|–|—|~)\s*({_NUMBER}){_GAP}({_UNITS})"
+                         r"(?![a-zA-Z])")
+VALUE_WITH_UNIT = re.compile(rf"(?<![,.\w])({_NUMBER}){_GAP}({_UNITS})(?![0-9A-Za-z])")
+# a value whose unit a PDF put on the next line, in running text: the sentence goes on after the unit ("1.2 /
+# m of wingspan", "5 / µs. The sensor"); after "1 / s + 10" or "q / 1 / N" it is a formula, not a value
+_GOES_ON = r"(?=[ \t]+[a-z]{2,}\b|[,;:)](?:\s|$)|\.(?:\s|$))"
+VALUE_ACROSS_LINES = re.compile(rf"(?<![,.\w])({_NUMBER})[ \t\xa0]*\n[ \t\xa0]*({_UNITS}){_GOES_ON}")
+# and a range: "about 2 to 3 / cm." (the empty group keeps the groups of VALUE_RANGE)
+RANGE_ACROSS_LINES = re.compile(rf"(?<![.\w])({_NUMBER}){_GAP}()(?:(?i:to)|-|–|—|~)\s*({_NUMBER})[ \t\xa0]*\n[ \t\xa0]*"
+                                rf"({_UNITS}){_GOES_ON}")
 SHALL_LINE_RE = re.compile(r"\b shall \b", re.IGNORECASE | re.VERBOSE)
 _SENTENCE_BREAK = re.compile(r"(?<=[!.?])\s+|\n+")
 # The address sheets.py writes after a cell's value: "@Budget!B4".
@@ -118,7 +133,7 @@ _COPY_FIELDS = ("title", "folder", "relative_path", "ext", "kind", "stage", "mod
 # The fields of one value row, as params.jsonl stores them and validate() expects them.
 _VALUE_FIELDS = ("value", "unit", "kind", "value_as_written", "value_shown", "unit_as_written", "value_norm",
                  "value_exact_norm", "unit_norm", "origin", "label", "label_norm", "sheet", "cell", "formula", "hidden",
-                 "context")
+                 "context", "label_source", "line_no", "page", "section", "sentence", "symbol")
 _OUTLINE_KEYS = ("value", "unit", "kind", "value_norm", "unit_norm", "context")
 _SHEET_OUTLINE_KEYS = ("value", "unit", "kind", "value_norm", "unit_norm", "origin", "label", "label_norm", "context")
 _NAMED_KINDS = frozenset({"constant", "entity", "function"})
@@ -253,11 +268,14 @@ def fold_documents(proj: Project, rules: Rules) -> tuple[list[dict], list[dict],
 # == code links ==
 
 def _text(proj: Project, rel: str | None) -> str:
+    return _text_in(proj.documents_dir, rel)
+
+
+def _text_in(documents_dir, rel: str | None) -> str:
     if not rel:
         return ""
-    p = proj.documents_dir / rel
     try:
-        return p.read_text(encoding="utf-8", errors="ignore")
+        return (Path(documents_dir) / rel).read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
 
@@ -370,6 +388,13 @@ def _name_rows(text: str, exact: dict, folded: dict, qualified: bool = False) ->
     return sorted(rows, key=lambda r: (-r["weight"], -r["mentions"], r["module"]))
 
 
+def _names_in(rel: str | None) -> tuple[str | None, list[dict]]:
+    """One document: the module it is about, and the code names it writes (a piece of parallel work)."""
+    d = parallel.shared()
+    text = _text_in(d["documents"], rel)
+    return dominant_module(text, d["topics"]), _name_rows(text, d["exact"], d["folded"], d["qualified"])
+
+
 def code_links(proj: Project, core: list[dict], rules: Rules) -> tuple[list[dict], dict]:
     targets = [t for t in proj.code_targets if (proj.code_dir / t["name"]).is_dir()]
     exact, folded = SYM.collect_names(proj.code_dir, targets)
@@ -377,10 +402,13 @@ def code_links(proj: Project, core: list[dict], rules: Rules) -> tuple[list[dict
     topics = TopicIndex(keywords)
     qualified = any("::" in name for name in exact)
     edges = []
-    for doc in core:
-        text = _text(proj, doc.get("cached_text"))
-        rows = _name_rows(text, exact, folded, qualified)
-        doc.update(about_module=dominant_module(text, topics), linked_code=bool(rows),
+    util.say("corpus", f"looking for {len(exact) + len(folded):,} code names in {len(core):,} documents")
+    finding = util.Progress("corpus", "documents searched for code names", len(core))
+    found = parallel.map_in_order(_names_in, [doc.get("cached_text") for doc in core], progress=finding,
+                                  data={"documents": str(proj.documents_dir), "exact": exact, "folded": folded,
+                                        "qualified": qualified, "topics": topics})
+    for doc, (about, rows) in zip(core, found, strict=True):
+        doc.update(about_module=about, linked_code=bool(rows),
                    modules=[r["module"] for r in rows], main_module=next((r["module"] for r in rows), doc.get("module")))
         for i, r in enumerate(rows):
             # strength follows how many distinct code names the document uses for this module
@@ -393,26 +421,182 @@ def code_links(proj: Project, core: list[dict], rules: Rules) -> tuple[list[dict
 
 # == structure ==
 
-def outline_of(text: str, rules: Rules, ext: str = "") -> dict:
-    """Headings, shall statements and values. Lines starting with '#' are headings only where
-    the format makes them so (Markdown, and Word, whose reader marks its heading styles)."""
-    found_heads: dict[str, str] = {}          # folded -> as first written
+# == a value's name from its own sentence ==
+# Most writing does not say "Settle time: 12 ms" but "a settle time of 12 ms", "the supply voltage shall be
+# 24 V" or "the controller shall keep the gain margin at 6 dB". The words right before the value, up to a
+# linking word, name it: two to four words, without articles, verbs or symbols, never only generic words.
+# Fixed patterns only, so the same text always gives the same names. A name found this way is recorded as
+# such (label_source "sentence"), apart from "label" (Name: value) and "cell" (a workbook's label).
+_SYMBOL_IN_BRACKETS = re.compile(r"\([^()]{0,14}\)")
+_CLAUSE_BREAK = re.compile(r"[.;!?](?=\s|$)|,(?=\s)|\s[–—-]\s|:(?=\s)")
+# words apart by real spaces only: a PDF's lost ligature can come out as a control character ("sti\x1eness")
+_WORDS = r"(?P<name> (?: [A-Za-z][A-Za-z\-]* [ \t]+ ){1,5} [A-Za-z][A-Za-z\-]* )"
+_OTHER_WORDS = _WORDS.replace("name", "other")
+_COMPARED = r"""(?: at \s+ (?:least|most) | less \s+ than | more \s+ than | greater \s+ than | lower \s+ than
+                  | higher \s+ than | no \s+ (?:more|less) \s+ than | up \s+ to | below | above | under | over
+                  | within | between | equal \s+ to | set \s+ to )"""
+_NAMED_BY = re.compile(rf"""
+    {_WORDS} \s+
+    (?: of (?: \s+ (?:about|approximately|around|roughly|nearly|almost|up \s+ to) )?
+      | (?:is|was|are|were|becomes|equals|amounts \s+ to) (?: \s+ (?:about|approximately|around|roughly|nearly
+                                                                    |chosen \s+ as|taken \s+ as|{_COMPARED}) )?
+      | (?:shall|must|should|will) \s+ (?:not \s+)? (?:be|equal|exceed|remain|stay) (?: \s+ {_COMPARED} )? )
+    \s* $
+    | {_OTHER_WORDS} \s* (?: = | ≈ | ~ ) \s* $
+""", re.VERBOSE | re.IGNORECASE)
+_SHALL_NAME = re.compile(rf"""
+    \b (?:shall|must) \s+ (?:not \s+)? {_WORDS} \s+
+    (?: at | to | by | of | not \s+ exceed(?:ing)? | exceed(?:ing)? | {_COMPARED} ) \s* $
+""", re.VERBOSE | re.IGNORECASE)
+_DETERMINERS = frozenset("""a an the its their our his her this that these those each every any all some no both several
+many one two three four five six seven eight nine ten""".split())
+# "much higher value", "higher accuracy": a comparison, not the name of what is measured
+_DEGREE_WORDS = frozenset("much far even still rather quite slightly significantly considerably somewhat".split())
+_COMPARATIVES = frozenset("higher lower larger smaller greater better worse faster slower more less bigger longer shorter "
+                          "wider".split())
+# a value right after a named one, joined by a comma or "and", shares its name: "are 128.3 rad/s and 104.8 rad/s",
+# "of 21.21 mm (224 kHz), 30.21 mm"
+_LIST_GAP = re.compile(r"\s*(?:\([^()\n]{0,40}\))?\s*(?:,|;|/)?\s*(?:and|or|&)?\s*", re.I)
+# a word a PDF broke over two lines: "resis-" or "resis" with a soft hyphen at the end of the line before
+_BROKEN_WORD = re.compile("([A-Za-z]+)(?:[\u00ad\ufffe]|(?<=[a-z])-)$")
+_GENERIC_HEADS = frozenset("value values case cases example number amount".split())
+# the name starts after an article, and after a verb or a preposition that leads to it ("RTK GPS has
+# centimetre accuracies of", "a motor with rated current of"); never after "of", "by" or "from", where the
+# words that follow are the second half of a name (_TAIL_OF_A_NAME)
+_NAME_STARTS_AFTER = _DETERMINERS | frozenset("""has have had having with at in on for as under during via gives uses
+using reaches requires needs""".split())     # never "reach", "use", "need": "maximum reach" is a name
+_DECADE = re.compile(r"(?:1[6-9]|20)\d0s")
+# a number that labels something: a figure, a table, an equation, a section
+# (written with its capital: "cross section 10 mm" and "with no 0 g offset" are values)
+_NUMBERED_THING = re.compile(r"(?:\b(?:Figs?|FIGS?|Figures?|FIGURES?|Tables?|TABLES?|Tab|Eqs?|Equations?|Sections?|Sect|Sec"
+                             r"|Chapters?|Ch|Refs?|Examples?|Problems?|Exercises?|Steps?|Algorithms?|VIDEO|Video)\.?"
+                             r"|\bfigs?\.|\bN[or]\.)\s*$")
+# after "192 A" at the start of a line: an author's initials ("A. Smith", "K.A. Brown") or "A-star"
+_INITIALS_AFTER = re.compile(r"\.\s?[A-Z]|\.[A-Z]\.|-[a-z]")
+_UNSHOWN = re.compile("[\x00-\x08\x0b-\x1f\u00ad\ufffe\ufffd]")      # PDF marks for a broken word or a lost ligature
+# words that join a name to what came before it ("the speed of the shaft", "measurable by the sensor")
+_TAIL_OF_A_NAME = frozenset("of by from than".split())
+_PARTICIPLES = frozenset("""consisting taking using having including giving being leading making resulting yielding
+corresponding according""".split())
+_FILLERS = frozenset("""with and or of for in on at to by from as is was are were be been being has have had which where
+while when whose whereas also then thus hence so such per than not nominal typical typically approximately approx
+about around roughly nearly almost only just very shall must should will can may""".split())
+_REQUIREMENT_VERBS = frozenset("""keep limit be have provide maintain support achieve reach operate run stay remain respond
+settle measure report detect stop start use set hold reduce increase decrease ensure allow handle draw consume deliver
+withstand tolerate exceed accept generate produce sample update""".split())
+_NOT_A_NAME = frozenset("""figure fig table eq equation section chapter page step steps total value values increase decrease
+change changes difference amount number order rate factor time times period range level size error errors part parts
+case cases example result results""".split())
 
-    def heading(h: str) -> None:
+
+def sentence_name(before: str) -> str | None:
+    """The name of a value from the words just before it on its line, or None."""
+    return name_and_symbol(before)[0]
+
+
+def name_and_symbol(before: str) -> tuple[str | None, str | None]:
+    """The name of a value from the words just before it, and the symbol written with it ("total energy E",
+    "cutoff frequency (fc)"), or (None, None)."""
+    before = _SOFT_HYPHEN.sub("", before)                 # "resis\ufffetance": one word a PDF broke, joined
+    aside = _SYMBOL_AT_END.search(before)                 # "the cutoff frequency (fc) is": the symbol of the name
+    clause = _CLAUSE_BREAK.split(_SYMBOL_IN_BRACKETS.sub(" ", before))[-1]
+    m, verb_first = _NAMED_BY.search(clause), False
+    if m is None:
+        m, verb_first = _SHALL_NAME.search(clause), True
+        if m is None:
+            return None, None
+    name = _name_of(m, verb_first)
+    if name is None:
+        return None, None
+    return name[0], name[1] or (aside.group(1) if aside else None)
+
+
+_SOFT_HYPHEN = re.compile("[\u00ad\ufffe]")
+_SYMBOL_AT_END = re.compile(r"\(([A-Za-z][A-Za-z0-9_]{0,3})\)\s*(?:(?:is|was|are|were|of|equals|equal\s+to|=|≈|~|about"
+                            r"|approximately|around|roughly|nearly|set\s+to)\s*)+$", re.I)
+
+
+def _name_of(m, verb_first: bool):
+    words = (m.group("name") or m.groupdict().get("other") or "").split()
+    symbol = None
+    cut = max((i for i, w in enumerate(words) if w.lower() in _NAME_STARTS_AFTER), default=-1)
+    if cut > 0 and words[cut - 1].lower() in _TAIL_OF_A_NAME:
+        return None                              # "the speed of the drive shaft" names the speed, not the shaft
+    words = words[cut + 1:]
+    if words and words[0].lower() in _TAIL_OF_A_NAME:
+        return None                              # "(power) from sine wave is": the name began before
+    while words and (words[0].lower() in _FILLERS or (verb_first and words[0].lower() in _REQUIREMENT_VERBS)):
+        words = words[1:]
+    if any(w.lower() in _PARTICIPLES for w in words):
+        return None                              # "electronics consisting of 1 GHz"
+    if len(words) > 1 and (len(words[-1]) <= 2 or len(words[-1]) <= 3 and any(c.isupper() for c in words[-1])
+                           and words[-2].islower()):
+        if words[-1].lower() not in _FILLERS:
+            symbol = words[-1]                   # a symbol after the name: "sample time Ts", "total energy E"
+        words = words[:-1]
+    if not 2 <= len(words) <= 4 or any(w.lower() in _FILLERS or len(w) < 2 for w in words):
+        return None
+    if words[0].lower() in _GENERIC_HEADS:
+        return None                              # "a value lmin =", "in this case tc is"
+    if words[0].lower() in _DEGREE_WORDS or (len(words) == 2 and words[0].lower() in _COMPARATIVES):
+        return None                              # "much higher value", "higher accuracy"
+    if not any(len(w) >= 4 for w in words) or all(w.lower() in _NOT_A_NAME for w in words):
+        return None
+    name = " ".join(words)
+    return None if P.says_nothing(P.canon_label(name)) else (name, symbol)
+
+
+def _same_kind(unit_a: str, unit_b: str) -> bool:
+    """Two units that measure the same thing (mm and m, ms and s), so values in one list share a name."""
+    a, b = P.canon_unit(unit_a), P.canon_unit(unit_b)
+    if a == b:
+        return True
+    scale = value_code._UNIT_SCALE
+    return a in scale and b in scale and scale[a][0] == scale[b][0]
+
+
+def _readable(line: str, at: int, end: int, width: int = 200) -> str:
+    """The words around a value on its line (`at`..`end` is the value), cut only between words, without the
+    marks a PDF's text carries for a broken word or a lost ligature."""
+    if len(line) <= width:
+        return _UNSHOWN.sub("", line).strip()
+    lo, hi = max(0, at - width * 2 // 3), min(len(line), end + width // 3)
+    if lo > 0:
+        space = line.find(" ", lo, at)
+        lo = space + 1 if space >= 0 else lo
+    if hi < len(line):
+        space = line.rfind(" ", end, hi)
+        hi = space if space >= 0 else hi
+    return ("…" if lo > 0 else "") + _UNSHOWN.sub("", line[lo:hi]).strip() + ("…" if hi < len(line) else "")
+
+
+def outline_of(text: str, rules: Rules, ext: str = "", page_lines: list[int] | None = None) -> dict:
+    """Headings, shall statements and values. Lines starting with '#' are headings only where
+    the format makes them so (Markdown, and Word, whose reader marks its heading styles). Each value
+    also says where it is: its line, its page (from `page_lines`, where each page starts), the
+    heading it stands under, and the words around it."""
+    found_heads: dict[str, str] = {}          # folded -> as first written
+    marks: list[tuple[int, str]] = []          # (where in the text, heading): the section a value is in
+
+    def heading(h: str, at: int) -> None:
         found_heads.setdefault(h.lower(), h)
+        marks.append((at, h.lstrip("# ").strip()))
 
     ext = (ext or "").lower()
     if ext in (".md", ".docx", ".docm", ".rst"):
         for m in MARKDOWN_HEADING.finditer(text):
-            heading(f"{'#' * len(m.group(1))} {m.group(2).strip()}")
+            heading(f"{'#' * len(m.group(1))} {m.group(2).strip()}", m.start())
     elif ext in SHEET_SUFFIXES:
         for m in re.finditer(r"^## sheet (.+?)(?:  \(|  \u00b7|$)", text, re.M):
-            heading(f"sheet {m.group(1).strip()}")
+            heading(f"sheet {m.group(1).strip()}", m.start())
     if ext not in SHEET_SUFFIXES:
         for m in NUMBERED_HEADING.finditer(text):
             title = m.group(2).strip()
             if re.search(r"[A-Za-z]{3,}", title):
-                heading(f"{m.group(1)} {title}")
+                heading(f"{m.group(1)} {title}", m.start())
+    marks.sort()
+    mark_at = [at for at, _ in marks]
+    line_starts: list[int] = []
     heads = list(found_heads.values())
     reqs = []
     for piece in _SENTENCE_BREAK.split(text):
@@ -420,31 +604,74 @@ def outline_of(text: str, rules: Rules, ext: str = "") -> dict:
         if 15 <= len(s) <= 320 and SHALL_LINE_RE.search(s):
             reqs.append({"text": s, "ids": sorted({hit[0] for rx in rules.req_ids for hit in rx.finditer(s)})})
     params, seen_values, occupied = [], set(), []
+    last_named: list = []                 # (end, name, where it came from, unit) of the value named last
 
     def add(m, value, unit, kind):
+        if unit == "s" and _DECADE.fullmatch(m.group(0)):
+            return                                # "the 1980s" is a decade, not 1980 seconds
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        if _NUMBERED_THING.search(text[max(line_start, m.start() - 24):m.start()]):
+            return                                # "Fig. 76.16 A mobile robot": a figure's number, not 76.16 A
+        if len(unit) == 1 and unit.isupper() and not text[line_start:m.start()].strip() \
+                and _INITIALS_AFTER.match(text, m.end()):
+            return                                # "192 A. Smith and ...": a numbered reference, not 192 A
         context = _one_line(text[max(0, m.start() - 42):m.end()])[-72:]
         if (value, unit, context.lower()) in seen_values:
             return
         seen_values.add((value, unit, context.lower()))
         start = text.rfind("\n", 0, m.start()) + 1
         stop = text.find("\n", m.end())
-        line = _one_line(text[start:None if stop < 0 else stop])
+        raw_line = text[start:None if stop < 0 else stop]
+        line = _one_line(raw_line)
         from_cell = CELL_ORIGIN.search(line) is not None
-        label = None
+        label, label_source, symbol = None, None, None
+        # a word the line before broke ("resis-" / "tance required is"): joined again, for the name and the sentence
+        broken = _BROKEN_WORD.search(text[max(0, start - 60):max(0, start - 1)]) if start else None
+        head = broken.group(1) if broken and raw_line[:1].islower() else ""
         if not from_cell:
-            lm = PROSE_LABEL.match(text[start:m.start()])
+            before = head + text[start:m.start()]
+            lm = PROSE_LABEL.match(before)
             if lm and not re.search(r"\bshall\b|\bmust\b", lm.group(1), re.I):
-                label = lm.group(1).strip()
+                label, label_source = lm.group(1).strip(), "label"
+            else:
+                label, symbol = name_and_symbol(before)
+                label_source = "sentence" if label else None
+                gap = text[last_named[0]:m.start()] if last_named else None
+                if label is None and gap is not None and gap.count("\n") <= 1 and _LIST_GAP.fullmatch(gap) \
+                        and _same_kind(last_named[3], unit):
+                    label, symbol, label_source = last_named[1], None, last_named[2]   # one of a list
+        if label:
+            last_named[:] = [m.end(), label, label_source, unit]
+        if not line_starts:
+            line_starts.append(0)
+            line_starts.extend(n.end() for n in re.finditer("\n", text))
+        line_no = bisect.bisect_right(line_starts, m.start())
+        k = bisect.bisect_right(mark_at, m.start()) - 1
         params.append(dict(value=value, unit=unit, kind=kind, value_norm=P.canon_number(value),
                            unit_norm=P.canon_unit(unit), context=line[:320] if from_cell else context, line=line,
-                           prose_label=label))
+                           prose_label=label, label_source=label_source, line_no=line_no,
+                           page=bisect.bisect_right(page_lines, line_no) if page_lines else None,
+                           section=marks[k][1][:120] if k >= 0 else None,
+                           symbol=symbol,
+                           sentence=_readable((head + raw_line).replace("\t", " "), m.start() - start + len(head),
+                                              m.end() - start + len(head))))
 
-    for m in VALUE_RANGE.finditer(text):
+    found = []
+    for m in [*VALUE_RANGE.finditer(text), *RANGE_ACROSS_LINES.finditer(text)]:
+        if m.group(2) and P.canon_unit(m.group(2)) != P.canon_unit(m.group(4)):
+            continue                              # "5 V - 3 A": two values, not a range
         occupied.append(m.span())
-        add(m, m.group(1) + "–" + m.group(2), m.group(3), "range")
+        found.append((m.start(), m, m.group(1) + P.RANGE_MARK + m.group(3), m.group(4), "range"))
     for m in VALUE_WITH_UNIT.finditer(text):
         if not any(lo <= m.start() < hi for lo, hi in occupied):
-            add(m, m.group(1), m.group(2), "value")
+            found.append((m.start(), m, m.group(1), m.group(2), "value"))
+    for m in VALUE_ACROSS_LINES.finditer(text):
+        if len(m.group(2)) == 1 and m.group(2).isupper() and text.startswith(".", m.end()):
+            continue                              # "37 / K. Smith": an initial
+        if not any(lo <= m.start() < hi for lo, hi in occupied):
+            found.append((m.start(), m, m.group(1), m.group(2), "value"))
+    for _, m, value, unit, kind in sorted(found, key=lambda f: f[0]):      # in the order they are written
+        add(m, value, unit, kind)
     capped = [{k: p[k] for k in _OUTLINE_KEYS} for p in params[:STRUCT_CAP]]
     return {"headings_count": len(heads), "headings": heads[:STRUCT_CAP], "headings_cut": len(heads) > STRUCT_CAP,
             "requirements_count": len(reqs), "requirements": reqs[:STRUCT_CAP],
@@ -464,32 +691,46 @@ def _origin(line: str):
 
 
 def _value_row(origin: str, written: str, shown: str, unit_written: str, unit: str, *, kind: str = "value",
-               label=None, sheet=None, cell=None, formula=None, hidden: bool = False, context: str = "") -> dict:
-    """One row of the value list. `unit` is already in its one spelling."""
+               label=None, sheet=None, cell=None, formula=None, hidden: bool = False, context: str = "",
+               label_source=None, line_no=None, page=None, section=None, sentence=None, symbol=None) -> dict:
+    """One row of the value list. `unit` is already in its one spelling. Where it is: `line_no` in the
+    document's text, `page` (PDFs), `section` (the heading above it), `sentence` (the words around it)."""
     return {"value": shown, "unit": unit, "kind": kind, "value_as_written": written, "value_shown": shown,
             "unit_as_written": unit_written, "value_norm": P.canon_number(shown),
             "value_exact_norm": P.canon_number(written), "unit_norm": unit, "origin": origin, "label": label,
             "label_norm": P.canon_label(label), "sheet": sheet, "cell": cell, "formula": formula, "hidden": hidden,
-            "context": context}
+            "context": context, "label_source": label_source if label else None, "line_no": line_no, "page": page,
+            "section": section, "sentence": sentence, "symbol": symbol if label else None}
 
 
-def _doc_parameters(text: str, rules: Rules, ext: str = "") -> tuple[dict, list[dict]]:
-    parsed = outline_of(text, rules, ext)
+def _doc_parameters(text: str, rules: Rules, ext: str = "", page_lines: list[int] | None = None) -> tuple[dict, list[dict]]:
+    parsed = outline_of(text, rules, ext, page_lines)
     rows = []
     for p in parsed.pop("_all"):
         sheet, cell, label = _origin(p["line"])
         rows.append(_value_row("prose_value", p["value"], p["value"], p["unit"], P.canon_unit(p["unit"]), kind=p["kind"],
                                label=p.get("prose_label") if label is None else label, sheet=sheet, cell=cell,
-                               context=p["context"]))
+                               context=p["context"], label_source=p["label_source"] if label is None else "cell",
+                               line_no=p["line_no"], page=p["page"], section=p["section"], sentence=p["sentence"],
+                               symbol=p["symbol"] if label is None else None))
+    # the outline lists the values with their names, as a workbook's outline does
+    parsed["values"] = [{k: r[k] for k in _SHEET_OUTLINE_KEYS} for r in rows[:STRUCT_CAP]]
     return parsed, rows
 
 
-def _sheet_values(path: Path) -> list[dict]:
-    """The values of a workbook's cell records, then the numbers typed into its formulas."""
+def _sheet_values(path: Path, text: str = "") -> list[dict]:
+    """The values of a workbook's cell records, then the numbers typed into its formulas. Each with the line of
+    the workbook's text that shows its cell."""
     values, literals = [], []
+    line_of = {}
+    for n, text_line in enumerate(text.split("\n"), 1):
+        o = CELL_ORIGIN.search(text_line)
+        if o:
+            line_of.setdefault((o.group("sheet").strip().strip("'"), o.group("cell").replace("$", "")), n)
     for rec in util.load_jsonl(path):
         formula, label, sheet, cell = rec.get("formula"), rec.get("label"), rec.get("sheet"), rec.get("cell")
-        where = dict(label=label, sheet=sheet, cell=cell, formula=formula, hidden=bool(rec.get("hidden")))
+        where = dict(label=label, sheet=sheet, cell=cell, formula=formula, hidden=bool(rec.get("hidden")),
+                     label_source="cell", line_no=line_of.get((sheet, cell)), section=f"sheet {sheet}" if sheet else None)
         if rec.get("value_class") == "number" and rec.get("value_string") not in (None, ""):
             raw = rec["value_string"]
             shown = rec.get("display") or raw
@@ -501,11 +742,27 @@ def _sheet_values(path: Path) -> list[dict]:
                                                 f" {rec['unit']}" if rec.get("unit") else "", sheet, cell,
                                                 f"  {{{formula}}}" if formula else "")
             values.append(_value_row("computed_value" if formula else "cell_entry", raw, shown, unit_written, unit,
-                                     context=line[:500], **where))
+                                     context=line[:500], sentence=line[:200], **where))
         literals += [_value_row("formula_constant", lit, lit, "", "", **where,
-                                context=f"constant {lit} inside @{sheet}!{cell} {{{formula}}}"[:500])
+                                context=f"constant {lit} inside @{sheet}!{cell} {{{formula}}}"[:500],
+                                sentence=f"constant {lit} inside @{sheet}!{cell} {{{formula}}}"[:200])
                      for lit in P.formula_constants(formula)]
     return [v for v in values + literals if P.all_numbers(v["value_norm"])]
+
+
+def _outline_one(job: tuple) -> tuple[dict, list[dict]]:
+    """One source's headings, shall statements and values (a piece of parallel work)."""
+    rel, sheet_cells, ext, page_lines = job
+    d = parallel.shared()
+    text = _text_in(d["documents"], rel)
+    if sheet_cells:
+        rows = _sheet_values(Path(d["documents"]) / sheet_cells, text)
+        parsed = outline_of(text, d["rules"], ext)
+        parsed.pop("_all")
+        parsed.update(values_count=len(rows), values=[{k: r[k] for k in _SHEET_OUTLINE_KEYS} for r in rows[:STRUCT_CAP]],
+                      values_cut=len(rows) > STRUCT_CAP)
+        return parsed, rows
+    return _doc_parameters(text, d["rules"], ext, page_lines)
 
 
 def structure_and_parameters(proj: Project, core: list[dict], sources: list[dict], rules: Rules) -> dict:
@@ -514,16 +771,13 @@ def structure_and_parameters(proj: Project, core: list[dict], sources: list[dict
     params_path = dm / "params.jsonl"
     reg_count, source_tally, kinds = 0, {}, Counter()
     lines = []
-    for s in sources:
-        text = _text(proj, s.get("cached_text"))
-        if _ext(s) in SHEET_SUFFIXES and s.get("sheet_cells"):
-            rows = _sheet_values(dm / s["sheet_cells"])
-            parsed = outline_of(text, rules, s.get("ext"))
-            parsed.pop("_all")
-            parsed.update(values_count=len(rows), values=[{k: r[k] for k in _SHEET_OUTLINE_KEYS} for r in rows[:STRUCT_CAP]],
-                          values_cut=len(rows) > STRUCT_CAP)
-        else:
-            parsed, rows = _doc_parameters(text, rules, s.get("ext"))
+    outlining = util.Progress("corpus", "documents read for headings, requirements and values", len(sources))
+    pages = {r["key"]: r.get("page_lines") for r in util.load_jsonl(dm / "text-index.jsonl")}
+    jobs = [(s.get("cached_text"), s.get("sheet_cells") if _ext(s) in SHEET_SUFFIXES else None, s.get("ext"),
+             pages.get(s["file_key"])) for s in sources]
+    outlined = parallel.map_in_order(_outline_one, jobs, progress=outlining,
+                                     data={"documents": str(dm), "rules": rules})
+    for s, (parsed, rows) in zip(sources, outlined, strict=True):
         by_source[s["file_key"]] = parsed
         base = {"format_version": P.FORMAT_VERSION, "doc": s["file_key"], "file_key": s["file_key"],
                 "doc_ref": s["node_ref"], "stage": s.get("stage"), "module": s.get("module"), "ext": s.get("ext"),
@@ -553,6 +807,7 @@ def structure_and_parameters(proj: Project, core: list[dict], sources: list[dict
         structure.append(dict(key=d["key"], title=d["title"], stage=d["stage"],
                               module=d.get("main_module") or d.get("module"), **res))
     util.save_jsonl(dm / "doc-outlines.jsonl", [json.loads(json.dumps(s, sort_keys=True)) for s in structure])
+    util.say("corpus", f"writing the value database: {reg_count:,} values from {len(sources):,} documents")
     db = P.write_database(params_path, dm / "params.sqlite", sources)
     meta = {"format_version": P.FORMAT_VERSION, "rows_count": reg_count, "sources_count": len(sources),
             "per_source_counts": dict(sorted(source_tally.items())), "origin_counts": dict(sorted(kinds.items())),
@@ -602,7 +857,9 @@ def _references(proj: Project, core: list[dict], rules: Rules, texts: dict) -> l
         for r in refs:
             by_ref[r].append(d)
     edges = []
+    quoting = util.Progress("corpus", "documents searched for other documents' numbers", len(core))
     for d in core:
+        quoting.tick(d["title"])
         text = texts[d["key"]]
         found = {_norm_ref(m.group(0)) for rx in rules.doc_numbers for m in rx.finditer(text)} - own[d["key"]]
         for ref in sorted(found):
@@ -618,7 +875,7 @@ def _title_words(s: str) -> tuple[str, ...]:
     return tuple(WORDS_RE.findall(s.lower()))
 
 
-def _citations(core: list[dict], texts: dict) -> list[dict]:
+def _citations(core: list[dict], texts: dict, documents_dir) -> list[dict]:
     """A document cites another when it writes that document's title (three words or more, not all
     generic) or its file name with the extension. Matched on whole words, never inside a word."""
     # Every title, filed under its first word and its length: at each word of a text, one lookup per
@@ -639,22 +896,36 @@ def _citations(core: list[dict], texts: dict) -> list[dict]:
     for first, size in sorted(patterns):
         lengths[first].append(size)
     edges = []
-    for d in core:
-        words = WORDS_RE.findall(texts[d["key"]].lower())
-        hits: Counter = Counter()
-        how: dict[str, str] = {}
-        for i, w in enumerate(words):
-            for size in lengths.get(w, ()):
-                for key, kind in patterns[(w, size)].get(tuple(words[i:i + size]), ()):
-                    if key == d["key"]:
-                        continue
-                    hits[key] += 1
-                    if how.get(key) != "file name":
-                        how[key] = kind
-        for key, n in sorted(hits.items(), key=lambda kv: (-kv[1], kv[0])):
+    citing = util.Progress("corpus", "documents searched for other documents' titles and file names", len(core))
+    # each worker reads its documents' text itself (the same files, read the same way): 200 MB of text for
+    # 10,000 documents would otherwise be copied to every worker
+    cited = parallel.map_in_order(_cites_in, [(d["key"], d.get("cached_text")) for d in core], progress=citing,
+                                  data={"patterns": {k: dict(v) for k, v in patterns.items()}, "lengths": dict(lengths),
+                                        "documents": str(documents_dir)})
+    for d, found in zip(core, cited, strict=True):
+        for key, n, how in found:
             edges.append({"from": d["key"], "to": key, "kind": "cites", "count": n,
-                          "source": f"{how[key]} written in the text"})
+                          "source": f"{how} written in the text"})
     return edges
+
+
+def _cites_in(job: tuple[str, str]) -> list[tuple[str, int, str]]:
+    """The documents one text cites, with how often and how (a piece of parallel work)."""
+    own, rel = job
+    d = parallel.shared()
+    patterns, lengths = d["patterns"], d["lengths"]
+    words = WORDS_RE.findall(_text_in(d["documents"], rel).lower())
+    hits: Counter = Counter()
+    how: dict[str, str] = {}
+    for i, w in enumerate(words):
+        for size in lengths.get(w, ()):
+            for key, kind in patterns[(w, size)].get(tuple(words[i:i + size]), ()):
+                if key == own:
+                    continue
+                hits[key] += 1
+                if how.get(key) != "file name":
+                    how[key] = kind
+    return [(key, n, how[key]) for key, n in sorted(hits.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
 # == named values stated in several documents ==
@@ -684,18 +955,21 @@ def _stating(owners: dict[str, set]) -> dict[tuple, list[str]]:
     """Each value of one name, with the documents that state it, in key order."""
     out: dict[tuple, list[str]] = defaultdict(list)
     for doc in sorted(owners):
-        for v in owners[doc]:
+        for v in sorted(owners[doc]):           # a set's order changes from run to run: never let it decide
             out[v].append(doc)
     return out
 
 
 def _majority(owners: dict[str, set]) -> tuple[tuple, str] | None:
     """The value more than half of the documents state (at least two of them), and its anchor: the first
-    document, by key, that states it. None when no value has such a majority: then no value is the odd one out."""
-    for v, docs in _stating(owners).items():
-        if len(docs) >= 2 and 2 * len(docs) > len(owners):
-            return v, docs[0]
-    return None
+    document, by key, that states it. None when no value has such a majority: then no value is the odd one out.
+    Documents that list several values for one name ("are 128.3 rad/s and 104.8 rad/s") can give more than
+    one value a majority: the one most documents state, then the smaller key, is taken."""
+    held = [(v, docs) for v, docs in _stating(owners).items() if len(docs) >= 2 and 2 * len(docs) > len(owners)]
+    if not held:
+        return None
+    v, docs = min(held, key=lambda h: (-len(h[1]), h[0]))
+    return v, docs[0]
 
 
 def _odd_ones(values: dict) -> dict[tuple[str, str], list[list[str]]]:
@@ -786,10 +1060,14 @@ def value_conflicts(values: dict) -> list[dict]:
 
 
 def document_links(proj: Project, core: list[dict], rules: Rules, values: dict | None = None) -> list[dict]:
+    util.say("corpus", f"links between documents: loading the text of {len(core):,} documents")
     texts = {d["key"]: _text(proj, d.get("cached_text")) for d in core}
     if values is None:
         values = value_owners(util.load_jsonl(proj.documents_dir / "params.jsonl"))
-    edges = _lineage(core, rules) + _references(proj, core, rules, texts) + _citations(core, texts) + _value_links(values)
+    edges = _lineage(core, rules) + _references(proj, core, rules, texts) + _citations(core, texts, proj.documents_dir)
+    util.say("corpus", f"links between documents: {len(values['by_label']):,} value names, each document linked to the "
+                       "others that state it")
+    edges += _value_links(values)
     seen, out = set(), []
     for e in edges:
         sig = tuple(e.get(field) for field in _EDGE_IDENTITY)
@@ -860,13 +1138,21 @@ def build(proj: Project) -> dict:
                        f"statements, {st['value_rows']} values in the value list")
     util.live("values", rows=st["value_rows"], headings=st["totals"].get("headings", 0),
               requirements=st["totals"].get("requirements", 0))
-    values = value_owners(util.load_jsonl(dm / "params.jsonl"))
+    value_rows = util.load_jsonl(dm / "params.jsonl")
+    values = value_owners(value_rows)
+    util.say("corpus", "the documents' values against the named numbers in the code")
+    in_code = value_code.links(value_rows, value_code.code_rows(proj))
+    util.save_jsonl(dm / "links" / "value-to-code.jsonl", [json.loads(json.dumps(r, sort_keys=True)) for r in in_code])
+    vc = value_code.summary(in_code)
+    util.say("corpus", f"{util.count(vc['names_count'], 'value name')} found in the code: "
+                       + (", ".join(f"{k} {v}" for k, v in vc["outcomes"].items()) or "nothing to compare"))
     dd_edges = document_links(proj, core, rules, values)
     conflicts = value_conflicts(values)
     kinds = Counter(e["kind"] for e in dd_edges)
     util.say("corpus", "document links: " + (", ".join(f"{k} {v}" for k, v in sorted(kinds.items())) or "none"))
     if live:
         atlas_data.live_document_links(core, dd_edges)
+    util.say("corpus", "writing the document map: documents, links, conflicts, the guide")
     util.save_jsonl(dm / "doc-list.jsonl", [json.loads(json.dumps(d, sort_keys=True)) for d in core])
     util.save_jsonl(dm / "doc-sources.jsonl", [json.loads(json.dumps(s, sort_keys=True)) for s in sources])
     util.save_jsonl(dm / "links" / "doc-to-code.jsonl", [json.loads(json.dumps(e, sort_keys=True)) for e in dc_edges])
@@ -878,6 +1164,10 @@ def build(proj: Project) -> dict:
                "doc_code_edges_count": len(dc_edges), "doc_doc_edges_count": len(dd_edges),
                "doc_doc_kinds": dict(sorted(kinds.items())), "outline_totals": st["totals"],
                "param_rows": st["value_rows"], "param_origins": st["origins"], "value_conflicts_count": len(conflicts),
+               "named_values_count": sum(1 for r in value_rows if r.get("label")),
+               "value_names_count": len(values["by_label"]),
+               "names_from_sentences_count": sum(1 for r in value_rows if r.get("label_source") == "sentence"),
+               "value_code": vc,
                "stages": rules.stages}
     util.save_json(dm / "overview.json", summary)
     return summary
@@ -923,6 +1213,30 @@ def _write_guide(proj: Project, core, dc_edges, dd_edges, rules: Rules) -> None:
 
 # == validate ==
 
+def _place_problem(r: dict, lines: list[str], page_lines: list[int] | None) -> str | None:
+    """What is wrong with where a value says it is, or None: the line it names must show it (the number as
+    written, or its cell), and the page it names must hold that line."""
+    n = r.get("line_no")
+    if n is None:
+        return "a value in the text without its line" if r["origin"] == "prose_value" else None
+    if not 1 <= n <= len(lines):
+        return f"line {n} is past the end of the document's text"
+    line = lines[n - 1]
+    if r["origin"] == "prose_value":
+        # the value starts on its line; a range ("from 35 to / 150 mm") may end on one of the next lines
+        first, *rest = r["value_as_written"].split(P.RANGE_MARK)
+        after = "\n".join(lines[n - 1:n + 3])
+        if first not in line or not all(part in after for part in rest):
+            return f"line {n} does not show {r['value_as_written']!r}"
+    elif not (r.get("cell") and f"!{r['cell']}" in line):
+        return f"line {n} does not show cell {r.get('cell')!r}"
+    if (bisect.bisect_right(page_lines, n) if page_lines else None) != r.get("page"):
+        return f"line {n} is not on page {r.get('page')}"
+    if (r.get("label") is None) != (r.get("label_source") is None):
+        return "a name without where it comes from, or the other way round"
+    return None
+
+
 def validate(proj: Project) -> tuple[list[str], dict]:
     """Recompute and cross-check. Returns (errors, counts); any error fails the build."""
     dm = proj.documents_dir
@@ -962,19 +1276,30 @@ def validate(proj: Project) -> tuple[list[str], dict]:
     cached_keys, map_keys = key_set(index, "text-index"), key_set(core, "doc-list")
     if key_set(structure, "doc-outlines") != map_keys:
         errors.append("doc-outlines and doc-list hold different documents")
-    for r in index:
+    hashing = util.Progress("gate", "texts checked against their fingerprints", len(index))
+
+    def problems_of(r: dict) -> list[str]:
+        """One cached text, and its cell records, against the fingerprints the index holds."""
+        found = []
         p = dm / (r.get("cached_text") or "")
         if not p.is_file():
-            errors.append(f"text missing for {r.get('key')}")
-            continue
+            return [f"text missing for {r.get('key')}"]
         if util.hash_file(p) != r.get("sha256"):
-            errors.append(f"text of {r.get('key')} changed since it was indexed")
+            found.append(f"text of {r.get('key')} changed since it was indexed")
         if (r.get("ext") or "") in SHEET_SUFFIXES:
             rec = dm / (r.get("sheet_cells") or "")
             if not r.get("sheet_cells") or not rec.is_file():
-                errors.append(f"spreadsheet {r.get('key')} has no cell records")
+                found.append(f"spreadsheet {r.get('key')} has no cell records")
             elif util.hash_file(rec) != r.get("cells_sha256"):
-                errors.append(f"cell records of {r.get('key')} changed since they were indexed")
+                found.append(f"cell records of {r.get('key')} changed since they were indexed")
+        return found
+
+    # reading and fingerprinting files waits on the disk more than on Python: threads share that out, and
+    # the problems come back in the index's order, as one at a time
+    with ThreadPoolExecutor(max_workers=min(8, parallel.workers())) as threads:
+        for r, found in zip(index, threads.map(problems_of, index), strict=True):
+            hashing.tick(r.get("key") or "")
+            errors += found
     for e in dc:
         if e.get("document_key") not in map_keys:
             errors.append(f"code link from an unknown document: {e.get('document_key')}")
@@ -998,6 +1323,16 @@ def validate(proj: Project) -> tuple[list[str], dict]:
             named.add(c["anchor"])
         if named - map_keys:
             errors.append(f"value conflict {c.get('label_norm')!r} names unknown documents")
+    util.say("gate", "  the documents' values against the code's named numbers, compared again")
+    in_code = rows_of(dm / "links" / "value-to-code.jsonl") if (dm / "links" / "value-to-code.jsonl").exists() else None
+    if in_code is None:
+        errors.append("links/value-to-code.jsonl is missing")
+    elif in_code != [json.loads(json.dumps(r, sort_keys=True)) for r in value_code.links(value_rows, value_code.code_rows(proj))]:
+        errors.append("links/value-to-code.jsonl does not match the value list and the code's named numbers")
+    else:
+        for r in in_code:
+            if {d["doc_ref"] for d in r["documents"]} - map_keys:
+                errors.append(f"value {r['label_norm']!r} in the code names unknown documents")
     odd = {(a, b): len(rows) for (a, b), rows in _odd_ones(values).items()}
     if {(e["from"], e["to"]): e.get("differ_count") for e in dd if e.get("kind") == "differs"} != odd:
         errors.append("the links for values that differ do not match the value list")
@@ -1009,11 +1344,21 @@ def validate(proj: Project) -> tuple[list[str], dict]:
             errors.append(f"source {sk} folds into an unknown document {nk}")
     required = {*_VALUE_FIELDS, "format_version", "doc", "file_key", "doc_ref"}
     source_tally, seen_rows = Counter(), set()
+    by_key = {r.get("key"): r for r in index}
+    shown_in: tuple = (None, [], None)                 # (document, its lines, where its pages start)
+    checking = util.Progress("gate", "values checked: name, number, unit and the line that shows them", len(value_rows))
     for n, r in enumerate(value_rows, 1):
+        checking.tick()
         missing = required - set(r)
         if missing:
             errors.append(f"params.jsonl:{n}: missing {sorted(missing)}")
             continue
+        if shown_in[0] != r["file_key"]:
+            cached = by_key.get(r["file_key"]) or {}
+            shown_in = (r["file_key"], _text_in(dm, cached.get("cached_text")).split("\n"), cached.get("page_lines"))
+        wrong_place = _place_problem(r, shown_in[1], shown_in[2])
+        if wrong_place:
+            errors.append(f"params.jsonl:{n}: {wrong_place}")
         problems = [
             (src_map.get(r["file_key"]) != r["doc_ref"], "belongs to the wrong document"),
             ((r.get("ext") or "") in SHEET_SUFFIXES and not (r.get("sheet") and r.get("cell")),
@@ -1038,6 +1383,7 @@ def validate(proj: Project) -> tuple[list[str], dict]:
     if {k: int(v) for k, v in (meta.get("per_source_counts") or {}).items()} != {k: source_tally.get(k, 0) for k in src_map}:
         errors.append("params-info.json per-document counts do not match the value list")
     db_path = dm / "params.sqlite"
+    util.say("gate", "  the value database: its integrity, and the same values as the value list")
     workbook_suffixes = ", ".join(f"'{e}'" for e in sorted(SHEET_SUFFIXES))
     expected = (
         ("PRAGMA integrity_check", "ok", "params.sqlite fails its integrity check"),

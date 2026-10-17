@@ -13,6 +13,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from contextmax import util
+from contextmax.code.common import module_dirs
 from contextmax.views.layout import layered, ranks
 
 CELL = 30                 # drafting: one function circle per cell
@@ -56,9 +57,10 @@ def build(proj, target: dict, portable: bool = False) -> dict:
         if ma != mb:
             mod_edges[(ma, mb)] += 1
     modules = []
+    dirs = module_dirs(d)
     for m in mod_names:
         mj = modules_json.get(m, {})
-        modules.append({"id": mod_idx[m], "name": m, "nf": mj.get("functions_count", 0),
+        modules.append({"id": mod_idx[m], "name": m, "dir": dirs.get(m, ""), "nf": mj.get("functions_count", 0),
                         "np": mj.get("product_functions_count", 0), "files": mj.get("files_count", 0),
                         "docs": [[x["title"], x["stage"], x["confidence"], x["key"]] for x in docs_of_code.get("modules", {}).get(m, [])][:12]})
     docs_for = {}

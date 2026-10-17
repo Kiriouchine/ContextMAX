@@ -18,9 +18,10 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
-from contextmax import VERSION, project
+from contextmax import VERSION, project, util
 
 
 def _project_ref(p: str):
@@ -66,13 +67,108 @@ def cmd_folders(a) -> int:
     return 0
 
 
-def cmd_build(a) -> int:
-    from contextmax import pipeline
+KEEP_BUILD_LOGS = 30
 
+
+STOPPED = 3                    # the exit code of a build that was asked to stop
+WINDOW_GONE = "the ContextMAX window that started this build was closed"
+
+
+class _Tee:
+    """What the build prints, also written to its log file; the live drawing's events are left out. When
+    the window that reads the build's lines is gone (its CMD window closed), the build stops, and says
+    so in its log: nobody would see it go on."""
+
+    def __init__(self, stream, log):
+        self.stream, self.log, self.part, self.lost = stream, log, "", False
+
+    def write(self, s: str) -> int:
+        self.part += s
+        *lines, self.part = self.part.split("\n")
+        for line in lines:
+            if not line.startswith(util.LIVE_MARK):
+                self.log.write(line + "\n")
+        if not self.lost:
+            try:
+                self.stream.write(s)
+            except (OSError, ValueError) as exc:
+                self.lost = True
+                raise util.Stopped(WINDOW_GONE) from exc
+        return len(s)
+
+    def flush(self) -> None:
+        self.log.flush()
+        if not self.lost:
+            try:
+                self.stream.flush()
+            except (OSError, ValueError) as exc:
+                self.lost = True
+                raise util.Stopped(WINDOW_GONE) from exc
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
+def _build_log(proj) -> Path:
+    """A new log file in <working folder>\\logs, the oldest removed past the last KEEP_BUILD_LOGS."""
+    logs = proj.path("logs")
+    logs.mkdir(parents=True, exist_ok=True)
+    old = sorted(logs.glob("build-*.txt"))
+    for f in old[:max(0, len(old) - KEEP_BUILD_LOGS + 1)]:
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    stamp, n = time.strftime("%Y-%m-%d_%H%M%S"), 1
+    path = logs / f"build-{stamp}.txt"
+    while path.exists():
+        n += 1
+        path = logs / f"build-{stamp}_{n:02d}.txt"     # sorts after build-<stamp>.txt
+    return path
+
+
+def cmd_build(a) -> int:
     proj = _project_ref(a.project)
     depth = "full" if a.full else "documents" if a.documents else "catalogue" if a.catalogue else "quick"
+    path = _build_log(proj)
+    with open(path, "w", encoding="utf-8", newline="\n") as log:
+        log.write(f"ContextMAX {VERSION} \u00b7 build of {proj.name} ({depth}) \u00b7 started {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        out, err = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = _Tee(out, log), _Tee(err, log)
+        ended = "with an error (the lines above say which)"
+        try:
+            util.say("log", f"this build's log is saved in {path}")
+            code = _build(proj, depth, not a.no_ocr)
+            ended = f"with exit code {code}"
+            return code
+        except (util.Stopped, KeyboardInterrupt) as exc:
+            why = str(exc) if isinstance(exc, util.Stopped) else "stopped with Ctrl+C"
+            ended = f"stopped: {why}"
+            try:
+                print(f"\n[stop] {why}. What was finished is kept: the next build goes on from there.", flush=True)
+            except util.Stopped:
+                pass
+            return STOPPED
+        except BaseException:
+            import traceback
+
+            log.write(traceback.format_exc())
+            raise
+        finally:
+            for stream in (sys.stdout, sys.stderr):
+                try:
+                    stream.flush()
+                except (util.Stopped, OSError, ValueError):
+                    pass
+            sys.stdout, sys.stderr = out, err
+            log.write(f"ended {time.strftime('%Y-%m-%d %H:%M:%S')} {ended}\n")
+
+
+def _build(proj, depth: str, ocr: bool) -> int:
+    from contextmax import pipeline
+
     try:
-        report = pipeline.build(proj, depth=depth, ocr=not a.no_ocr)
+        report = pipeline.build(proj, depth=depth, ocr=ocr)
     except pipeline.GateFailed:
         return 1
     m = report.get("manifest") or {}

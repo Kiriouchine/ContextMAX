@@ -7,7 +7,12 @@
   D.calls.forEach(function (c) { callees[c[0]].push(c[1]); callers[c[1]].push(c[0]); });
   var perModule = M.map(function () { return []; });
   F.forEach(function (f) { perModule[f.m].push(f.id); });
-  var state = { tests: false, stubs: true, physics: true, module: null, fn: null };
+  var state = { tests: false, stubs: true, physics: true, lines: true, module: null, fn: null };
+  /* a view drawn again because a switch was turned (or the theme changed) keeps where the viewer left it */
+  var held = null;
+  function hold() { held = current && current.view ? { id: current.id, v: current.view() } : null; }
+  function take(id) { var v = held && held.id === id ? held.v : null; held = null; return v; }
+  function filePath(rel) { return D.target.root ? D.target.root.replace(/[\\\/]+$/, "") + "\\" + rel.replace(/\//g, "\\") : ""; }
   var canvas = $("#canvas"), side = $("#drawer"), crumbs = $("#crumbs"), controls = $("#controls");
   var docsUrl = "documents.html";
 
@@ -47,7 +52,9 @@
       (f.c === 0 && f.r === "product" ? '<span class="badge is-code">entry point</span>' : "") + "</div>";
     h += '<p class="fixed" style="font-size:12.5px">' + safe(f.sig) + "</p>";
     if (f.d) h += "<p>" + safe(f.d) + "</p>";
-    h += '<div class="hstack"><span class="fixed">' + safe(where(f)) + "</span>" + (link ? '<a class="btn" href="' + link + '">Open in editor</a>' : "") + "</div>";
+    var file = filePath(D.files[f.f]);
+    h += '<div class="hstack"><span class="fixed">' + safe(where(f)) + "</span>" + (link ? '<a class="btn" href="' + link + '">Open in editor</a>' : "") +
+      (file ? '<button type="button" class="btn ghost" data-file="' + safe(file) + '" data-how="select">Show in folder</button>' : "") + "</div>";
     h += "<h3>Called by " + cs.length + (cs.length ? ' <span class="quiet" style="text-transform:none;letter-spacing:0">· ' + prodC + " product, " + (cs.length - prodC) + " test</span>" : "") + "</h3>";
     h += cs.length ? fnList(cs, 12) : '<p class="quiet">Nothing in these folders calls it by name.' + (f.r === "product" ? " It may run through a pointer, a callback, or from outside." : "") + "</p>";
     h += "<h3>Calls " + callees[id].length + "</h3>" + (callees[id].length ? fnList(callees[id], 12) : '<p class="quiet">No calls into these folders.</p>');
@@ -69,7 +76,9 @@
     var inn = D.mod_edges.filter(function (e) { return e[1] === mi; }).sort(function (a, b) { return b[2] - a[2]; });
     var top = perModule[mi].slice().sort(function (a, b) { return F[b].c - F[a].c; }).slice(0, 10);
     var h = '<h2 class="fixed">' + safe(m.name) + '</h2><p class="quiet">' + m.nf + " functions (" + m.np + " product) in " + m.files + " files</p>";
-    h += '<div class="hstack"><button type="button" class="btn" data-open="' + mi + '">Open this module</button></div>';
+    var folder = D.target.root ? filePath(m.dir || "").replace(/\\$/, "") : "";
+    h += '<div class="hstack"><button type="button" class="btn" data-open="' + mi + '">Open this module</button>' +
+      (folder ? '<button type="button" class="btn ghost" data-file="' + safe(folder) + '" data-how="open" title="' + safe(folder) + '">Open its folder</button>' : "") + "</div>";
     h += "<h3>Calls into</h3>" + (out.length ? "<ul>" + out.map(function (e) { return '<li><a href="#" data-mod="' + e[1] + '" class="fixed">' + safe(M[e[1]].name) + "</a><span>" + e[2] + " calls</span></li>"; }).join("") + "</ul>" : '<p class="quiet">No other module.</p>');
     h += "<h3>Called from</h3>" + (inn.length ? "<ul>" + inn.map(function (e) { return '<li><a href="#" data-mod="' + e[0] + '" class="fixed">' + safe(M[e[0]].name) + "</a><span>" + e[2] + " calls</span></li>"; }).join("") + "</ul>" : '<p class="quiet">No other module.</p>');
     h += "<h3>Most called</h3>" + fnList(top, 10);
@@ -98,11 +107,19 @@
     crumbs.innerHTML = parts.map(function (p, i) { return (i ? '<span class="divider">›</span>' : "") + (p.go ? '<a data-crumb="' + i + '">' + safe(p.label) + "</a>" : "<b>" + safe(p.label) + "</b>"); }).join("");
     CMX.$$("a[data-crumb]", crumbs).forEach(function (a) { a.onclick = function () { parts[+a.getAttribute("data-crumb")].go(); }; });
   }
+  function linkButtons() {
+    return '<button type="button" class="switch' + (state.lines ? " is-on" : "") + '" data-lines="1" aria-pressed="' + state.lines + '">All links on</button>' +
+      '<button type="button" class="switch' + (state.lines ? "" : " is-on") + '" data-lines="0" aria-pressed="' + !state.lines + '">All links off</button>';
+  }
+  controls.addEventListener("click", function (ev) {
+    var b = ev.target.closest("[data-lines]"); if (!b) return;
+    state.lines = b.getAttribute("data-lines") === "1"; hold(); current.enter();
+  });
   function roleToggles(after) {
     setControls('<button type="button" class="switch' + (state.tests ? " is-on" : "") + '" id="t-tests" aria-pressed="' + state.tests + '">Tests</button>' +
-      '<button type="button" class="switch' + (state.stubs ? " is-on" : "") + '" id="t-stubs" aria-pressed="' + state.stubs + '">Stubs</button>' + (after || ""));
-    $("#t-tests").onclick = function () { state.tests = !state.tests; current.enter(); };
-    $("#t-stubs").onclick = function () { state.stubs = !state.stubs; current.enter(); };
+      '<button type="button" class="switch' + (state.stubs ? " is-on" : "") + '" id="t-stubs" aria-pressed="' + state.stubs + '">Stubs</button>' + (after || "") + linkButtons());
+    $("#t-tests").onclick = function () { state.tests = !state.tests; hold(); current.enter(); };
+    $("#t-stubs").onclick = function () { state.stubs = !state.stubs; hold(); current.enter(); };
   }
 
   /* == 1 bubbles (physics) == */
@@ -121,7 +138,13 @@
     function mount(n, e, opts) {
       canvas.innerHTML = '<div class="vis"></div>';
       nodes = new vis.DataSet(n); edges = new vis.DataSet(e);
-      net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: edges }, base(opts));
+      var keep = take("bubbles"), o = base(opts);
+      o.physics.stabilization = Object.assign({}, o.physics.stabilization, { fit: !keep });
+      o.edges = Object.assign({}, o.edges, { hidden: !state.lines });
+      net = new vis.Network(canvas.firstChild, { nodes: nodes, edges: edges }, o);
+      var zoomer = CMX.visZoom(net);
+      CMX.zoomButtons(canvas, zoomer);
+      if (keep) net.once(state.physics ? "stabilizationIterationsDone" : "afterDrawing", function () { zoomer.setView(keep); });
       return net;
     }
     function hex(c, a) { var n = parseInt(c.slice(1), 16); return "rgba(" + (n >> 16 & 255) + "," + (n >> 8 & 255) + "," + (n & 255) + "," + a + ")"; }
@@ -209,12 +232,12 @@
     return {
       id: "bubbles", label: "Bubbles", title: "Modules, then a module's functions, laid out by physics",
       enter: function () {
-        roleToggles('<button type="button" class="switch' + (state.physics ? " is-on" : "") + '" id="t-phys" aria-pressed="' + state.physics + '">Physics</button><button type="button" class="switch" id="t-fit">Fit</button>');
+        roleToggles('<button type="button" class="switch' + (state.physics ? " is-on" : "") + '" id="t-phys" aria-pressed="' + state.physics + '">Physics</button>');
         $("#t-phys").onclick = function () { state.physics = !state.physics; this.classList.toggle("is-on", state.physics); this.setAttribute("aria-pressed", state.physics); if (net) net.setOptions({ physics: { enabled: state.physics } }); };
-        $("#t-fit").onclick = function () { if (net) net.fit({ animation: true }); };
         if (state.module !== null) openModule(state.module); else overview();
       },
       leave: function () { if (net) { net.destroy(); net = null; } },
+      view: function () { return net ? CMX.visZoom(net).view() : null; },
       openModule: openModule,
       selectModule: function (mi) { if (net && nodes.get("m" + mi)) { net.selectNodes(["m" + mi]); net.focus("m" + mi, { scale: 1, animation: true }); } },
       select: function (id) { if (net && nodes.get(id)) net.selectNodes([id]); },
@@ -264,6 +287,8 @@
       });
       pz = CMX.panZoom(svg, L.width, L.height);
       CMX.zoomButtons(canvas, pz);
+      pz.setView(take("drafting"));
+      if (!state.lines) gEdges.style.display = "none";
     }
     function select(id, mi) {
       layer.innerHTML = "";
@@ -292,6 +317,7 @@
       select: function (id) { select(id, F[id] ? F[id].m : null); },
       focusFn: function (id) { describeFn(id); var p = D.drafting.circles[String(id)]; if (p) pz.center(p[0], p[1], 700); },
       selectModule: function (mi) { select(null, mi); var b = D.drafting.blocks.filter(function (x) { return x.m === mi; })[0]; if (b) pz.center(b.x + b.w / 2, b.y + b.h / 2, Math.max(700, b.w * 1.6)); },
+      view: function () { return pz ? pz.view() : null; },
       showImpact: function (ids) {
         var hit = {}; ids.forEach(function (i) { hit[i] = true; });
         Object.keys(circles).forEach(function (k) { circles[k].classList.toggle("lo", !hit[k]); circles[k].classList.toggle("hi", !!hit[k]); });
@@ -341,6 +367,8 @@
       });
       pz = CMX.panZoom(svg, L.width, L.height);
       CMX.zoomButtons(canvas, pz);
+      pz.setView(take("metro"));
+      if (!state.lines) gLinks.style.display = "none";
       if (!CMX.store.get("metro-explained")) {
         var box = document.createElement("div"); box.className = "explain";
         box.innerHTML = '<button type="button" class="iconbtn" aria-label="Close">Got it</button><b>How to read the metro map.</b> Each coloured line is one module. Its stations are the module\'s functions, left to right in call order: a function sits to the right of the functions that call it. A big station has a thin link to a station on another line: that is a call from one module into another, like changing trains. Only the functions that matter on a line are drawn; the rest are counted at the end of the line.';
@@ -358,11 +386,12 @@
     return {
       id: "metro", label: "Metro lines", title: "Each module a line, its functions the stations, calls between lines as changes",
       enter: function () {
-        setControls('<span class="swatches"><span><i style="width:22px;border-top:8px solid ' + CMX.color(0) + ';border-radius:4px"></i>a module</span><span><i style="width:12px;height:12px;border-radius:50%;border:3px solid var(--text)"></i>a function</span><span><i style="width:18px;border-top:2px solid var(--text-3)"></i>a call to another module</span></span>');
+        setControls('<span class="swatches"><span><i style="width:22px;border-top:8px solid ' + CMX.color(0) + ';border-radius:4px"></i>a module</span><span><i style="width:12px;height:12px;border-radius:50%;border:3px solid var(--text)"></i>a function</span><span><i style="width:18px;border-top:2px solid var(--text-3)"></i>a call to another module</span></span>' + linkButtons());
         setCrumbs([{ label: D.target.label + " · metro lines" }]);
         draw(); describeOverview();
       },
       select: select,
+      view: function () { return pz ? pz.view() : null; },
       focusFn: function (id) { describeFn(id); var hit = null; D.metro.lines.forEach(function (ln) { ln.stations.forEach(function (s) { if (s[0] === id) hit = [s[1], ln.y]; }); }); if (hit) pz.center(hit[0], hit[1], 900); },
       onTheme: function () { draw(); }
     };
@@ -515,7 +544,7 @@
   var views = CMX.initViews("code-" + D.target.name, list.map(function (v) {
     return { id: v.id, label: v.label, title: v.title, enter: function () { current = v; v.enter(); }, leave: v.leave };
   }));
-  CMX.onTheme(function () { if (current && current.onTheme) current.onTheme(); else if (current) current.enter(); });
+  CMX.onTheme(function () { hold(); if (current && current.onTheme) current.onTheme(); else if (current) current.enter(); });
 
   $("#find").addEventListener("keydown", function (ev) {
     if (ev.key !== "Enter") return;

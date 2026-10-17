@@ -15,8 +15,10 @@ from pathlib import Path
 
 from contextmax import util
 
-FORMAT_VERSION = 1
-RANGE_DASH = "–"
+FORMAT_VERSION = 2          # 2: where each value is: its line, page, section, sentence, and where its name came from
+# A range is written 1~4: a dash between two numbers reads as a minus, to a model as much as to a person.
+RANGE_MARK = "~"
+_RANGE_INPUT = re.compile("[~\u2013]")       # 4~20, and 4\u201320 as earlier versions wrote it
 
 # Each unit with the spellings documents and workbooks use for it. A spelling is looked up as
 # written, then lower-cased, except where case is the difference (newton-metre vs nanometre).
@@ -69,9 +71,9 @@ def _canon_piece(piece: str) -> str:
 
 
 def canon_number(value) -> str:
-    """One spelling per number, so 1, 1.0 and 1,0 meet; a range such as 4-20 keeps its dash."""
-    pieces = str(value or "").strip().split(RANGE_DASH)
-    return RANGE_DASH.join(map(_canon_piece, pieces))
+    """One spelling per number, so 1, 1.0 and 1,0 meet; a range is written 4~20."""
+    pieces = _RANGE_INPUT.split(str(value or "").strip())
+    return RANGE_MARK.join(map(_canon_piece, pieces))
 
 
 def canon_unit(unit) -> str:
@@ -97,7 +99,7 @@ def _is_decimal(piece: str) -> bool:
 
 
 def all_numbers(value) -> bool:
-    return all(_is_decimal(p) for p in str(value or "").split(RANGE_DASH))
+    return all(_is_decimal(p) for p in str(value or "").split(RANGE_MARK))
 
 
 def says_nothing(label_norm: str) -> bool:
@@ -134,7 +136,7 @@ _TABLES = """
     CREATE TABLE places (
         id INTEGER PRIMARY KEY, source INTEGER NOT NULL REFERENCES sources(id),
         sheet TEXT, cell TEXT, label TEXT, label_norm TEXT NOT NULL, formula TEXT, hidden INTEGER NOT NULL,
-        context TEXT);
+        context TEXT, label_source TEXT, line_no INTEGER, page INTEGER, section TEXT, sentence TEXT, symbol TEXT);
     CREATE TABLE entries (
         id INTEGER PRIMARY KEY, place INTEGER NOT NULL REFERENCES places(id), origin TEXT NOT NULL,
         kind TEXT NOT NULL, value TEXT NOT NULL, value_as_written TEXT NOT NULL, value_shown TEXT NOT NULL,
@@ -154,7 +156,8 @@ _INDEXES = """
 # Column -> key of a source record; doc_ref falls back to the file's own key.
 _SOURCE_COLUMNS = {"file_key": "file_key", "doc_ref": "node_ref", "folder": "folder", "relative_path": "relative_path",
                    "ext": "ext", "doc_type": "kind", "category": "category", "stage": "stage", "module": "module"}
-_PLACE_COLUMNS = ("source", "sheet", "cell", "label", "label_norm", "formula", "hidden", "context")
+_PLACE_COLUMNS = ("source", "sheet", "cell", "label", "label_norm", "formula", "hidden", "context", "label_source",
+                  "line_no", "page", "section", "sentence", "symbol")
 _ENTRY_FIELDS = ("origin", "kind", "value", "value_as_written", "value_shown", "value_norm", "value_exact_norm",
                  "unit", "unit_as_written", "unit_norm")
 
@@ -172,10 +175,10 @@ def _source_row(source: dict) -> list:
 
 def _place_key(row: dict) -> tuple:
     """Rows of one document share a place when they come from the same cell (with the same
-    label, formula and hidden flag) or, outside a workbook, from the same sentence."""
+    label, formula and hidden flag) or, outside a workbook, from the same words on the same line."""
     in_cell = bool(row.get("sheet") and row.get("cell"))
     return (row.get("sheet"), row.get("cell"), row.get("label"), row.get("formula"), bool(row.get("hidden")),
-            None if in_cell else row.get("context"))
+            None if in_cell else (row.get("context"), row.get("line_no")))
 
 
 def write_database(rows_path: Path, db_path: Path, sources: list[dict]) -> dict:
@@ -203,7 +206,9 @@ def write_database(rows_path: Path, db_path: Path, sources: list[dict]) -> dict:
             key = _place_key(row)
             if key not in place_of:
                 values = (source_id[current_doc], row.get("sheet"), row.get("cell"), row.get("label"),
-                          row.get("label_norm") or "", row.get("formula"), int(bool(row.get("hidden"))), row.get("context"))
+                          row.get("label_norm") or "", row.get("formula"), int(bool(row.get("hidden"))), row.get("context"),
+                          row.get("label_source"), row.get("line_no"), row.get("page"), row.get("section"),
+                          row.get("sentence"), row.get("symbol"))
                 place_of[key] = con.execute(add_place, values).lastrowid
                 places += 1
             con.execute(add_entry, (place_of[key], *(row[field] for field in _ENTRY_FIELDS)))

@@ -12,7 +12,7 @@ import shutil
 from html import escape
 from pathlib import Path
 
-from contextmax import util
+from contextmax import parallel, util
 from contextmax.views import atlas_data, code_data, docs_data, params_data
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -70,6 +70,49 @@ def _targets_with_maps(proj) -> list[dict]:
     return out
 
 
+LARGE_BYTES = 8_000_000          # the document list and function lists together: pages in parallel above it
+
+
+def _size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _page_file(job: tuple) -> str:
+    return f"code-{job[1]}.html" if job[0] == "code" else f"{job[0]}.html"
+
+
+def _page(job: tuple) -> tuple[str, str]:
+    """One page written (a piece of parallel work): its file name, and what it shows."""
+    d = parallel.shared()
+    proj, portable, targets = d["proj"], d["portable"], d["targets"]
+    out = proj.pages_dir
+    if job[0] == "code":
+        t = next(x for x in targets if x["name"] == job[1])
+        full = next(x for x in proj.code_targets if x["name"] == t["name"])
+        data = code_data.build(proj, full, portable)
+        data["project"] = {"name": proj.name, "targets": targets, "links": d["links"][:12]}
+        util.save_text(out / _page_file(job), _app_page(proj, f"Code: {t['label']}", f"code-{t['name']}", targets, data,
+                                                        "code.js", "function or module", vis=True))
+        return _page_file(job), f"the code map of {t['label']}"
+    if job[0] == "documents":
+        data = docs_data.build(proj, portable)
+        util.save_text(out / "documents.html", _app_page(proj, "Documents", "documents", targets, data, "documents.js",
+                                                     "title or document number", vis=True))
+        return "documents.html", "the document map"
+    if job[0] == "params":
+        values_data = params_data.build(proj, portable)
+        values_data["project"] = proj.slug
+        util.save_text(out / "params.html", _params_page(proj, targets, values_data))
+        return "params.html", "the values and where each is stated"
+    data = atlas_data.build(proj, portable)
+    util.save_text(out / "atlas.html", _app_page(proj, "Complete Atlas", "atlas", targets, data, "atlas.js",
+                                             "module, document or function", vis=False))
+    return "atlas.html", "the Complete Atlas, code and documents and every link"
+
+
 def build_all(proj, portable: bool = False) -> dict:
     out = proj.pages_dir
     out.mkdir(parents=True, exist_ok=True)
@@ -77,29 +120,23 @@ def build_all(proj, portable: bool = False) -> dict:
         shutil.copyfile(ASSETS / name, out / name)
     targets = _targets_with_maps(proj)
     links = [f"{c.get('from')} → {c.get('to')}: {c.get('label', c.get('kind', ''))}" for c in _connections(proj)]
-    written = []
-    for t in targets:
-        full = next(x for x in proj.code_targets if x["name"] == t["name"])
-        data = code_data.build(proj, full, portable)
-        data["project"] = {"name": proj.name, "targets": targets, "links": links[:12]}
-        html = _app_page(proj, f"Code: {t['label']}", f"code-{t['name']}", targets, data, "code.js",
-                         "function or module", vis=True)
-        util.save_text(out / f"code-{t['name']}.html", html)
-        written.append(f"code-{t['name']}.html")
+    jobs = [("code", t["name"]) for t in targets]
     if (proj.documents_dir / "doc-list.jsonl").exists():
-        data = docs_data.build(proj, portable)
-        util.save_text(out / "documents.html", _app_page(proj, "Documents", "documents", targets, data, "documents.js",
-                                                     "title or document number", vis=True))
-        written.append("documents.html")
-        values_data = params_data.build(proj)
-        values_data["project"] = proj.slug
-        util.save_text(out / "params.html", _params_page(proj, targets, values_data))
-        written.append("params.html")
-    if written:
-        data = atlas_data.build(proj, portable)
-        util.save_text(out / "atlas.html", _app_page(proj, "Complete Atlas", "atlas", targets, data, "atlas.js",
-                                                 "module, document or function", vis=False))
-        written.append("atlas.html")
+        jobs += [("documents",), ("params",)]
+    if jobs:
+        jobs.append(("atlas",))
+    # each page is written by a worker of its own on a large project (each reads what it shows, and writes
+    # its own file); on a small one, starting the workers would take longer than writing the pages here
+    large = _size(proj.documents_dir / "doc-list.jsonl") + sum(
+        _size(proj.code_dir / t["name"] / "function-list.jsonl") for t in targets) > LARGE_BYTES
+    written = []
+    with parallel.Spread(_page, jobs, data={"proj": proj, "portable": portable, "targets": targets, "links": links},
+                         min_items=2 if large else len(jobs) + 1) as spread:
+        for _, result in spread.results():
+            if isinstance(result, BaseException):
+                raise result
+            util.say("pages", f"{result[0]}: {result[1]}")
+    written = [_page_file(job) for job in jobs]
     sdata = {"targets": targets, "links": _connections(proj), "project": proj.name,
              "file": str(proj.path("notes", "connections.json")) if not portable else "notes/connections.json"}
     util.save_text(out / "connections.html", _connections_page(proj, targets, sdata))
@@ -135,11 +172,14 @@ def _params_page(proj, targets, data: dict) -> str:
         '<input id="find" class="fixed" style="width:320px;max-width:100%;min-height:42px;padding:8px 12px;border:1.5px solid var(--text);border-radius:8px;background:var(--surface)" placeholder="settle time"></div>'
         '<p class="quiet" style="max-width:560px;margin:0;line-height:21px">A value is found by its name. The number alone is ambiguous: '
         f'{st["rows_count"]:,} values are indexed, {st["named_variables_count"]:,} names, {st["shared_count"]:,} stated in more than one document, '
-        f'<b style="color:var(--conflict)">{st["differ_count"]:,}</b> of those with different numbers.</p></div>'
+        f'<b style="color:var(--conflict)">{st["differ_count"]:,}</b> of those with different numbers; '
+        f'{st.get("in_code_count", 0):,} found in the code, <b style="color:var(--conflict)">{st.get("code_mismatch_count", 0):,}</b> '
+        'of them with another value there.</p></div>'
         '<div class="hstack" role="group" aria-label="Show">'
         '<button type="button" class="switch is-on" data-only="all" aria-pressed="true">All names</button>'
         '<button type="button" class="switch" data-only="shared" aria-pressed="false">In more than one document</button>'
-        '<button type="button" class="switch" data-only="differ" aria-pressed="false">Disagreeing</button></div>'
+        '<button type="button" class="switch" data-only="differ" aria-pressed="false">Disagreeing</button>'
+        '<button type="button" class="switch" data-only="code" aria-pressed="false">In the code</button></div>'
         + note +
         '<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">'
         '<div class="tile" style="flex:1 1 300px;max-width:420px;max-height:70vh;overflow:auto;padding:14px"><ul id="vars" class="drawer" style="width:auto;border:0;padding:0;background:none"></ul></div>'

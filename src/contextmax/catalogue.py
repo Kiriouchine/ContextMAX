@@ -158,6 +158,7 @@ def walk_folder(root: Path, skip_also: list[str] | None = None):
                 stepped["cannot be listed"] += 1
                 continue
             rows.append((full, util.rel_key(full, root), st))
+            util.tick(os.path.basename(dirpath))
     rows.sort(key=lambda r: r[1])
     return rows, stepped
 
@@ -178,7 +179,8 @@ def build(proj: Project) -> dict:
             util.say("catalogue", f"{folder.name}: not found at {folder.path}")
             continue
         util.say("catalogue", f"scanning {folder.name}: {root}")
-        files, stepped = walk_folder(root, skip_also=[str(proj.workspace)])
+        with util.progress("catalogue", f"listing {folder.name}"):
+            files, stepped = walk_folder(root, skip_also=[str(proj.workspace)])
         stepped_total.update(stepped)
         rows = []
         for _full, rel, st in files:
@@ -207,6 +209,9 @@ def build(proj: Project) -> dict:
         util.say("catalogue", f"  {len(rows)} files")
 
     every_row.sort(key=lambda r: (r[0], r[11]))
+    changes = _changes(out / "all-files.csv", every_row)
+    if changes:
+        util.say("catalogue", f"since the last catalogue: {changes}")
     util.save_csv(out / "all-files.csv", HEADER, every_row)
     prio = sorted((r for r in every_row if r[1]), key=lambda r: (r[1], r[0], r[11]))
     util.save_csv(out / "priority-files.csv", HEADER, prio)
@@ -215,7 +220,46 @@ def build(proj: Project) -> dict:
                                            "file_total": len(every_row)})
     _write_summary(proj, out / "overview.txt", every_row, stepped_total)
     util.save_json(out / "catalogue-info.json", {"built_utc": util.utc_now(), "file_total": len(every_row)})
-    return {"files": len(every_row), "priority": len(prio), "folders": len(folders_meta)}
+    return {"files": len(every_row), "priority": len(prio), "folders": len(folders_meta), "changes": changes}
+
+
+def since_last(proj: Project, examples: int = 5) -> dict:
+    """What the project's folders gained, lost or changed since the last catalogue, looked at now (nothing is
+    written): {"new", "changed", "removed": counts, "examples": a few of each, "missing": folders not found}.
+    A file counts as changed when its size or its day of change differs, as in the catalogue's own record."""
+    previous = proj.catalogue_dir / "all-files.csv"
+    before = {(r["Folder"], r["RelativePath"]): (r["Kilobytes"], r["Modified"]) for r in util.csv_rows(previous)}
+    now, missing = {}, []
+    for folder in proj.folders:
+        root = Path(folder.path)
+        if not root.is_dir():
+            missing.append(folder.name)
+            continue
+        files, _ = walk_folder(root, skip_also=[str(proj.workspace)])
+        for _full, rel, st in files:
+            now[(folder.name, rel)] = (f"{st.st_size / 1024:.1f}",
+                                       datetime.fromtimestamp(st.st_mtime, timezone.utc).strftime("%Y-%m-%d"))
+    looked = {f.name for f in proj.folders if f.name not in missing}
+    gone = sorted(k for k in before if k[0] in looked and k not in now)
+    new = sorted(k for k in now if k not in before)
+    changed = sorted(k for k, v in now.items() if k in before and before[k] != v)
+    return {"new": len(new), "changed": len(changed), "removed": len(gone), "missing": missing,
+            "examples": {"new": [k[1] for k in new[:examples]], "changed": [k[1] for k in changed[:examples]],
+                         "removed": [k[1] for k in gone[:examples]]}}
+
+
+def _changes(previous: Path, rows: list[list]) -> str:
+    """What the folders gained, lost or changed since the last catalogue, for the log ('' the first time).
+    A file counts as changed when its size or its day of change differs."""
+    if not previous.exists():
+        return ""
+    before = {(r["Folder"], r["RelativePath"]): (r["Kilobytes"], r["Modified"]) for r in util.csv_rows(previous)}
+    now = {(r[0], r[11]): (r[8], r[9]) for r in rows}
+    new = sum(1 for k in now if k not in before)
+    gone = sum(1 for k in before if k not in now)
+    changed = sum(1 for k, v in now.items() if k in before and before[k] != v)
+    parts = [f"{n:,} {w}" for n, w in ((new, "new"), (changed, "changed"), (gone, "removed")) if n]
+    return ", ".join(parts) if parts else "no file added, changed or removed"
 
 
 def _write_summary(proj: Project, path: Path, rows: list[list], stepped: Counter) -> None:
