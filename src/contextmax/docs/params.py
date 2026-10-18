@@ -35,6 +35,7 @@ _SPELLINGS = (
     ("Pa", ("pa",)), ("kPa", ("kpa",)), ("MPa", ("MPa",)), ("mPa", ("mPa",)), ("dB", ("db",)),
     ("°C", ("°c",)), ("Nm", ("Nm",)), ("mNm", ("mNm", "mnm")), ("nm", ("nm",)),
     ("rpm", ("rpm",)), ("ppm", ("ppm",)), ("s", ("sec",)),
+    ("kg·m²", ("kg m2", "kg m²", "kg·m²", "kg·m2", "kgm2", "kgm²", "kg m^2", "kg·m^2", "kgm^2")),   # a PDF's m² is m2
 )
 UNIT_OF = {spelling: unit for unit, spellings in _SPELLINGS for spelling in spellings}
 CASE_MATTERS = frozenset({"Nm", "nm", "MPa", "mPa"})

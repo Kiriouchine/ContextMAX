@@ -31,8 +31,8 @@ from pathlib import Path
 
 from contextmax import parallel, util
 from contextmax.docs import params as P
+from contextmax.docs import search, value_code
 from contextmax.docs import symbols as SYM
-from contextmax.docs import value_code
 from contextmax.project import Project
 
 SHEET_SUFFIXES = {".csv", ".xls", ".xlsm", ".xlsx"}
@@ -89,8 +89,8 @@ UNIT_WORDS = (
     "rad/s", "rad", "rpm", "mNm", "Nm", "kN", "kΩ", "Ω", "ohm", "mH", "µH", "uH", "nH",
     "kV", "mV", "µV", "uV", "GHz", "kHz", "MHz", "Hz", "mA", "µA", "uA", "ms", "µs", "us", "ns",
     "kW", "mW", "W", "mbar", "kPa", "MPa", "Pa", "bar", "dB", "ppm", "counts?", "bits?", "bytes?", "kB", "MB", "GB",
-    "m/s²", "m/s", "mm/s", "A", "V", "N", "g", "kg", "mg", "%", "K", "s", "m",
-)                                  # longer spellings first: "ms" before "m", "mm/s" never as "mm"
+    "m/s²", "m/s", "mm/s", "A", "V", "N", "g", r"kg[ ·]?m(?:²|\^?2)", "kg", "mg", "%", "K", "s", "m",
+)                                  # longer spellings first: "ms" before "m", "mm/s" never as "mm", "kg m2" never as "kg"
 _UNITS = _any(*UNIT_WORDS)
 _NUMBER = r"[+-]?\d+(?:[,.]\d+)?"
 # a range: 1~4 cm, 1 to 4 cm, 1-4 cm, and with the unit on both numbers, 1 cm - 4 cm (one unit, said twice)
@@ -127,7 +127,7 @@ SHARED_VALUE_MIN = 2        # documents sharing this many named values are linke
 
 
 # Catalogue fields a document keeps as they are; and those each copy of a document lists.
-_KEPT_FIELDS = ("category", "folder", "relative_path", "ext", "chars", "pages", "doc_numbers", "sha256", "cached_text",
+_KEPT_FIELDS = ("category", "folder", "relative_path", "ext", "chars", "pages", "doc_numbers", "text_sha256", "cached_text",
                 "sheet_cells", "file_mtime_utc", "method")
 _COPY_FIELDS = ("title", "folder", "relative_path", "ext", "kind", "stage", "module", "category", "cached_text")
 # The fields of one value row, as params.jsonl stores them and validate() expects them.
@@ -254,11 +254,11 @@ def fold_documents(proj: Project, rules: Rules) -> tuple[list[dict], list[dict],
         rep = dict(max(variants, key=copy_preference))
         rep.update(canonical=ck, copies=len(variants),
                    copy_list=sorted(v["key"] for v in variants if v["key"] != rep["key"]),
-                   distinct_texts=len({v["sha256"] for v in variants if v.get("sha256")}),
+                   distinct_texts=len({v["text_sha256"] for v in variants if v.get("text_sha256")}),
                    products=sorted({t for v in variants for t in v["products"]}))
         core.append(rep)
         sources.extend(dict(file_key=v["key"], node_ref=rep["key"], **{f: v[f] for f in _COPY_FIELDS},
-                            sheet_cells=v.get("sheet_cells"), sha256=v["sha256"]) for v in variants)
+                            sheet_cells=v.get("sheet_cells"), text_sha256=v["text_sha256"]) for v in variants)
     core.sort(key=lambda d: (rules.stage_index(d["stage"]), d["module"] or "~", d["key"]))
     sources.sort(key=lambda s: (s["file_key"], s["node_ref"]))
     stats = {"rows": len(rows), "excluded": excluded, "nodes": len(core), "folded": len(docs) - len(core)}
@@ -369,6 +369,9 @@ def _name_rows(text: str, exact: dict, folded: dict, qualified: bool = False) ->
     for sym, n in counts.items():
         if sym in exact:
             record(sym, n, exact[sym])
+        elif sym[:1].isupper() and any(c == "_" or c.isdigit() for c in sym) and sym[:1].lower() + sym[1:] in exact:
+            # a code name that starts a sentence ("Encoder_drive_handle10_5() ..."); a plain word never counts
+            record(sym[:1].lower() + sym[1:], n, exact[sym[:1].lower() + sym[1:]])
     for low, n in fcounts.items():
         if low in folded:
             defs = {(target, module, kind) for _name, target, module, kind in folded[low]}
@@ -479,7 +482,7 @@ _TAIL_OF_A_NAME = frozenset("of by from than".split())
 _PARTICIPLES = frozenset("""consisting taking using having including giving being leading making resulting yielding
 corresponding according""".split())
 _FILLERS = frozenset("""with and or of for in on at to by from as is was are were be been being has have had which where
-while when whose whereas also then thus hence so such per than not nominal typical typically approximately approx
+while when whose whereas also then thus hence so such per than not typically approximately approx
 about around roughly nearly almost only just very shall must should will can may""".split())
 _REQUIREMENT_VERBS = frozenset("""keep limit be have provide maintain support achieve reach operate run stay remain respond
 settle measure report detect stop start use set hold reduce increase decrease ensure allow handle draw consume deliver
@@ -522,6 +525,9 @@ def _name_of(m, verb_first: bool):
     cut = max((i for i, w in enumerate(words) if w.lower() in _NAME_STARTS_AFTER), default=-1)
     if cut > 0 and words[cut - 1].lower() in _TAIL_OF_A_NAME:
         return None                              # "the speed of the drive shaft" names the speed, not the shaft
+    # "The pump control shall keep the timeout at 435.7 s": one word after the article names it, and the
+    # sentence's subject is the rest of its name (_fuller_names finds it in the document, or drops the word)
+    one_word = verb_first and cut >= 0 and words[cut].lower() in _DETERMINERS and len(words) == cut + 2
     words = words[cut + 1:]
     if words and words[0].lower() in _TAIL_OF_A_NAME:
         return None                              # "(power) from sine wave is": the name began before
@@ -534,7 +540,7 @@ def _name_of(m, verb_first: bool):
         if words[-1].lower() not in _FILLERS:
             symbol = words[-1]                   # a symbol after the name: "sample time Ts", "total energy E"
         words = words[:-1]
-    if not 2 <= len(words) <= 4 or any(w.lower() in _FILLERS or len(w) < 2 for w in words):
+    if not (2 <= len(words) <= 4 or one_word and len(words) == 1) or any(w.lower() in _FILLERS or len(w) < 2 for w in words):
         return None
     if words[0].lower() in _GENERIC_HEADS:
         return None                              # "a value lmin =", "in this case tc is"
@@ -703,6 +709,24 @@ def _value_row(origin: str, written: str, shown: str, unit_written: str, unit: s
             "section": section, "sentence": sentence, "symbol": symbol if label else None}
 
 
+def _fuller_names(rows: list[dict]) -> None:
+    """A value named by its own sentence ("The laser control shall keep the max current at 15.0 A" gives "max
+    current") takes the fuller name the same document gives it elsewhere ("Laser control max current: 12.5 A"),
+    when exactly one name there ends with it. The two statements are then compared, and every other part's
+    "max current" is not pooled with them."""
+    full: dict[str, str] = {}
+    for r in rows:
+        if r["label_source"] in ("label", "cell") and r["label_norm"]:
+            full.setdefault(r["label_norm"], r["label"])
+    for r in rows:
+        if r["label_source"] == "sentence" and r["label_norm"]:
+            longer = sorted(n for n in full if n.endswith(" " + r["label_norm"]))
+            if len(longer) == 1:
+                r["label"], r["label_norm"] = full[longer[0]], longer[0]
+            elif " " not in r["label_norm"]:          # "the timeout", and no fuller name here: whose, not said
+                r["label"], r["label_norm"], r["label_source"], r["symbol"] = None, "", None, None
+
+
 def _doc_parameters(text: str, rules: Rules, ext: str = "", page_lines: list[int] | None = None) -> tuple[dict, list[dict]]:
     parsed = outline_of(text, rules, ext, page_lines)
     rows = []
@@ -713,6 +737,7 @@ def _doc_parameters(text: str, rules: Rules, ext: str = "", page_lines: list[int
                                context=p["context"], label_source=p["label_source"] if label is None else "cell",
                                line_no=p["line_no"], page=p["page"], section=p["section"], sentence=p["sentence"],
                                symbol=p["symbol"] if label is None else None))
+    _fuller_names(rows)
     # the outline lists the values with their names, as a workbook's outline does
     parsed["values"] = [{k: r[k] for k in _SHEET_OUTLINE_KEYS} for r in rows[:STRUCT_CAP]]
     return parsed, rows
@@ -1160,6 +1185,8 @@ def build(proj: Project) -> dict:
     util.save_jsonl(dm / "value-conflicts.jsonl", [json.loads(json.dumps(c, sort_keys=True)) for c in conflicts])
     util.save_json(dm / "links" / "code-to-doc.json", docs_of_code(proj, core, dc_edges), indent=None, sort_keys=True)
     _write_guide(proj, core, dc_edges, dd_edges, rules)
+    util.say("corpus", "the search store: every document's text and headings, searchable word by word")
+    store = search.write(proj)
     summary = {"docs_count": len(core), "sources_count": len(sources), "code_linked_count": sum(1 for d in core if d["linked_code"]),
                "doc_code_edges_count": len(dc_edges), "doc_doc_edges_count": len(dd_edges),
                "doc_doc_kinds": dict(sorted(kinds.items())), "outline_totals": st["totals"],
@@ -1167,7 +1194,7 @@ def build(proj: Project) -> dict:
                "named_values_count": sum(1 for r in value_rows if r.get("label")),
                "value_names_count": len(values["by_label"]),
                "names_from_sentences_count": sum(1 for r in value_rows if r.get("label_source") == "sentence"),
-               "value_code": vc,
+               "value_code": vc, "search": store,
                "stages": rules.stages}
     util.save_json(dm / "overview.json", summary)
     return summary
@@ -1284,7 +1311,7 @@ def validate(proj: Project) -> tuple[list[str], dict]:
         p = dm / (r.get("cached_text") or "")
         if not p.is_file():
             return [f"text missing for {r.get('key')}"]
-        if util.hash_file(p) != r.get("sha256"):
+        if util.hash_file(p) != r.get("text_sha256"):
             found.append(f"text of {r.get('key')} changed since it was indexed")
         if (r.get("ext") or "") in SHEET_SUFFIXES:
             rec = dm / (r.get("sheet_cells") or "")
@@ -1418,6 +1445,7 @@ def validate(proj: Project) -> tuple[list[str], dict]:
             unknown = set(data.get("functions", {})) - set(sym) - set(vh)
             if unknown:
                 errors.append(f"docs_of_code[{target}]: {len(unknown)} names that the code map does not have")
+    errors += search.check(proj)
     counts = {"cached documents": len(cached_keys), "map documents": len(map_keys), "source files": len(sources),
               "values": len(value_rows), "code links": len(dc), "document links": len(dd), "values that differ": len(conflicts)}
     return errors, counts

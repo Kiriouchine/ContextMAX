@@ -59,12 +59,12 @@ def build(proj) -> dict:
                                 "bytes_sha256": content}
         source_hashes[t["name"]] = src
     index_rows = util.load_jsonl(proj.documents_dir / "text-index.jsonl")
-    docs_identity = util.canonical_hash([[r["key"], r["sha256"], r.get("file_bytes"), r.get("file_mtime_utc")]
+    docs_identity = util.canonical_hash([[r["key"], r["text_sha256"], r.get("file_bytes"), r.get("file_mtime_utc")]
                                          for r in index_rows])
     text_meta = util.load_json(proj.documents_dir / "text-info.json", default={}) or {}
     coverage = util.load_json(proj.documents_dir / "text-coverage.json", default={}) or {}
     doc_files = {}
-    for name in ("doc-list.jsonl", "doc-sources.jsonl", "doc-outlines.jsonl", "params.jsonl", "params.sqlite",
+    for name in ("doc-list.jsonl", "doc-sources.jsonl", "doc-outlines.jsonl", "params.jsonl", "params.sqlite", "search.sqlite",
                  "params-info.json", "text-index.jsonl", "text-coverage.json", "overview.json", "document-guide.md",
                  "links/doc-to-code.jsonl", "links/between-docs.jsonl", "links/code-to-doc.json", "value-conflicts.jsonl",
                  "links/value-to-code.jsonl"):

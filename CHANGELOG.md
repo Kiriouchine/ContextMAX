@@ -1,5 +1,101 @@
 # Changelog
 
+## 0.4.1 (2026-10-18)
+
+- Measured with Claude Code agents on nine questions about two projects (one of 20,000 files), every answer
+  checked against the source files: with the skill, none of 19 answers had a key fact wrong; without it, 2
+  of 9 had one wrong. With this release, the agents with the skill took 29% less time and 18% fewer tokens
+  than those without it on the first seven questions (1,892 s against 2,677 s), and 31% and 38% less time
+  on two new questions. One run per question and arm: a single run can take much longer when the agent
+  chooses to dig deeper.
+- Ask: the model on this PC reads the code again. In 0.4.0 the ways in were one list (document values
+  first, then the other documents with the same value name, then the code, the functions and the
+  passages) cut to six places, so a value name in many spreadsheets filled every place and the code was
+  never read ("What value does the laser control have for its limit?" read six budget sheets and said
+  "not found"). Now every kind of way in (values, named numbers in the code, sections by their heading,
+  functions, passages, pictures) is scored on one scale, a rare word of the question counting more, and
+  the kinds take turns; a kind that holds less than half of what the best way in holds is not read.
+- Ask: a value name is one way in, with one document read for each of its values; named numbers that
+  differ only in their digits (`LASER_CONTROL_LIMIT_0` … `_46`) are one family, read once.
+- Ask: where the model finds a way in that answers, ContextMAX looks up the rest in the files itself:
+  every document that states that value, or every file that sets that named number with its value and
+  the functions of its module that use it, each line checked in its file. The answer cites these
+  look-ups, and the Ask page shows them with a link to each line.
+- Ask: when the first six passages say nothing about the question, six more are read before "not found".
+  A passage that answers any part of the question counts. A pointer that holds a code name
+  ("line 4: #define LASER_CONTROL_LIMIT_0 528") is followed to that name.
+- A way in for an AI in one call: `contextmax brief <project> "<question>"`. Two paired tests (Claude Code
+  agents with the skill and without, on the same question) showed the index saved neither time nor tokens:
+  an agent's time is its turns (about 9 s each), and the lookups returned long lists that took as many turns
+  to digest as a search of its own. The brief gives, in one call (about 4 s on 10,000 documents and 62,500
+  functions, under a second on a small project), the places to read (named values,
+  named numbers in the code, sections, passages, functions, each with the line it points at), every file
+  that sets each named number with its value and every use, and every document that states each value and
+  whether they agree. It is the procedure that guides the model on this PC, without the model.
+- The brief starts with what the question names exactly: a function with its callers (the line of each call),
+  how far a change reaches and every document line that names it; a named number with its value and every
+  use. In a paired test an assistant needed several lookups for "who calls laser_control_limit10_0?"; the
+  brief now answers it in one call.
+- When a question names a part of the code (a module of two words or more, such as laser_control), the brief
+  keeps to it and adds a summary: every named number of the part (the definition in effect, the uses) and
+  every value its documents state, marked where the documents differ. The question's own words (function,
+  call, code, change, value) are not searched for: in a corpus that seldom uses them they outweighed the name
+  the question was about.
+- In a question about one part ("the encoder drive's nominal voltage"), the part's own words say where, not
+  what: every name in the part holds them, so they count half, and a way in that holds nothing else of the
+  question is not shown. In a second paired round, half the places of that brief were encoder_drive
+  functions and a max current, none of them a voltage. The part's values are matched by whole words: the
+  encoder drive, not the encoder driver.
+- A code name that holds the initials of three or four words of the question in a row is a way in for them:
+  `ekf_attitude_step` for "the extended Kalman filter", said as "(EKF: extended kalman filter)". That brief
+  gave no code at all before.
+- `params --compare` counts documents, then places: "61.8 V in 14 documents (27 places)", not "in 27".
+- `find doc` gives every line of a document that says the words (up to 8), not only the best one.
+- Fixed: a requirement that names its value in one word ("The pump control shall keep the timeout at
+  435.7 s") gave no name, so `params --compare` called the pump control timeout a match while one document's
+  requirement differs from its own list. The word now takes the fuller name its document gives ("Pump control
+  timeout"); where the document gives none, the value stays without a name, as before.
+- Fixed: "J1 = 0.0031 kg m2" (a PDF writes m² as m2) was read as kilograms; kg m2, kg m² and kg·m² are
+  now one unit, kg·m².
+- MATLAB named numbers with a name of two letters (I1, dt, Kp) are recorded, as in the other languages; a
+  one-letter name still needs a comment that says what it is. `find symbol I1` found nothing in a project
+  that sets it in fifty files.
+- Fixed: a code name that starts a sentence ("Encoder_drive_handle10_5() …") was not linked to the code.
+- Fixed: "the nominal voltage" and "the typical delay" gave no name ("nominal" and "typical" were treated as
+  filler), so a requirement stating another value than the document's own list was not compared with it.
+- Fixed: named numbers with a name of one or two letters (r1) recorded no uses, so they read as unused.
+- Named numbers in the code record every use (file, line, the function it is in) in values.jsonl; a name
+  defined in several places is used where its definition is in effect (the same file, else a header the file
+  includes), and a value in a header records how many files include it. `find symbol|callers|impact` covers
+  named numbers: where each is set, every use, and what a change reaches.
+- `find doc` searches the documents' text too, each hit at the line that says most. The text and the
+  headings are in a search store written by the build (documents/search.sqlite, counted in the outputs
+  hash), so a lookup reads only what the words point to: the Ask page loads a 10,000-document project in
+  about 2 s instead of 23. The store adds about 20 s to a build of that project (178 s in all, the same
+  index byte for byte with one worker or eleven) and 92 MB to its working folder.
+- `find` and `params` print plain text, every place cited and long lists cut with a count (`--json` for
+  everything). `params --name` with no hit lists the names that share its words.
+- The skill is two thirds of its size (9 KB instead of 14) and starts with the brief, in Bash, with the Python and the working
+  folder written in (PowerShell adds a byte-order mark to piped output, which broke 4 of 9 lookups in a
+  test); the description of every index file moved to references/index-files.md beside it.
+- Fixed: every quoted `#include "x.h"` of C and C++ was stored as blanks (strings were blanked before the
+  includes were read), so no file was known to include a project header.
+- Fixed: a requirement sentence ("The laser control shall keep the max current at 15.0 A") named its value
+  "max current", so it was compared with every part's max current and never with its own document's "Laser
+  control max current: 12.5 A". A value named by its sentence now takes the fuller name its own document gives
+  it, when exactly one name there ends with it.
+- Fixed: a numbered name ("control limit 10") met a code name through one more word (LASER_CONTROL_LIMIT_10)
+  in any document; it now meets it only where the document's name, sentence or section says that part too.
+- `text-index.jsonl` calls the hash of a document's extracted text `text_sha256` (it was `sha256`, which read
+  like the file's own hash: an assistant concluded from it that two different PDFs were the same file). An
+  older index is renamed in place by the next build.
+- Another tool's report about the project (a folder with Graphify's GRAPH_REPORT.md and graph.json) is not
+  catalogued as a project document.
+- Ask your AI: Claude Code is found where its installer puts it (`%USERPROFILE%\.local\bin\claude.exe`,
+  a folder the installer does not add to the PATH), and Claude Code and Codex where npm puts them
+  (`%APPDATA%\npm`). Before, the Claude Code button was missing and the card said "the claude command is
+  not installed".
+
 ## 0.4.0 (2026-10-17)
 
 A new ContextMAX, rebuilt around four layers that each answer one question: the catalogue (where is

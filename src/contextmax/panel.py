@@ -81,9 +81,9 @@ def _skill_status(p) -> dict:
     from contextmax import agentskill, assistants
 
     want = agentskill.compose(p)
-    on_pc = {"claude": (Path.home() / ".claude").is_dir() or bool(assistants._which("claude")) or assistants._claude_in_vscode(),
+    on_pc = {"claude": (Path.home() / ".claude").is_dir() or bool(assistants._installed("claude")) or assistants._claude_in_vscode(),
              "copilot": bool(assistants._vscode()),
-             "codex": (Path.home() / ".codex").is_dir() or bool(assistants._which("codex"))}
+             "codex": (Path.home() / ".codex").is_dir() or bool(assistants._installed("codex"))}
     hosts = []
     for name, base in agentskill.HOSTS.items():
         f = base / f"contextmax-{p.slug}" / "SKILL.md"
@@ -252,6 +252,17 @@ def _page_window(slug: str, w: dict) -> dict:
     return out
 
 
+def _page_quote(slug: str, q: dict) -> dict:
+    """One line of a source as the Ask page shows it: a line ContextMAX looked up itself opens where it is."""
+    out = {k: v for k, v in q.items() if k not in ("root", "file", "key")}
+    if q.get("root") and q.get("file"):
+        full = Path(q["root"]) / q["file"]
+        out["editor"] = "vscode://file/" + quote(str(full).replace("\\", "/"), safe="/:") + f":{q.get('line') or 1}"
+    elif q.get("key"):
+        out["line_link"] = f"/lines?slug={quote(slug)}&key={quote(q['key'])}&n={int(q.get('line') or 1)}"
+    return out
+
+
 LINES_SPAN = 60                        # lines the line viewer sends around the one asked for
 
 
@@ -290,7 +301,8 @@ def _run_ask(job: str, slug: str, question: str, kind: str, base: str, model: st
             if e.get("window"):
                 e = dict(e, window=_page_window(slug, e["window"]))
             if e["step"] == "sources":
-                j["sources"] = [dict(x, window=_page_window(slug, x["window"])) for x in e["sources"]]
+                j["sources"] = [dict(x, window=_page_window(slug, x["window"]), quotes=[_page_quote(slug, q) for q in x["quotes"]])
+                                for x in e["sources"]]
                 return
             if e["step"] == "confidence":
                 j["confidence"] = {"level": e["level"], "why": e["why"]}

@@ -222,9 +222,12 @@ def links(value_rows: list[dict], code: list[dict]) -> list[dict]:
             continue
         n = names.setdefault(lab, {"label": r.get("label") or lab, "values": {}})
         key = (r["value_norm"], r["unit_norm"], _bound(r))
-        v = n["values"].setdefault(key, {"shown": f"{r['value_shown']} {r['unit']}".strip(), "documents": {}})
+        v = n["values"].setdefault(key, {"shown": f"{r['value_shown']} {r['unit']}".strip(), "documents": {}, "words": {}})
         v["documents"].setdefault(r["doc_ref"], {k: r.get(k) for k in (
             "doc_ref", "file_key", "stage", "line_no", "page", "section", "sheet", "cell")})
+        # the words around this statement of the value: its document's name, its sentence, its section
+        v["words"].setdefault(r["doc_ref"], set()).update(re.findall(r"[a-z0-9]+", " ".join(
+            str(r.get(k) or "") for k in ("doc_ref", "sentence", "context", "section")).lower()))
     out = []
     for lab in sorted(names):
         ws = words_of_label(lab)
@@ -241,9 +244,18 @@ def links(value_rows: list[dict], code: list[dict]) -> list[dict]:
         found.sort(key=lambda f: (f[0]["target"], f[0]["file"], f[0]["line"], f[0]["name"]))
         n = names[lab]
         for c, how in found:
+            # A numbered name ("control limit 10") is one of a list: met through one more word of the code, the
+            # number alone does not make it this part's. That first word names the part (LASER in
+            # LASER_CONTROL_LIMIT_10), so the document's name, sentence or section must say it too: "control limit
+            # 10" in an optics budget is another thing.
+            cw = words_of_code(c["name"])
+            numbered = any(w.isdigit() for w in ws)
+            extra = {cw[0]} if numbered and how.startswith("name, with one more") and cw[0] not in ws else set()
             for (value_norm, unit_norm, bound), v in sorted(n["values"].items()):
+                docs = [v["documents"][k] for k in sorted(v["documents"]) if extra <= v["words"][k]]
+                if not docs:
+                    continue
                 outcome, note = compare(value_norm, unit_norm, bound, c["value_norm"], c["unit"])
-                docs = [v["documents"][k] for k in sorted(v["documents"])]
                 out.append({
                     "label_norm": lab, "label": n["label"], "doc_value": value_norm, "doc_unit": unit_norm,
                     "doc_shown": v["shown"], "bound": bound, "documents": docs, "documents_count": len(docs),

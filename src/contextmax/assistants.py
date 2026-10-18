@@ -26,6 +26,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -46,9 +47,11 @@ pages (`Home.html`). The project's own folders, which the index points into:
 
 {folders}
 
-Use the **contextmax-{slug}** skill for every question about this project. It says how to look things up
-in the index and how to answer: with the file and line, the document, or the sheet and cell, and with what
-was not checked. The index is the way in, not the answer: open the document or the code it points to (the
+Use the **contextmax-{slug}** skill for every question about this project. Start with one command, in Bash:
+`"{python}" -m contextmax brief {slug} "<the question>"`: in a few seconds it shows where the
+question leads (code, named values, documents), with the lines to read. The skill says how to look further
+and how to answer: with the file and line, the document, or the sheet and cell, and with what was not
+checked. The index is the way in, not the answer: open the document or the code it points to (the
 line it cites), read it, answer from it and link it. End every answer with `Confidence: High`, `Medium` or
 `Low` and why, judged on what you read; when nothing answers the question, say so plainly and what you
 searched. Do not change files in the project's folders unless you are asked to.
@@ -57,6 +60,21 @@ searched. Do not change files in the project's folders unless you are asked to.
 
 def _which(name: str) -> str | None:
     return shutil.which(name) or shutil.which(name + ".cmd")
+
+
+def _installed(name: str) -> str | None:
+    """An assistant's command (claude, codex): on the PATH, or where its own installer puts it. Claude Code's
+    installer puts claude.exe in ~/.local/bin without adding that folder to the PATH, and npm puts its
+    commands in %APPDATA%/npm, which a window started before the install does not have on its PATH."""
+    found = _which(name)
+    if found:
+        return found
+    home = Path.home()
+    appdata = Path(os.environ.get("APPDATA") or home / "AppData" / "Roaming")
+    places = [home / ".local" / "bin" / f"{name}.exe", appdata / "npm" / f"{name}.cmd"]
+    if os.name != "nt":
+        places = [home / ".local" / "bin" / name]
+    return next((str(p) for p in places if p.is_file()), None)
 
 
 def _vscode() -> str | None:
@@ -154,9 +172,9 @@ def tools() -> list[dict]:
          "title": "Opens the project in VS Code, then Claude's chat with the project's skill typed in"},
         {"id": "vscode", "label": "VS Code", "ok": bool(code), "why": "" if code else "VS Code is not installed",
          "title": "Opens the project in VS Code, for Copilot's chat or any other assistant there"},
-        {"id": "claude", "label": "Claude Code", "ok": bool(_which("claude")), "why": "" if _which("claude") else
+        {"id": "claude", "label": "Claude Code", "ok": bool(_installed("claude")), "why": "" if _installed("claude") else
          "the claude command is not installed", "title": "Starts Claude Code in a terminal, in the project's folder, with its skill loaded"},
-        {"id": "codex", "label": "Codex", "ok": bool(_which("codex")), "why": "" if _which("codex") else
+        {"id": "codex", "label": "Codex", "ok": bool(_installed("codex")), "why": "" if _installed("codex") else
          "the codex command is not installed", "title": "Starts Codex in a terminal, in the project's folder"},
     ]
 
@@ -185,7 +203,8 @@ def prepare(proj) -> list[str]:
     """Make the working folder ready for an assistant; returns what was done."""
     ws = proj.workspace
     folders = "\n".join(f"- **{f.name}** ({f.holds}): `{f.path}`" for f in proj.folders) or "- (none yet)"
-    block = BEGIN + "\n" + GUIDE.format(name=proj.name, slug=proj.slug, folders=folders).rstrip("\n") + "\n" + END
+    python = sys.executable.replace("\\", "/")
+    block = BEGIN + "\n" + GUIDE.format(name=proj.name, slug=proj.slug, folders=folders, python=python).rstrip("\n") + "\n" + END
     done = []
     for name in ("CLAUDE.md", "AGENTS.md"):
         path = ws / name
@@ -247,8 +266,8 @@ def start(proj, tool: str) -> str:
         return "VS Code opens the project; ask in its chat (Copilot, or another assistant)"
     if tool == "claude":
         # the skill's name as the first message: Claude Code loads the skill at once; the question comes next
-        _new_console(_which(tool) or tool, ws, skill_command(proj))
+        _new_console(_installed(tool) or tool, ws, skill_command(proj))
         return (f"Claude Code starts in a terminal in {ws} and loads the project's skill ({skill_command(proj)}): "
                 "ask your question when it is ready")
-    _new_console(_which(tool) or tool, ws)
+    _new_console(_installed(tool) or tool, ws)
     return f"{known[tool]['label']} starts in a terminal in {ws}"

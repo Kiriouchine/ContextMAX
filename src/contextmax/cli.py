@@ -214,22 +214,31 @@ def cmd_status(a) -> int:
 
 
 def cmd_find(a) -> int:
-    from contextmax import query
+    from contextmax import plain, query
 
     proj = _project_ref(a.project)
     out = query.find(proj, a.what, a.query, target=a.target, depth=a.depth, limit=a.limit)
-    print(json.dumps(out, indent=1, ensure_ascii=False))
-    return 0 if out.get("hits") or out.get("ok") else 3
+    print(json.dumps(out, indent=1, ensure_ascii=False) if a.json else plain.find(out, a.what))
+    return 0 if out.get("hits") or out.get("text_hits") or out.get("ok") else 3
 
 
 def cmd_params(a) -> int:
-    from contextmax import query
+    from contextmax import plain, query
 
     proj = _project_ref(a.project)
     out = query.params(proj, name=a.name, compare=a.compare, value=a.value, exact=a.exact, unit=a.unit,
                        origin=a.origin, named_only=a.named, limit=a.limit)
-    print(json.dumps(out, indent=1, ensure_ascii=False))
+    print(json.dumps(out, indent=1, ensure_ascii=False) if a.json else plain.params(out))
     return 0
+
+
+def cmd_brief(a) -> int:
+    from contextmax import brief
+
+    proj = _project_ref(a.project)
+    b = brief.brief(proj, a.question)
+    print(json.dumps(b, indent=1, ensure_ascii=False) if a.json else brief.render(b))
+    return 0 if b["ways_in"] else 3
 
 
 def cmd_sheet(a) -> int:
@@ -387,13 +396,20 @@ def run(argv=None) -> int:
     p.add_argument("project")
     p.set_defaults(fn=cmd_validate)
 
-    p = sub.add_parser("find", help="look something up (JSON out)")
+    p = sub.add_parser("brief", help="the ways into a question in one call: code, values, documents, with their lines")
+    p.add_argument("project")
+    p.add_argument("question")
+    p.add_argument("--json", action="store_true", help="everything, as JSON")
+    p.set_defaults(fn=cmd_brief)
+
+    p = sub.add_parser("find", help="look something up: functions and named numbers, documents by title and by text")
     p.add_argument("project")
     p.add_argument("what", choices=["doc", "symbol", "callers", "callees", "impact", "module", "docs-for", "code-for", "links"])
     p.add_argument("query")
     p.add_argument("--target", help="code base name (default: all)")
     p.add_argument("--depth", type=int, default=0, help="impact/callers: levels to follow (0 = all)")
     p.add_argument("--limit", type=int, default=30)
+    p.add_argument("--json", action="store_true", help="everything, as JSON (default: plain text)")
     p.set_defaults(fn=cmd_find)
 
     p = sub.add_parser("params", help="named values: where stated, and whether the documents agree")
@@ -406,6 +422,7 @@ def run(argv=None) -> int:
     p.add_argument("--origin", choices=["cell_entry", "computed_value", "formula_constant", "prose_value"])
     p.add_argument("--named", action="store_true", help="only values that have a name")
     p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--json", action="store_true", help="everything, as JSON (default: plain text)")
     p.set_defaults(fn=cmd_params)
 
     p = sub.add_parser("sheet", help="read one workbook live: cells, formulas, a trace, a row-pairing check")

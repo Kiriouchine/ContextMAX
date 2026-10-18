@@ -35,6 +35,7 @@ def _plan(proj: Project, depth: str) -> list[str]:
 def build(proj: Project, depth: str = "quick", ocr: bool = True) -> dict:
     t0 = time.time()
     report = {"depth": depth}
+    textcache.migrate(proj)                   # an index from before 0.4.1 names its text hashes the new way
     steps = util.Steps(_plan(proj, depth))
     util.live("start", project=proj.name, depth=depth)
     if "catalogue" in steps.names:

@@ -17,13 +17,18 @@ unknown, and the row says why. A unit nothing states stays unknown: it is never 
 from __future__ import annotations
 
 import ast
+import io
+import os
 import re
+import tokenize
+from collections import Counter, defaultdict
 
 from contextmax import parallel, util
-from contextmax.code import c_lang, matlab_lang, vhdl_lang
+from contextmax.code import c_lang, cpp_lang, matlab_lang, vhdl_lang
 from contextmax.docs import params as P
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2               # 2: each named number's uses (used_in, uses_count, included_by_count)
+_IDENT = re.compile(r"[A-Za-z_]\w*")
 _NUMBER = r"[+-]?\s*(?:\d[\d']*(?:\.[\d']*)?|\.\d[\d']*)(?:[eE][+-]?\d+)?"
 # units a name ends with. One letter only for s, V and A: _M or _G name too many other things
 NAME_UNITS = {
@@ -191,7 +196,7 @@ def _matlab_values(text: str) -> list[dict]:
             comment = _clean_comment(rest)
         for s in statements:
             m = _M_ASSIGN.match(s)
-            if m and (len(m.group("name")) >= 3 or comment):
+            if m and (len(m.group("name").rsplit(".", 1)[-1]) >= 2 or comment):     # I1, dt, Kp; not i or x
                 rows.append(_row("MATLAB", "assignment", m.group("name"), m.group("num").replace("d", "e").replace("D", "e"),
                                  n, comment if len(statements) == 1 else ""))
     return rows
@@ -255,8 +260,91 @@ def read(job: tuple[str, str, str]) -> list[dict]:
             and (len(r["name"].rsplit(".", 1)[-1]) >= 2 or r["comment"])]
 
 
-def write(out, files: dict[str, list[tuple[str, str]]], file_info: dict) -> int:
-    """code/<base>/values.jsonl: every named number of the code base, in file and line order."""
+def _key(name: str) -> str:
+    """What a named number is called where it is used: Config.TIMEOUT_MS is used as TIMEOUT_MS after the dot."""
+    return name.rsplit(".", 1)[-1]
+
+
+def _code_lines(text: str, lang: str) -> list[str]:
+    """A file's lines with comments and strings blanked: a name left there is used, not only mentioned."""
+    if lang in ("C", "C++"):
+        return c_lang.blank_out(text).split("\n")
+    if lang == "MATLAB":
+        return matlab_lang.strip_matlab(text)
+    if lang == "VHDL":
+        return vhdl_lang.erase_comments(text).split("\n")
+    return []
+
+
+def _python_names(text: str) -> list[tuple[str, int]]:
+    out = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type == tokenize.NAME:
+                out.append((tok.string, tok.start[0]))
+    except (tokenize.TokenError, SyntaxError):
+        pass                                   # a file Python cannot read: the names found up to there
+    return out
+
+
+def uses_in(job: tuple[str, str, str]) -> list[tuple[str, int]]:
+    """Where the code base's named numbers are used in one file (a piece of parallel work): (name, line)."""
+    full, _rel, lang = job
+    names = parallel.shared()
+    try:
+        text = util.load_text(full)
+    except OSError:
+        return []
+    if lang == "Python":
+        pairs = _python_names(text)
+    else:
+        pairs = [(m.group(0), n) for n, line in enumerate(_code_lines(text, lang), 1) for m in _IDENT.finditer(line)]
+    return sorted({(name, n) for name, n in pairs if name in names})
+
+
+def _function_at(functions: list[dict], line: int) -> str | None:
+    inside = [f for f in functions if f["first_line"] <= line <= (f.get("last_line") or f["first_line"])]
+    if not inside:
+        return None
+    f = max(inside, key=lambda f: (f["first_line"], f["name"]))       # the innermost
+    return f.get("qualname") or f["name"]
+
+
+def _record_uses(rows: list[dict], jobs: list[tuple], file_info: dict, defs) -> None:
+    """Each named number's uses (file, line, the function they are in), comments and strings left out. A name
+    defined in more than one place is used where its definition is in effect: one in the same file, else one
+    in a header the file includes, else every definition of that name could be meant. A value in a C or C++
+    header also records how many files include that header (none: nothing can use it)."""
+    by_key: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_key[_key(r["name"])].append(r)     # every name, r1 too: a short name is still the name it is used by
+        r["used_in"] = []
+    found = parallel.map_in_order(uses_in, jobs, data=frozenset(by_key))
+    functions: dict[str, list[dict]] = defaultdict(list)
+    for d in defs:
+        functions[d["file"]].append(d)
+    includers = Counter(os.path.basename(x) for fi in file_info.values() for x in fi.get("includes") or [])
+    for (_full, rel, _lang), got in zip(jobs, found, strict=True):
+        included = {os.path.basename(x) for x in (file_info.get(rel) or {}).get("includes") or []}
+        for name, line in got:
+            meant = by_key[name]
+            if any(c["file"] == rel and c["line"] == line for c in meant):
+                continue                                         # the definition itself
+            meant = [c for c in meant if c["file"] == rel] or [c for c in meant if os.path.basename(c["file"])
+                                                                in included] or meant
+            use = {"file": rel, "line": line, "in": _function_at(functions[rel], line)}
+            for c in meant:
+                c["used_in"].append(use)
+    headers = cpp_lang.HEADER_EXTENSIONS
+    for r in rows:
+        r["used_in"].sort(key=lambda u: (u["file"], u["line"]))
+        r["uses_count"] = len(r["used_in"])
+        if r["lang"] in ("C", "C++") and os.path.splitext(r["file"])[1].lower() in headers:
+            r["included_by_count"] = includers[os.path.basename(r["file"])]
+
+
+def write(out, files: dict[str, list[tuple[str, str]]], file_info: dict, defs=()) -> int:
+    """code/<base>/values.jsonl: every named number of the code base, in file and line order, with its uses."""
     jobs = [(full, rel, lang) for lang, pairs in files.items() for full, rel in pairs]
     jobs.sort(key=lambda j: j[1])
     rows = []
@@ -265,5 +353,6 @@ def write(out, files: dict[str, list[tuple[str, str]]], file_info: dict) -> int:
             r["module"] = (file_info.get(r["file"]) or {}).get("module")
             rows.append(r)
     rows.sort(key=lambda r: (r["file"], r["line"], r["name"]))
+    _record_uses(rows, jobs, file_info, defs)
     util.save_jsonl(out / "values.jsonl", [dict(sorted(r.items())) for r in rows])
     return len(rows)

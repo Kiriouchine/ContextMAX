@@ -133,9 +133,23 @@ def find(proj, what: str, q: str, target: str | None = None, depth: int = 0, lim
                     out["hits"].append({"target": t["name"], "name": name, "kind": "VHDL entity", "file": e["file"],
                                         "line": e["line"], "cite": f"{e['file']}:{e['line']}", "module": e["module"],
                                         "role": e["role"], "path": str(Path(t["root"]) / e["file"])})
+        if what != "callees":                 # named numbers: where each is set, and every use
+            loaded: dict[str, list[dict]] = {}
+            for v in _value_hits(proj, q, target, limit):
+                if what in ("callers", "impact"):
+                    if v["target"] not in loaded:
+                        loaded[v["target"]] = _functions(proj.code_dir / v["target"])
+                    funcs = loaded[v["target"]]
+                    t = next(t for t, _ in _targets(proj, v["target"]))
+                    ids = _using(funcs, v["used_in"])
+                    v["used_by"] = [_fn_hit(t, funcs[i]) for i in ids][:limit * 4]
+                    if what == "impact":
+                        v["impact"] = _impact(funcs, ids, depth, t)
+                out["hits"].append(v)
         out["hits"] = out["hits"][:limit]
         if not out["hits"]:
-            out["note"] = "No definition with that name in the mapped code. Check `contextmax status` for code bases not mapped."
+            out["note"] = ("No function or named number with that name in the mapped code. Check `contextmax status` "
+                           "for code bases not mapped, or search the text: `find doc`.")
         return out
     if what == "module":
         out = {"query": q, "hits": []}
@@ -167,9 +181,17 @@ def _walk(funcs, start, field, depth, limit, t):
     return out[:limit * 4]
 
 
+def _using(funcs: list[dict], uses: list[dict]) -> list[int]:
+    """The functions a named number's uses stand in (their ids), in file order."""
+    where = {(f["file"], f.get("qualname") or f["name"]): f["id"] for f in funcs}
+    return sorted({where[(u["file"], u["in"])] for u in uses if u.get("in") and (u["file"], u["in"]) in where})
+
+
 def _impact(funcs, start, depth, t) -> dict:
-    """Everything that can reach this function through calls the map can see."""
-    seen, queue = {start: 0}, deque([start])
+    """Everything that can reach this function (or these functions: the users of a named number) through calls
+    the map can see."""
+    starts = [start] if isinstance(start, int) else list(start)
+    seen, queue = dict.fromkeys(starts, 0), deque(starts)
     while queue:
         n = queue.popleft()
         if depth and seen[n] >= depth:
@@ -178,12 +200,13 @@ def _impact(funcs, start, depth, t) -> dict:
             if c not in seen:
                 seen[c] = seen[n] + 1
                 queue.append(c)
-    reached = [funcs[i] for i in seen if i != start]
+    one = isinstance(start, int)            # a function: what reaches it; a named number's users: they and what reaches them
+    reached = [funcs[i] for i in seen if not one or i != start]
     prod = [f for f in reached if f["role"] != "test"]
     mods = sorted({f["module"] for f in prod})
     total_indirect = sum(len(f.get("indirect_calls", [])) for f in funcs)
     return {"product_functions": len(prod), "tests": len(reached) - len(prod), "modules": mods,
-            "direct_callers": len(funcs[start]["caller_ids"]),
+            "direct_callers": len(funcs[start]["caller_ids"]) if one else len(starts),
             "entry_points_reached": sorted(f["name"] for f in prod if f["callers_count"] == 0)[:30],
             "list": [{"name": f.get("qualname") or f["name"], "cite": f"{f['file']}:{f['first_line']}", "role": f["role"],
                       "level": seen[f["id"]]} for f in sorted(reached, key=lambda f: (seen[f["id"]], f["name"]))][:200],
@@ -214,8 +237,73 @@ def _find_doc(proj, q: str, limit: int) -> dict:
                               "path": str(Path(roots.get(r["Folder"], "")) / r["RelativePath"])})
                 if len(files) >= limit:
                     break
-    return {"query": q, "hits": hits[:limit], "other_files": files,
-            "note": "hits are mapped documents (text read); other_files are catalogue matches (any file)."}
+    return {"query": q, "hits": hits[:limit], "text_hits": text_hits(proj, q, limit), "other_files": files,
+            "note": "hits are documents whose title or path holds the words; text_hits are passages whose text holds "
+                    "them, with the line; other_files are catalogue matches (any file)."}
+
+
+def text_hits(proj, q: str, limit: int = 20) -> list[dict]:
+    """Where the documents' text says it: the words as one phrase first, else all of them, else any. One hit per
+    document, at the line that holds most of the words."""
+    from contextmax.docs import search
+
+    con = search.open_store(proj)
+    words = [w for w in re.findall(r"[^\W_][\w\-]*", q.lower()) if len(w) > 1]
+    if con is None or not words:
+        return []
+    rows_of = {r["key"]: r for r in util.load_jsonl(proj.documents_dir / "text-index.jsonl")}
+    stages = {d["key"]: d.get("stage") for d in util.load_jsonl(proj.documents_dir / "doc-list.jsonl")}
+    quoted = ['"' + w.replace('"', " ") + '"' for w in words]
+    found = []
+    try:
+        for match in ('"' + " ".join(words) + '"', " AND ".join(quoted), " OR ".join(quoted)):
+            found = con.execute(search.PASSAGES_SQL, (match, limit * 6)).fetchall()
+            if found:
+                break
+    finally:
+        con.close()
+    spans: dict[str, list[tuple[int, int]]] = {}          # per document, the passages found, the likeliest first
+    for key, first, last in found:
+        spans.setdefault(key, []).append((first, last))
+    hits = []
+    for key, parts in spans.items():
+        row = rows_of.get(key) or {}
+        try:          # the store holds the index; the text is the document's own
+            lines = (proj.documents_dir / row["cached_text"]).read_text(encoding="utf-8", errors="replace").splitlines()
+        except (OSError, KeyError):
+            continue
+        said = sorted({n for first, last in parts for n in range(first, min(last, len(lines)) + 1)
+                       if any(w in lines[n - 1].lower() for w in words)})
+        if not said:
+            continue
+        line = max(said, key=lambda n: (sum(w in lines[n - 1].lower() for w in words), -n))
+        title = row.get("doc_title") or Path(row.get("relative_path") or key).name
+        hits.append({"key": key, "title": title, "stage": stages.get(key), "line": line,
+                     "cite": citations.passage(title, stages.get(key), line, line, row.get("page_lines")),
+                     "says": " ".join(lines[line - 1].split())[:240],
+                     "lines": [{"line": n, "says": " ".join(lines[n - 1].split())[:240]} for n in said][:8],
+                     "text": str(proj.documents_dir / row.get("cached_text", ""))})
+        if len(hits) >= limit:
+            break
+    return hits
+
+
+def _value_hits(proj, q: str, target: str | None, limit: int) -> list[dict]:
+    """Named numbers of the code (#define, const, Python and MATLAB constants, VHDL generics) by name: exact, or
+    holding the words, with their value, unit and every use."""
+    low, out = q.lower(), []
+    for t, d in _targets(proj, target):
+        rows = util.load_jsonl(d / "values.jsonl")
+        exact = [v for v in rows if v["name"].lower() == low or v["name"].rsplit(".", 1)[-1].lower() == low]
+        for v in exact or [v for v in rows if low in v["name"].lower()]:
+            out.append({"target": t["name"], "name": v["name"], "kind": f"{v['lang']} {v['kind']}", "value": v["value"],
+                        "unit": v.get("unit") or "", "module": v.get("module"), "file": v["file"], "line": v["line"],
+                        "cite": f"{v['file']}:{v['line']}", "path": str(Path(t["root"]) / v["file"]),
+                        "uses_count": v.get("uses_count", 0), "used_in": v.get("used_in", []),
+                        "included_by_count": v.get("included_by_count"),
+                        "defined_count": sum(1 for x in rows if x["name"] == v["name"])})
+    out.sort(key=lambda h: (h["name"] != q, h["target"], h["file"], h["line"]))
+    return out[:limit]
 
 
 def _cross(proj, what: str, q: str, limit: int) -> dict:
@@ -281,6 +369,7 @@ def params(proj, name=None, compare=False, value=None, exact=None, unit=None, or
         r["cite"] = citations.value(r, titles.get(r["doc_ref"], r["doc_ref"]))
     if not compare:
         return {"query": {"name": name, "value": value, "exact": exact, "unit": unit}, "n": len(rows), "rows": rows[:limit],
+                "near": _near_names(db, name) if name and not rows else [],
                 "note": "A bare number matches every place it is written; prefer --name." if (value or exact) and not name else ""}
     groups = defaultdict(list)
     for r in rows:
@@ -300,6 +389,23 @@ def params(proj, name=None, compare=False, value=None, exact=None, unit=None, or
                                for _, g in sorted(stated.items(), key=lambda kv: -len(kv[1]))]})
     return {"query": {"name": name}, "compare": out,
             "note": "The verdict compares numbers only. Check any value that matters in the original document."}
+
+
+def _near_names(db: Path, name: str, limit: int = 10) -> list[dict]:
+    """Value names that share most of the asked name's words, for a name no value has ("laser control limit"
+    finds "Laser control max current")."""
+    words = [w for w in P.canon_label(name).split() if len(w) >= 3]
+    if not words:
+        return []
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        rows = con.execute("SELECT pl.label_norm, max(pl.label), count(DISTINCT s.doc_ref) FROM places pl JOIN sources s "
+                           "ON s.id = pl.source WHERE " + " OR ".join("pl.label_norm LIKE ?" for _ in words)
+                           + " GROUP BY pl.label_norm", [f"%{w}%" for w in words]).fetchall()
+    finally:
+        con.close()
+    scored = sorted(((-sum(w in lab.split() for w in words), -n, lab, shown) for lab, shown, n in rows if lab))
+    return [{"name": shown, "documents": -n} for hits, n, lab, shown in scored[:limit] if hits]
 
 
 # == sheet ==

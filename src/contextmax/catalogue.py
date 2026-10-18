@@ -36,6 +36,8 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".sv
 # over is still reported, so the gap is visible.
 SKIP_DIR_NAMES = {".git", ".hg", "node_modules", "__pycache__", ".venv", "venv", ".pytest_cache",
                   ".mypy_cache", ".ruff_cache", ".vs", ".vscode", ".idea", ".tox"}
+# Files that together mark a folder another tool wrote about the project (its report is not a project document).
+TOOL_OUTPUTS = {"Graphify": {"GRAPH_REPORT.md", "graph.json"}}
 
 HEADER = ["Folder", "Priority", "FirstFolder", "Category", "Products", "DocNumbers", "Name", "Ext", "Kilobytes",
           "Modified", "OnlineOnly", "RelativePath"]
@@ -116,11 +118,12 @@ class Classifier:
 
 
 def _marked_roots(root: Path) -> list[str]:
-    """Every folder that holds the skip marker, so its whole subtree is left alone."""
+    """Every folder that holds the skip marker, or another tool's output about the project, so its whole subtree
+    is left alone: an index of the project is not a document of it."""
     found = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIR_NAMES]
-        if SKIP_MARKER in filenames:
+        if SKIP_MARKER in filenames or any(marks <= set(filenames) for marks in TOOL_OUTPUTS.values()):
             found.append(os.path.normcase(os.path.abspath(dirpath)))
             dirnames[:] = []
     return found
@@ -138,7 +141,7 @@ def walk_folder(root: Path, skip_also: list[str] | None = None):
     for dirpath, dirnames, filenames in os.walk(root):
         here = os.path.normcase(os.path.abspath(dirpath))
         if any(here == b or here.startswith(b + os.sep) for b in blocked):
-            stepped["skip marker or working folder"] += 1
+            stepped["skip marker, working folder or another tool's output"] += 1
             dirnames[:] = []
             continue
         keep = []

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "contextmax"
-version = "0.4.0"
+version = "0.4.1"
 description = "Point it at your folders. Get a map of the code, a map of the documents, and the links between them, built by deterministic scripts, with a skill that lets an AI answer with citations."
 readme = "README.md"
 license = "Apache-2.0"

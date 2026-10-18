@@ -125,8 +125,21 @@ def xlsx_copy_of(proj: Project, src: str, key: str, use_excel: bool, copies: dic
     return out
 
 
+def migrate(proj: Project) -> bool:
+    """Before 0.4.1 the hash of a document's extracted text was called "sha256" in text-index.jsonl, which reads
+    like the hash of the file itself (an AI concluded from it that two different PDFs were the same file). It is
+    "text_sha256" now; an older index is renamed in place, once, keeping each row's order of fields."""
+    path = proj.documents_dir / "text-index.jsonl"
+    rows = util.load_jsonl(path) if path.exists() else []
+    if not any("sha256" in r for r in rows):
+        return False
+    util.save_jsonl(path, [{("text_sha256" if k == "sha256" else k): v for k, v in r.items()} for r in rows])
+    return True
+
+
 def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = True,
           retry_unreadable: bool = False, ocr: bool = True, max_files: int = 0) -> dict:
+    migrate(proj)
     out = proj.documents_dir
     texts_out, sheets_out = out / "text", out / "sheets"
     texts_out.mkdir(parents=True, exist_ok=True)
@@ -340,7 +353,7 @@ def build(proj: Project, scope: str = "all", resume: bool = True, prune: bool = 
 
     methods = Counter(r["method"] for r in final)
     exts = Counter(r["ext"] for r in final)
-    fingerprint = util.sha256_bytes(";".join(f"{r['key']}:{r['sha256']}" for r in final).encode("utf-8"))
+    fingerprint = util.sha256_bytes(";".join(f"{r['key']}:{r['text_sha256']}" for r in final).encode("utf-8"))
     every_row = util.csv_rows(proj.catalogue_dir / "all-files.csv")
     coverage = {
         "format_version": 1,
@@ -444,7 +457,7 @@ def _ocr_pass(rows: list[dict], roots: dict, texts_out: Path, windows_languages:
             if result.page_lines:
                 r["page_lines"] = result.page_lines
             r.update({"method": "ocr", "ocr_version": recognition.OCR_VERSION, "chars": len(result.text),
-                      "sha256": util.hash_file(path), "ocr_pages": result.pages,
+                      "text_sha256": util.hash_file(path), "ocr_pages": result.pages,
                       "ocr_readers": dict(sorted(result.readers.items())), "ocr_turned_pages": result.turned,
                       "ocr_empty_pages": result.empty, "ocr_doubtful_pages": result.doubtful})
             if result.pages < (r.get("pages") or result.page_count):
@@ -568,7 +581,7 @@ def _index_row(r: dict, key: str, txt: str, meta: dict, p: dict, out: Path, reco
         "chars": chars_count,
         "pages": meta.get("pages"),
         "needs_ocr": bool(meta.get("needs_ocr")),
-        "sha256": util.hash_file(ex.win_path(txt)),
+        "text_sha256": util.hash_file(ex.win_path(txt)),
         "file_mtime_utc": p["stamp"],
         "file_bytes": p["length"],
         "reader_version": p["version"],

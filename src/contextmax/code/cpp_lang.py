@@ -291,7 +291,7 @@ class _Reader:
         ext = os.path.splitext(rel)[1].lower()
         module, role = module_for(rel, self.depth), role_for(rel)
         info = {"module": module, "role": role, "lang": "C++", "ext": ext, "lines_count": clean.count("\n") + 1,
-                "includes": [m.group(2) for m in c_lang._INCLUDE.finditer(clean)], "defs_count": 0}
+                "includes": c_lang.includes_of(text, clean), "defs_count": 0}
         self.file_info[rel] = info
         self.macros.update(c_lang.macro_bodies(clean))
         if self.parser is None:

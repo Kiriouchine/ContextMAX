@@ -1,10 +1,12 @@
 """The AI skill for one project: how to find things in the index and how to answer with citations.
 
 One skill per project, named contextmax-<project>. It is written for Claude Code
-(~/.claude/skills) and for GitHub Copilot in VS Code (~/.copilot/skills). Next to SKILL.md it
-keeps project.txt (where the index is) and python.txt (the Python that has ContextMAX), so
-the skill never guesses a path. Notes a person wrote in <workspace>/notes/project-notes.md travel
-with it as references/project-notes.md and are read before the maps.
+(~/.claude/skills) and for GitHub Copilot in VS Code (~/.copilot/skills). SKILL.md is short: it
+starts the assistant with `contextmax brief`, one call that shows where a question leads, and holds
+the rules for answering; the Python and the working folder are written in, so no call is spent
+finding them. references/index-files.md describes every file of the index, read when a task needs
+it. Next to SKILL.md it also keeps project.txt and python.txt. Notes a person wrote in
+<workspace>/notes/project-notes.md travel with it as references/project-notes.md.
 """
 from __future__ import annotations
 
@@ -54,6 +56,9 @@ def compose(proj, python: str | None = None) -> str:
             f"something, or where a number comes from and whether the documents agree. Keywords: {_keywords(proj)}")
     desc = desc.replace("'", "’")[:1020]
     slug = proj.slug
+    py = str(python).replace("\\", "/")
+    ws = str(proj.workspace).replace("\\", "/")
+    folders = "; ".join(f"`{str(f.path).replace(chr(92), '/')}` ({f.holds})" for f in proj.folders) or "none"
     return f"""---
 name: contextmax-{slug}
 description: '{desc}'
@@ -61,22 +66,60 @@ description: '{desc}'
 
 # ContextMAX: {proj.name}
 
-A deterministic index of this project, built by scripts with no AI in the build: every file
-catalogued, every function with its exact `file:line`, who calls what, every document with its
-stage and outline, the links between documents and to the code, and every named value with the
-document, sheet and cell it came from. It is a fast way in, not the truth itself: cite what you
-find, and open the original before you rely on it.
+A ready index of this project (its code, its documents and every named value), built by scripts with no AI.
+It is the fast way in: one command shows where a question leads, with the lines to read. The files are the
+truth. ContextMAX only reads; it never edits the project's files.
 
-ContextMAX only reads. It never edits the project's files.
+## Start with one command
+Run it in Bash (Git Bash on Windows). In PowerShell write `& "{py}" -m contextmax ...`, and do not pipe its
+output into another program: PowerShell adds a byte-order mark that breaks it.
+
+    "{py}" -m contextmax brief {slug} "<the question, in the words the project would use>"
+
+In a few seconds it prints:
+- **Named in the question**: a function or named number the question names exactly, with its definition, its
+  callers (the line of each call), how far a change reaches, its uses, and every document line that names it.
+- **The part the question names** (a module such as laser_control): every named number of it (the value in
+  effect, the uses) and every value its documents state, marked where the documents differ.
+- **Ways in**: the places to read first, each with the line it points at, quoted, and for each family of
+  constants or each value among them every file or document that sets or states it.
+
+Its first line is the index's build date and confidence. Everything in it was read from the files and checked
+at the cited line: confirm by opening a few of those lines and reading the whole function or passage there,
+then search yourself only for what the brief does not cover. Rebuilding its lists by hand costs turns and
+adds nothing. Most questions need the brief and a few reads.
+
+## Going deeper (plain text; add --json for everything)
+`cmx` below means `"{py}" -m contextmax`.
+- `cmx find {slug} symbol|callers|impact <name>`: a function or a named number (#define, const, a
+  MATLAB or Python constant, a VHDL generic): where it is defined, every use (file:line and function), who
+  calls it, what a change reaches. Quote the impact's caveat: calls through pointers are not followed.
+- `cmx find {slug} doc "<words>"`: documents by title, and by their text, each hit at its line.
+- `cmx params {slug} --name "<name>" --compare`: every document that states a value, and whether they agree.
+  With no hit it lists names that share the words.
+- `cmx find {slug} code-for "<document>"`, `docs-for <name>`, `links "<document>"`: documents and code that
+  name each other; links between documents.
+- `cmx sheet {slug} --key <key> --trace "Sheet!B7"`: a workbook's cell traced back to its inputs, live.
+- `cmx status {slug}`: whether the files changed since the build (slower: it hashes every code file).
+
+## Where things are
+- A document's text, to read and quote: `{ws}/documents/text/<key>.txt` (lines as the brief cites them). The
+  original file's path is in `documents/text-index.jsonl`; `text_sha256` there is the hash of the extracted
+  text, not of the file, so two files with the same text share it.
+- The project's own folders: {folders}.
+- Notes the project's people wrote, read before anything inferred: `{ws}/notes/project-notes.md`
+  (also `references/project-notes.md` next to this file).
+- Every file of the index, what each holds, and how to read links and values: `references/index-files.md`
+  next to this file.
 
 ## The source is the truth
 ContextMAX is the way in, not the answer. A value, a link or a passage in the index tells you **where to
 look**; the document or the code says **what is true**. For every answer:
-1. Find it in the index (the tasks below): it gives the document and the line, the sheet and cell, or the
+1. Find it with the brief (or a lookup below): it gives the document and the line, the sheet and cell, or the
    code file and line.
 2. Open that source and read the whole passage, from the heading above to the next: the document's text at
-   the cited line (`$WORK\\documents\\text\\<key>.txt`, line `line_no`), the workbook's rows around the
-   cell, or the whole function in the code file at `file:line`.
+   the cited line (`{ws}/documents/text/<key>.txt`), the workbook's rows around the cell, or the whole
+   function in the code file at `file:line`.
 3. Follow what the passage points to (a table, a figure, a requirement, another document, a function it
    calls) and read that too. Where the extracted text is garbled (formulas, tables, figures, a scanned
    page), open the original (its path is in `text-index.jsonl`; for a PDF, the page) and read it there.
@@ -97,12 +140,6 @@ index says:
 - **Not found**: say plainly that the index and the sources you opened do not answer it, and list what you
   searched (names, words, files). Never fill a gap with a guess.
 
-## Use it for
-- "Where is the document about X?" / "find the requirements / test report / budget for Y"
-- "Where is `foo` defined?" (exact file and line) / "who calls `foo`, what breaks if I change it?"
-- "How does module X work?" / "which document specifies this code?"
-- "Where does this value come from, and do the documents agree?"
-
 ## How to answer: code and documents side by side
 Code is the authority for what the system **does today**; documents state **intent**. They can
 disagree, and finding that out is the point. For every how/why/what answer, write three parts:
@@ -121,22 +158,43 @@ Give parts 1 and 2 the same depth, and lead with code because it is what runs. N
 from a document into a code claim without saying which is which. A quick lookup (one location,
 one path) does not need the three parts.
 
-## First: locate the index
-- `project.txt` next to this file holds the working folder: call it `$WORK`.
-- `python.txt` holds the Python that has ContextMAX. Run every command below as
-  `& (Get-Content python.txt) -m contextmax ...` (PowerShell), shown here as `cmx`.
-- Read `$WORK\\notes\\project-notes.md` if it exists (also `references/project-notes.md` here): what the
-  project's people wrote down outweighs anything inferred.
-- Check freshness: `cmx status {slug} --json`.
-
 ### Status line: once per chat
-End your **first** substantive answer in a chat with one line, taken from `cmx status {slug}`:
+End your **first** substantive answer in a chat with one line, from the brief's first line:
 
-`- ContextMAX ({slug}): built <date> · <in sync | changed since the build> · confidence <High|Medium|Low> (<six words at most>)`
+`- ContextMAX ({slug}): built <date> · confidence <High|Medium|Low> (<six words at most>)`
 
-Lower the confidence yourself when the index is stale for what you used, when a source you needed
-was not read (pending, unreadable, scanned), or when you relied on a weak link. Do not repeat the
-line on later answers unless asked.
+Lower the confidence yourself when a source you needed was not read (pending, unreadable, scanned) or when you
+relied on a weak link. Do not repeat the line on later answers unless asked.
+
+## Traps
+- Run ContextMAX with the Python above. `python3` on Windows can open the Microsoft Store and hang.
+- Searching the project's whole folder can be slow and misleading: other tools' indexes and exports may lie in
+  it. Start from the brief, then search the folders and files it names.
+- Read-only: never write into the project's folders.
+- Absence needs proof: before saying something is not there, check `documents/text-coverage.json` and
+  `documents/not-read.csv` (documents that could not be read).
+- Never claim code compiles, or that a document normatively specifies code because it names it.
+
+Code bases:
+
+{table}
+
+Document stages: {stages}.
+
+## Keeping it current
+`cmx build {slug}` (quick: code and links), `--documents` (also new and changed documents), `--full`
+(everything, failed documents retried). The same folders give the same index: compare
+`outputs_hash` in `buildinfo.json`.
+"""
+
+
+def reference(proj) -> str:
+    """references/index-files.md: every file of the index and how to read its links and values (the skill
+    itself stays short; this is read when a task needs it)."""
+    slug = proj.slug
+    return f"""# The ContextMAX index of {proj.name}, file by file
+
+`$WORK` is the working folder: `{proj.workspace}`. `cmx` is the Python in the skill with `-m contextmax`.
 
 ## What is in `$WORK`
 - `catalogue\\all-files.csv`: every file. Columns `Folder,Priority,FirstFolder,Category,Products,DocNumbers,Name,Ext,Kilobytes,Modified,OnlineOnly,RelativePath`.
@@ -154,16 +212,10 @@ line on later answers unless asked.
   saying something is not there).
 - `pages\\`: the pages a person opens; `Home.html` at the top.
 
-Code bases:
-
-{table}
-
-Document stages: {stages}.
-
 ## Task 1: find a document
-`cmx find {slug} doc "<words or number>"`. Hits are mapped documents (their text is readable);
-`other_files` are catalogue matches of any kind. Prefer the newest copy: copies and revisions are
-folded into one document and listed under `copies`.
+`cmx find {slug} doc "<words or number>"`. First the documents whose title or path holds the words, then
+those whose text says them, each at the line that says most; `other_files` are catalogue matches of any kind.
+Prefer the newest copy: copies and revisions are folded into one document and listed under `copies`.
 
 ## Task 2: where is a function or entity defined
 `cmx find {slug} symbol <name>`. Prefer it to a text search: names also appear in comments and
@@ -194,9 +246,9 @@ Read `$WORK\\code\\<code base>\\code-guide.md`: modules with the calls between t
 function with its line range, and the entry points (product code nothing calls by name).
 
 ## Task 6: read what a document says
-Quote from `$WORK\\documents\\text\\<key>.txt` (key from task 1). Search all of them with
-`Select-String -Path "$WORK\\documents\\text\\*.txt" -Pattern "<words>"`. Not cached (not read or
-not downloaded)? Open the original at the path task 1 gives.
+Quote from `$WORK/documents/text/<key>.txt` (key from task 1). `cmx find {slug} doc "<words>"` searches
+all of them in one call; grep on `$WORK/documents/text/*.txt` works too. Not cached (not read or not
+downloaded)? Open the original at the path task 1 gives.
 
 ## Task 7: values, and where a number comes from
 - By name, the main lookup: `cmx params {slug} --name "<name>"`.
@@ -223,17 +275,6 @@ The index finds the value; the live workbook confirms it. Say which one you quot
 chips and devices), written by hand with the code that proves them, and shown on
 `pages\\connections.html`. No such file means nobody has recorded any: say so, do not infer them.
 
-## Ground rules
-- Read-only. Never write into the project's folders.
-- Prefer the index over scanning the folders.
-- Absence needs proof: check `text-coverage.json`, `not-read.csv` and `not-downloaded.csv` before saying
-  something does not exist.
-- Never claim code compiles or that a document normatively specifies code because it names it.
-
-## Keeping it current
-`cmx build {slug}` (quick: code and links), `--documents` (also new and changed documents), `--full`
-(everything, failed documents retried). The same folders give the same index: compare
-`outputs_hash` in `buildinfo.json`.
 """
 
 
@@ -251,8 +292,9 @@ def install(proj, host: str = "all", python: str | None = None) -> list[str]:
         util.save_text(dest / "SKILL.md", text)
         util.save_text(dest / "project.txt", str(proj.workspace))
         util.save_text(dest / "python.txt", python or sys.executable)
+        (dest / "references").mkdir(exist_ok=True)
+        util.save_text(dest / "references" / "index-files.md", reference(proj))
         if notes.exists():
-            (dest / "references").mkdir(exist_ok=True)
             shutil.copyfile(notes, dest / "references" / "project-notes.md")
         lines.append(f"{name}: {dest}")
     util.save_text(proj.path("skill", "SKILL.md"), text)

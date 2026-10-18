@@ -43,8 +43,11 @@ alone: no AI in the build, the same folders always give the same index. It never
   code does, what the documents intend, and whether they agree), cites every claim, and says what it did
   not check. The index is the way in, the documents and the code are the truth: the AI opens the source
   the index points to, answers from it, links it, and ends with its confidence (High, Medium or Low, and
-  why) or says plainly that nothing was found. Start one from the project's Home page, or ask a model that runs on this PC (Ollama,
-  llama.cpp, LM Studio): nothing leaves the PC.
+  why) or says plainly that nothing was found. The skill starts the assistant with `contextmax brief`: one
+  call, a few seconds, that shows where a question leads (code, named values with every use, document
+  passages), with the line each points at, so the assistant reads instead of searching. Start one from the
+  project's Home page, or ask a model that runs on this PC (Ollama, llama.cpp, LM Studio): nothing leaves
+  the PC.
 
 ## Install
 
@@ -146,16 +149,29 @@ of the project), and `<project>.code-workspace` opens them all in VS Code. Claud
 project's skill: **Claude Code** in a terminal is started with `/contextmax-<project>` as its first message,
 which loads the skill; **VS Code with Claude** waits for the project's VS Code window, brings it to the
 front and opens Claude's chat there with `/contextmax-<project>` typed in (Claude Code never sends a
-typed-in message by itself: write your question after it and press Enter).
+typed-in message by itself: write your question after it and press Enter). Claude Code is found where its
+installer puts it, even when that folder is not on the PATH.
+
+The skill is short and starts every question with `contextmax brief <project> "<question>"`. An assistant
+that searches by itself spends a turn on every search and every file it opens; the brief hands it in one
+call the places to read (named values, named numbers in the code, document sections and passages,
+functions, each with the line it points at), every file that sets each named number with its value and
+every use, and every document that states each value and whether they agree. The assistant then opens
+those lines and reads. `find symbol|callers|impact` covers named numbers as well as functions, `find doc`
+searches the documents' text as well as their titles, and every lookup prints plain text (`--json` for
+everything).
 
 **A model on this PC** asks Ollama, llama.cpp's server or LM Studio, whichever runs. It needs no skill:
 ContextMAX guides it step by step. It finds where the question leads in the index (values with their line,
-the other documents that state them, the code the index links them to, functions, passages), opens each
-file at that place, and has the model read one passage at a time: what the passage says, in its exact
-words with their line numbers, and what it points to, which is then read too. Every quote is looked up in
-the file; one the file does not hold is left out. The answer comes only from the quotes that hold, cites
-them as [1], [2], and ends with its confidence beside ContextMAX's own; when nothing relevant is read, the
-answer is a plain "not found". A model that can see (gemma4, qwen3.8) also reads the PDF pages as pictures,
+the code the index links them to, named numbers in the code, sections by their heading, functions,
+passages), every kind taking turns so that none fills every place, opens each file at that place, and has
+the model read one passage at a time: what the passage says, in its exact words with their line numbers,
+and what it points to, which is then read too. Every quote is looked up in the file; one the file does not
+hold is left out. Where a passage answers, ContextMAX looks up the rest itself: every document that states
+that value, every file that sets that named number and where it is used. The answer comes only from the
+quotes that hold and those look-ups, cites them as [1], [2], and ends with its confidence beside
+ContextMAX's own; when nothing relevant is read in six passages and six more, the answer is a plain "not
+found". A model that can see (gemma4, qwen3.8) also reads the PDF pages as pictures,
 so formulas, tables and figures are read from the original. The Ask page shows every step, with **Show the
 line**, **Open document** or **Open in editor**. Nothing leaves the PC. The window suggests a model for the
 PC's graphics memory (Qwen 3.8 27B with 20 GB or more) and can have Ollama download it. Larger models
@@ -172,8 +188,10 @@ contextmax build my-project                 # quick refresh after a code change
 contextmax build my-project --full          # everything, retrying documents that failed
 contextmax open my-project
 contextmax status my-project                # how fresh and complete the index is
+contextmax brief my-project "what is the settle time, and do the documents agree?"
 contextmax find my-project symbol pid_step
-contextmax find my-project impact pid_step
+contextmax find my-project impact PID_OUTPUT_LIMIT  # a function or a named number: its uses and their reach
+contextmax find my-project doc "settle time"        # documents by title and by text, with the line
 contextmax params my-project --name "settle time" --compare
 contextmax sheet my-project --key Error_budget --trace "Budget!B7"
 contextmax skill install my-project         # Claude Code, Copilot, and Codex where it is installed
@@ -190,9 +208,10 @@ Home.html           the front door
 buildinfo.json      what was mapped, how complete it is, and fingerprints to prove it
 catalogue\          every file, its category, priority and document numbers (all-files.csv)
 code\<base>\        function-list.jsonl, call-pairs.json, name-lookup.json, module-list.json, code-guide.md,
-                    values.jsonl (named numbers in the code)
+                    values.jsonl (named numbers in the code, each with every use)
 documents\          text\ and sheets\ (what was read), doc-list.jsonl (documents), doc-outlines.jsonl,
-                    params.sqlite (every value), value-conflicts.jsonl (values documents give differently),
+                    params.sqlite (every value), search.sqlite (the text and headings, searchable word by word),
+                    value-conflicts.jsonl (values documents give differently),
                     links\ (document and code links; value-to-code.jsonl: values against the code),
                     document-guide.md
 pages\              the pages

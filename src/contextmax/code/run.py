@@ -101,7 +101,7 @@ def map_target(target: dict, out: Path, workspace: Path | None = None) -> dict:
             summary["vhdl"] = vhdl_lang.map_vhdl(str(root), vhdl_files, out, target)
         util.live("coderead", target=target["name"], files=len(vhdl_files), language="VHDL")
     with util.progress("code", "named numbers in the code: constants, parameters, generics", len(rels) + len(vhdl_files)):
-        summary["values_count"] = values.write(out, {**found, "C++": cpp_files, "VHDL": vhdl_files}, file_info)
+        summary["values_count"] = values.write(out, {**found, "C++": cpp_files, "VHDL": vhdl_files}, file_info, defs)
     util.say("code", f"  {util.count(summary['values_count'], 'named number')} in the code (values.jsonl)")
     util.save_json(out / "overview.json", summary)
     return summary

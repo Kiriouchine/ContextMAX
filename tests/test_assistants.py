@@ -109,6 +109,26 @@ def test_starting_an_assistant_installs_its_skill_and_runs_what_it_should(built,
     assert "loads the project's skill" in message
 
 
+def test_claude_code_is_found_where_its_installer_puts_it_off_the_path(monkeypatch, tmp_path):
+    """Claude Code's installer puts claude.exe in ~/.local/bin without adding it to the PATH; npm puts codex.cmd
+    in %APPDATA%/npm. Both are found, and started by that path."""
+    import os
+
+    monkeypatch.setattr(assistants, "_which", lambda name: None)
+    monkeypatch.setattr(assistants.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    off = {t["id"]: t for t in assistants.tools()}
+    assert not off["claude"]["ok"] and not off["codex"]["ok"]
+    claude = tmp_path / ".local" / "bin" / ("claude.exe" if os.name == "nt" else "claude")
+    codex = (tmp_path / "Roaming" / "npm" / "codex.cmd") if os.name == "nt" else (tmp_path / ".local" / "bin" / "codex")
+    for f in (claude, codex):
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"")
+    on = {t["id"]: t for t in assistants.tools()}
+    assert on["claude"]["ok"] and on["codex"]["ok"]
+    assert assistants._installed("claude") == str(claude) and assistants._installed("codex") == str(codex)
+
+
 def test_codex_gets_the_skill_only_where_codex_is(built, monkeypatch, tmp_path):
     monkeypatch.setattr(agentskill, "HOSTS", {"claude": tmp_path / ".claude" / "skills",
                                               "codex": tmp_path / ".codex" / "skills"})
@@ -119,14 +139,53 @@ def test_codex_gets_the_skill_only_where_codex_is(built, monkeypatch, tmp_path):
 
 def test_the_ways_in_come_from_the_index_each_place_once(built):
     ins = reading.ways_in(built, "What is the settle time, and do the documents agree?")
-    assert ins[0]["kind"] == "document" and "settle time" in ins[0]["why"]
+    first = [e["why"] for e in ins[:reading.MAX_SOURCES]]
+    assert "states settle time (3 documents state it)" in first                        # the value ...
+    assert "states settle time as 15 ms: the documents differ" in first                # ... each of its values ...
+    assert "the index links settle time to PID_SETTLE_TIME_MS in the code" in first    # ... and the code: in round one
     docs = {e["key"] for e in ins if e["kind"] == "document"}
     assert {"Detailed_design_v2.1", "Test_plan", "System_requirements_v1.2"} <= docs   # every one that states it
     assert "System_requirements_v1.1" not in docs                                      # a copy is read once
-    assert len({reading._place(e) for e in ins}) == len(ins) <= reading.MAX_SOURCES
+    assert len({reading._place(e) for e in ins}) == len(ins) <= reading.MAX_SOURCES * reading.MAX_ROUNDS
     code = reading.ways_in(built, "How does read_sensor remove the offset?")
     assert any(e["kind"] == "code" and e["file"].endswith("sensor.c") for e in code)
     assert reading.ways_in(built, "the and of") == []
+
+
+def test_no_kind_of_way_in_fills_every_place():
+    """A value stated in many documents does not keep the code from being read: the kinds take turns, best first;
+    a kind far below the best is not read; a place already taken gives that kind's turn to its next way in."""
+    def way(kind, n, score, file=None):
+        return {"kind": kind, "score": score, "rest": [],
+                "lead": [{"kind": "code", "root": "r", "file": file or f"{kind}{n}.c", "line": 1, "why": f"{kind} {n}"}]}
+
+    groups = [way("value", n, 3.0) for n in range(20)] + [way("code value", 0, 5.0), way("passage", 0, 2.6),
+                                                          way("passage", 1, 2.6, file="value1.c"), way("function", 0, 1.0)]
+    out = reading._in_turns(groups, 8)
+    assert [e["why"] for e in out[:5]] == ["code value 0", "value 0", "passage 0", "value 1", "value 2"]
+    assert len(out) == 8 and not any(e["why"].startswith("function") for e in out)   # 1.0 is less than half of 5.0
+
+
+def test_contextmax_looks_up_every_file_that_sets_a_number_and_where_it_is_used(built):
+    ix = ask._index(built)
+    asked = ask.Asked(ix, ask.words("the PID output limit"))
+    group = next(g for g in ask.code_value_groups(ix, asked) if g["name"] == "PID_OUTPUT_LIMIT")
+    found = reading.look_up(built, group)
+    line = found["quotes"][0]
+    assert line["text"] == "#define PID_OUTPUT_LIMIT 1000" and line["where"].endswith("pid.h:" + str(line["line"]))
+    assert "pid.c (" in line["note"] and found["says"].startswith("PID_OUTPUT_LIMIT is set once, in 1 file, always 1000")
+    # a family: names that differ only in their numbers are one way in, every member looked up
+    fam = {"kind": "code value", "name": "PID_<n>", "members": [
+        (t, v) for t, v in ix["code_values"] if v["name"] in ("PID_OUTPUT_LIMIT", "PID_SETTLE_TIME_MS")]}
+    assert "with 2 different values, from 12 to 1000" in reading.look_up(built, fam)["says"]
+    # a value: every document that states it, each line found in its document
+    values = next(g for g in ask.value_groups(ix, ask.Asked(ix, ["settle", "time"])) if g["label_norm"] == "settle time")
+    stated = reading.look_up(built, values)
+    assert "with 2 different values (the documents differ)" in stated["says"]
+    assert {q["key"] for q in stated["quotes"]} >= {"Detailed_design_v2.1", "Test_plan", "System_requirements_v1.2"}
+    msgs = reading.answer_messages(built, "the settle time", [], [found, stated])
+    assert "[2] settle time: every document that states it" in msgs[1]["content"]
+    assert "ContextMAX looked this up in the files itself" in msgs[1]["content"] and "how many" in msgs[1]["content"]
 
 
 class _FakeModel(BaseHTTPRequestHandler):

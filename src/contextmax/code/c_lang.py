@@ -96,6 +96,13 @@ def blank_out(text: str) -> str:
     return "".join(out)
 
 
+def includes_of(text: str, clean: str) -> list[str]:
+    """The files a C or C++ file includes. Found on the blanked text, so an #include in a comment does not
+    count; the name is taken from the file itself at the same columns, because blanking empties a "quoted"
+    name (it is a string literal)."""
+    return [text[m.start(2):m.end(2)].strip() for m in _INCLUDE.finditer(clean)]
+
+
 def _blank_literal(text: str, out: list, start: int) -> int:
     """Blank one quoted literal; return where scanning resumes. The quotes themselves stay, and
     a literal left open ends at its line end instead of swallowing the next line."""
@@ -260,7 +267,7 @@ def _read_file(pair: tuple[str, str]) -> dict:
     prototypes = [m.group("name") for m in _PROTOTYPE.finditer(code)
                   if m.group("name") not in NOT_A_FUNCTION] if ext == ".h" else []
     info = {"module": module, "role": role, "lang": "C", "ext": ext, "lines_count": clean.count("\n") + 1,
-            "includes": [m.group(2) for m in _INCLUDE.finditer(clean)], "defs_count": len(found)}
+            "includes": includes_of(text, clean), "defs_count": len(found)}
     return {"macros": macro_bodies(clean), "found": found, "starts": starts, "prototypes": prototypes, "info": info}
 
 

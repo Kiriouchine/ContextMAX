@@ -18,6 +18,7 @@
 .quotes { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:13px; }
 .quotes li { border:0 !important; padding:0 !important; background:none !important; }
 .quotes .fixed { font-size:12px; color:var(--muted, #6b7280); }
+.quotes a { margin-left:8px; font-size:12.5px; }
 select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule); background:var(--surface); color:var(--text); padding:4px 8px; max-width:100%; }
 .trail { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13.5px; }
 .trail li { border-left:3px solid var(--rule); padding:2px 0 2px 10px; }
@@ -39,12 +40,12 @@ select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule);
 <span class="spacer"></span><button type="button" class="iconbtn" id="theme">Dark</button></header>
 <main class="column" style="gap:22px;max-width:980px">
 <section><h1 class="headline" style="font-size:30px">Ask a model on this PC</h1>
-<p class="quiet" style="margin:6px 0 0;line-height:22px">The documents and the code are the truth; the index is the way in. ContextMAX finds where your question leads (values, passages, functions, named numbers in the code), opens each of those files at that place, and has a model that runs on this PC read them one passage at a time: what the passage says, in its exact words, and what it points to, which is then read too. Every quote is looked up in the file; one the file does not hold is left out. The answer comes only from the quotes that hold, and ends with its confidence beside ContextMAX's own. Nothing leaves the PC.</p></section>
+<p class="quiet" style="margin:6px 0 0;line-height:22px">The documents and the code are the truth; the index is the way in. ContextMAX finds where your question leads (values, passages, functions, named numbers in the code), opens each of those files at that place, and has a model that runs on this PC read them one passage at a time: what the passage says, in its exact words, and what it points to, which is then read too. Every quote is looked up in the file; one the file does not hold is left out. Where a passage answers, ContextMAX looks up the rest itself: every document that states that value, every file that sets that named number and where it is used. The answer comes only from the quotes that hold and those look-ups, and ends with its confidence beside ContextMAX's own. Nothing leaves the PC.</p></section>
 <section class="tile askbox">
 <div class="hstack" style="margin:0"><label class="quiet" for="model">Model</label><select id="model" class="model"></select><span class="quiet" id="servers"></span></div>
 <div class="suggest" id="suggest" hidden></div>
 <textarea id="q" placeholder="For example: what is the settle time, and do the documents and the code agree?"></textarea>
-<div class="hstack" style="margin:0"><button type="button" class="btn" id="go">Ask</button><span class="quiet" id="state">The model reads up to nine passages, one at a time: this takes from a few seconds to a minute or two.</span></div>
+<div class="hstack" style="margin:0"><button type="button" class="btn" id="go">Ask</button><span class="quiet" id="state">The model reads the passages one at a time (six, and six more when the first say nothing): this takes from a few seconds to a few minutes.</span></div>
 </section>
 <section id="out" style="display:none;flex-direction:column;gap:14px">
 <h2 class="sec" style="margin:0">What was read</h2><ol class="trail" id="trail"></ol>
@@ -76,7 +77,7 @@ select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule);
     while ((m = NUMBER.exec(text))) out[norm(m[2])] = true;
     return out;
   }
-  function sourceText(s) { return (s.quotes || []).map(function (q) { return q.text; }).join(" ") + " " + (s.window.cite || ""); }
+  function sourceText(s) { return (s.quotes || []).map(function (q) { return [q.text, q.where || "", q.note || ""].join(" "); }).join(" ") + " " + (s.window.cite || "") + " " + (s.looked_up ? s.says || "" : ""); }
   // each sentence of the answer: its numbers must be in the checked words of a source it cites
   // the answer's claims: what comes before its "Confidence:" line (after it, the model explains its confidence)
   function claims(text) {
@@ -138,13 +139,17 @@ select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule);
     return acts.join("");
   }
   function trail(steps) {
-    var out = [], open = {};
+    var out = [], open = {}, n = 0;
     steps.forEach(function (e) {
       if (e.step === "read") { open[e.window.cite] = out.length; out.push({ e: e, done: null }); }
       else if (e.step === "read done" && open[e.window.cite] !== undefined) out[open[e.window.cite]].done = e;
+      else if (e.step === "more" || e.step === "looked up") out.push({ e: e });
     });
-    return out.map(function (x, i) {
+    return out.map(function (x) {
       var e = x.e, d = x.done, cls = !d ? "busy" : d.relevant ? "yes" : "no", what;
+      if (e.step === "more") return '<li class="no"><i>' + safe(e.why) + "</i></li>";
+      if (e.step === "looked up") return '<li class="yes"><b>ContextMAX</b> looked up ' + safe(e.window.cite) + links(e.window) + '<br><span class="why">' + safe(e.says) + "</span></li>";
+      var i = n++;
       if (!d) what = "reading …";
       else if (d.error) what = safe(d.error);
       else if (d.relevant) what = "<b>answers</b>: " + d.held + " quote" + (d.held === 1 ? "" : "s") + " found in the file" + (d.pictured ? ", " + d.pictured + " read in the picture" : "") +
@@ -153,12 +158,17 @@ select.model { min-height:36px; border-radius:8px; border:1px solid var(--rule);
       return '<li class="' + cls + '"><b>' + (i + 1) + ".</b> " + safe(e.window.cite) + ' <span class="why">· ' + safe(e.why) + "</span>" + links(e.window) + "<br>" + what + "</li>";
     }).join("");
   }
+  function quoteItem(q) {
+    var where = q.where ? safe(q.where) + " · found in the file" : q.checked ? "line " + q.line + " · found in the file" : "read in the picture · not checkable against text";
+    return "<li>“" + safe(q.text) + "” <span class=\"fixed\">" + where + "</span>" + links(q) +
+      (q.note ? '<br><span class="fixed">' + safe(q.note) + "</span>" : "") + "</li>";
+  }
   function source(s) {
-    return '<li id="src-' + s.n + '"><div class="cite"><b>[' + s.n + "]</b> " + safe(s.window.cite) + links(s.window) + "</div>" +
+    var shown = s.looked_up ? s.quotes.slice(0, 8) : s.quotes, more = s.looked_up ? s.quotes.slice(8) : [];
+    return '<li id="src-' + s.n + '"><div class="cite"><b>[' + s.n + "]</b> " + (s.looked_up ? "<b>ContextMAX looked it up:</b> " : "") + safe(s.window.cite) + links(s.window) + "</div>" +
       (s.says ? '<div class="quiet" style="font-size:13px;margin-top:4px">' + safe(s.says) + "</div>" : "") +
-      '<ul class="quotes">' + s.quotes.map(function (q) {
-        return "<li>“" + safe(q.text) + "” <span class=\"fixed\">" + (q.checked ? "line " + q.line + " · found in the file" : "read in the picture · not checkable against text") + "</span></li>";
-      }).join("") + "</ul></li>";
+      '<ul class="quotes">' + shown.map(quoteItem).join("") + "</ul>" +
+      (more.length ? '<details><summary class="quiet" style="font-size:13px;cursor:pointer">' + more.length + " more</summary><ul class=\"quotes\">" + more.map(quoteItem).join("") + "</ul></details>" : "") + "</li>";
   }
   function ask() {
     var q = $("#q").value.trim(), m = models[$("#model").value];

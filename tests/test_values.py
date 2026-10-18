@@ -210,9 +210,9 @@ def test_named_numbers_in_python_matlab_and_vhdl():
                                                    '    SETTLE_TIME: float = 0.012  # [s]\n    NAME = "pid"\n')}
     assert py["TIMEOUT_MS"]["unit"] == "ms" and py["Config.SETTLE_TIME"]["unit"] == "s" and "Config.NAME" not in py
     m = {r["name"]: r for r in V._matlab_values("Ts = 1e-3;  % sample time [s]\n% x = 4;\nfor i = 1:10\n"
-                                                 "settle_time_ms = 12; gain = 3;\n")}
+                                                 "settle_time_ms = 12; gain = 3;\n    I1 = 0.0031;\n    m  = 0.52;\n")}
     assert m["Ts"]["unit"] == "s" and m["Ts"]["comment"] == "sample time [s]" and m["settle_time_ms"]["unit"] == "ms"
-    assert "x" not in m and "i" not in m
+    assert "x" not in m and "i" not in m and m["I1"]["value"] == "0.0031" and "m" not in m
     vh = {r["name"]: r for r in V._vhdl_values("entity e is\n  generic (\n    CLK_FREQ_HZ : integer := 50_000_000;\n"
                                                 "    DEAD_TIME : time := 200 ns\n  );\nend entity;\narchitecture a of e is\n"
                                                 "  constant SETTLE_CYCLES : natural := 1200; -- settle time in cycles\n"
@@ -416,7 +416,7 @@ def test_a_recognised_scan_is_kept_when_only_the_pdf_reader_changes(built, tmp_p
         pdf.update(method="ocr", ocr_version=99, reader_version=2)       # recognised by an earlier ContextMAX
         pdf.pop("page_lines", None)
         text.write_text("recognised text", encoding="utf-8")
-        pdf["sha256"] = util.hash_file(text)
+        pdf["text_sha256"] = util.hash_file(text)
         util.save_jsonl(index, rows)
         monkeypatch.setattr(textcache.recognition, "OCR_VERSION", 99)
         textcache.build(built, ocr=False)
