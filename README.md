@@ -12,6 +12,11 @@ how sure it is. Free, open source, deterministic, and nothing leaves your PC.
 and press **Try it on a made-up project**. It builds the small motor controller from the animation, with
 firmware in C, FPGA logic in VHDL, MATLAB models, a Python tool and nine documents that do not all agree.
 
+**Try it at scale:** the [large-scale demo](https://github.com/Kiriouchine/ContextMAX-scale-demo) is a
+synthetic project of 20,060 files (10,060 code files, 10,000 documents) with planted faults to find, the
+[replay of its build](https://kiriouchine.github.io/ContextMAX-scale-demo/), and questions to ask with
+their answers. ContextMAX indexes it in about three minutes.
+
 **Choose your project's folders. Get a map of the code, a map of the documents, every named value with
 its source, and the links between all of them. Then let your AI answer with citations.**
 
